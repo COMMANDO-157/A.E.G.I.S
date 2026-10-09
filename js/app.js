@@ -1,3 +1,4 @@
+import { renderPortalView, initPortalView } from './views/portal.js';
 /**
  * A.E.G.I.S — Application Router & Bootstrap Controller
  * Manages client-side hash routing (#home, #report, #track, #dashboard),
@@ -13,6 +14,9 @@ import { renderTrackView, initTrackView } from './views/track.js';
 import { renderDashboardView, initDashboardView } from './views/dashboard.js';
 
 const routes = {
+  '#student': { title: 'Student Portal — A.E.G.I.S', render: renderPortalView, init: initPortalView },
+  '#authority': { title: 'Authority Portal — A.E.G.I.S', render: renderPortalView, init: initPortalView },
+  '#admin': { title: 'Administrator Portal — A.E.G.I.S', render: renderPortalView, init: initPortalView },
   '#home': {
     title: 'A.E.G.I.S — Campus Safety & Grievance Shield',
     render: renderHomeView,

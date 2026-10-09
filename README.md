@@ -104,3 +104,6 @@ existing Chromium executable. Neither is required to run the application.
 All scenarios are fictional. The app does not provide production authentication,
 confidential storage, evidence security, or emergency dispatch. Evidence handling
 stores demonstration metadata only.
+
+## Authenticated portals (Stage 3.0)
+See [STAGE3_SETUP.md](STAGE3_SETUP.md) for Google sign-in, PostgreSQL migrations, staff approval, local backend instructions and current limitations. Live credentials are not configured. Existing demo routes remain available.

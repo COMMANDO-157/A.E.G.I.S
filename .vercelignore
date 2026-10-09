@@ -1,0 +1,6 @@
+node_modules/
+.env
+.env.*
+*.zip
+COMMAND-X_HackVerse_2026_Final/
+*preview.png

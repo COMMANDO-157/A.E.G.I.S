@@ -1,0 +1,18 @@
+{
+  "name": "aegis",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.7"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server/local.js",
+    "migrate": "node --env-file-if-exists=.env scripts/migrate.js",
+    "admin:bootstrap": "node --env-file-if-exists=.env scripts/bootstrap-admin.js",
+    "test:auth": "node --test test_auth.js"
+  },
+  "dependencies": {
+    "google-auth-library": "^10.5.0",
+    "pg": "^8.23.1"
+  }
+}

@@ -1,0 +1,12 @@
+node_modules/
+.env
+.env.*
+!.env.example
+*.log
+
+*.zip
+*preview.png
+COMMAND-X_HackVerse_2026_Final/
+.vercel/
+*.pem
+*.key

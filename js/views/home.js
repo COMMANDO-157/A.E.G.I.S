@@ -5,6 +5,7 @@
 
 export function renderHomeView() {
   return `
+<div class="portal-entry" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px"><a class="btn btn-secondary" href="#student">Student sign-in</a><a class="btn btn-secondary" href="#authority">Authority sign-in</a><a class="btn btn-secondary" href="#admin">Administrator sign-in</a></div>
     <div class="hero-section">
       <div class="hero-emblem"><svg class="holo-shield" viewBox="0 0 240 240" fill="none" aria-hidden="true">
   <circle class="shield-orbit" cx="120" cy="120" r="108" stroke="currentColor" stroke-opacity=".28" stroke-dasharray="100 20 3 20"/>
