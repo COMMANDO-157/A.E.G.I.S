@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="A.E.G.I.S — Automated Escalation, Grievance & Incident Shield. A responsive campus safety and harassment reporting system with deterministic multi-tier escalation." />
+  <title>A.E.G.I.S — Campus Safety & Grievance Shield</title>
+
+  <!-- Design System & Stylesheets -->
+  <link rel="stylesheet" href="css/variables.css" />
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/components.css" />
+  <link rel="stylesheet" href="css/views.css" />
+</head>
+<body>
+
+  <!-- Top Demo Disclaimer Strip (Refinement 4) -->
+  <aside class="demo-disclaimer-strip" role="note" aria-label="Prototype Notice">
+    <span class="demo-pill">COMPETITION PROTOTYPE</span>
+    <span>A.E.G.I.S Demonstration Environment &bull; Client-side storage only &bull; Verification PIN & Role switching are demonstration features</span>
+  </aside>
+
+  <!-- Accessible Skip Link -->
+  <a href="#main-content" class="sr-only">Skip to main content</a>
+
+  <!-- Header & Navigation -->
+  <header class="site-header" role="banner">
+    <div class="container nav-container">
+      <a href="#home" class="brand-wrapper" aria-label="A.E.G.I.S Home">
+        <div class="brand-shield" aria-hidden="true">🛡️</div>
+        <div class="brand-text">
+          <span class="brand-title">A.E.G.I.S</span>
+          <span class="brand-subtitle">Incident Shield</span>
+        </div>
+      </a>
+
+      <!-- Mobile Hamburger Toggle -->
+      <button type="button" id="mobile-menu-btn" class="mobile-menu-btn" aria-label="Toggle navigation menu" aria-expanded="false">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="3" y1="12" x2="21" y2="12"></line>
+          <line x1="3" y1="6" x2="21" y2="6"></line>
+          <line x1="3" y1="18" x2="21" y2="18"></line>
+        </svg>
+      </button>
+
+      <!-- Navigation Links -->
+      <nav role="navigation" aria-label="Main Navigation">
+        <ul id="nav-links-menu" class="nav-links">
+          <li><a href="#home" class="nav-link active">Home</a></li>
+          <li><a href="#report" class="nav-link">Report Incident</a></li>
+          <li><a href="#track" class="nav-link">Track Complaint</a></li>
+          <li><a href="#dashboard" class="nav-link">Authority Dashboard</a></li>
+          <li><a href="#report" class="nav-link nav-cta"><span>📢</span> File Report</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Application Landmark -->
+  <main id="main-content" class="container" role="main">
+    <div id="app-view-container">
+      <!-- Dynamic view content injected by js/app.js -->
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer style="background-color: var(--color-bg-surface); border-top: 1px solid var(--color-border-subtle); padding: var(--spacing-8) 0; margin-top: auto; font-size: var(--font-size-xs); color: var(--color-text-muted);">
+    <div class="container" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--spacing-4);">
+      <div>
+        <strong style="color: var(--color-text-primary);">A.E.G.I.S &bull; Automated Escalation, Grievance & Incident Shield</strong>
+        <div>90-Minute Web Development Competition Build &bull; Zero Build Step Architecture</div>
+      </div>
+      <div>
+        <span>Campus SOS Dispatch: <strong>1800-CAMPUS-SAFE</strong></span> &bull; 
+        <span>Confidential Whistleblower Protocol Active</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Accessible Global Modal Dialog Container -->
+  <div id="global-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title" style="font-size: 1.15rem; margin: 0; color: var(--color-text-primary);">Notice</h3>
+        <button type="button" class="btn-close" data-close-modal aria-label="Close dialog">&times;</button>
+      </div>
+      <div class="modal-body">
+        <!-- Content injected dynamically -->
+      </div>
+      <div class="modal-footer">
+        <!-- Footer buttons injected dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Accessible Toast Notification Container -->
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <!-- Vanilla ES6 Application Entrypoint -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

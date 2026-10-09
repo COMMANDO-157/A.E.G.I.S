@@ -1,2 +1,56 @@
 # A.E.G.I.S
 A.E.G.I.S (Automated Escalation, Grievance &amp; Incident Shield) is a campus safety platform for confidential incident reporting, complaint tracking, and automated authority escalation.
+
+## Overview
+A.E.G.I.S is a responsive, zero-build web application developed for rapid-deployment campus safety, grievance redressal, and anti-harassment protection. It eliminates administrative reporting bottlenecks and protects whistleblowers through multi-tier deterministic auto-escalation.
+
+## Tech Stack & Architecture
+- **Foundation:** Semantic HTML5, Modern CSS3, and Vanilla JavaScript (ES Modules).
+- **Architecture:** Zero-build single-page application (SPA) with client-side hash routing (`#home`, `#report`, `#track`, `#dashboard`).
+- **Design System:** Dark navy/teal palette with restrained cyan accents, subtle glassmorphism, responsive grid/flexbox layouts, and WCAG AA contrast compliance.
+- **Serving:** Static files runnable on any local web server (e.g., `python -m http.server 5500` or VS Code Live Server).
+
+## Core Capabilities
+1. **Incident Grievance Reporting:**
+   - Classification of online (digital/cyber) and offline (campus/hostel/lab) grievances.
+   - Comprehensive metadata capture: Date, time, location/platform, factual statement, optional suspect metadata.
+   - Optional evidence attachment with strict client-side format (`.jpg`, `.jpeg`, `.png`, `.webp`, `.pdf`) and size validation ($\le 5\text{MB}$).
+   - Three distinct confidentiality tiers:
+     - **Anonymous Mode:** Zero personal information collected or stored.
+     - **Confidential Whistleblower Mode:** Contact info collected but strictly masked from Tier 1 (HOD) and Tier 2 (Dean) displays, accessible only by Tier 3 (Higher Authority / Ombudsperson).
+     - **Standard Mode:** Transparent identity disclosure across all tiers.
+   - Dual-credential issuance upon filing: Unique Complaint Reference ID (e.g., `AEG-2026-X7K2`) + separate 6-digit demo verification PIN.
+
+2. **Dual-Credential Complaint Tracking:**
+   - Public tracking view strictly locked into read-only mode to prevent arbitrary tampering.
+   - Requires both Reference ID and 6-digit Verification PIN.
+   - Visual step-by-step escalation timeline with complete chronological audit records.
+
+3. **Deterministic Escalation Engine:**
+   - Case group correlation linking related incidents:
+     - **1st Report in Case:** Assigned to HOD (Department Triage).
+     - **2nd Report in Case:** Entire case group automatically escalated to Dean of Student Affairs.
+     - **3rd+ Reports in Case:** Entire case group auto-escalated to Higher Authority / Campus Ombudsperson.
+   - Append-only demonstration audit logging recording timestamps, actors, destination tiers, and administrative notes.
+
+4. **Authority Triage Dashboard:**
+   - Interactive demonstration role switcher (`HOD`, `Dean`, `Higher Authority`).
+   - Dynamic identity masking enforcing whistleblower shielding for HOD and Dean tiers.
+   - Triage actions: Case file inspection, status updates (`In Review`, `Under Investigation`, `Action Taken`, `Resolved`), and manual tier escalation.
+   - Fast demo reset button restoring factory seed records with one click.
+
+## Launch & Local Testing Instructions
+To launch the application locally, start a static web server from the repository root:
+
+```bash
+# Using Python 3:
+python -m http.server 5500
+```
+Open your browser and navigate to:
+```
+http://localhost:5500
+```
+
+## Demonstration & Security Disclosure
+- **Browser Storage:** This prototype uses browser `localStorage` for synthetic demo persistence. Real confidential records or evidence should not be stored in client-side storage.
+- **Verification PIN & Role Switcher:** Client-side role switching is provided exclusively for hackathon evaluation and does not replace server-side role-based access control (RBAC) and authentication.
