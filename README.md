@@ -14,6 +14,8 @@ A.E.G.I.S is a responsive, zero-build web application developed for rapid-deploy
 1. **Incident Grievance Reporting:**
    - Classification of online (digital/cyber) and offline (campus/hostel/lab) grievances.
    - Comprehensive metadata capture: Date, time, location/platform, factual statement, optional suspect metadata.
+   - Independent tracking of **Incident Severity** (Low, Moderate, Critical) and **Urgency** (Routine, Urgent, Immediate Danger).
+   - High-risk emergency guidance prompts linking directly to campus and national distress lines.
    - Optional evidence attachment with strict client-side format (`.jpg`, `.jpeg`, `.png`, `.webp`, `.pdf`) and size validation ($\le 5\text{MB}$).
    - Three distinct confidentiality tiers:
      - **Anonymous Mode:** Zero personal information collected or stored.
@@ -24,19 +26,21 @@ A.E.G.I.S is a responsive, zero-build web application developed for rapid-deploy
 2. **Dual-Credential Complaint Tracking:**
    - Public tracking view strictly locked into read-only mode to prevent arbitrary tampering.
    - Requires both Reference ID and 6-digit Verification PIN.
-   - Visual step-by-step escalation timeline with complete chronological audit records.
+   - Displays severity/urgency assessments, routing origin explanations, and step-by-step escalation timeline with complete chronological audit records.
 
-3. **Deterministic Escalation Engine:**
-   - Case group correlation linking related incidents:
-     - **1st Report in Case:** Assigned to HOD (Department Triage).
-     - **2nd Report in Case:** Entire case group automatically escalated to Dean of Student Affairs.
-     - **3rd+ Reports in Case:** Entire case group auto-escalated to Higher Authority / Campus Ombudsperson.
-   - Append-only demonstration audit logging recording timestamps, actors, destination tiers, and administrative notes.
+3. **Dual-Engine Escalation & Severity Routing:**
+   - **Decision Rule:** `Final Tier = MAX(Severity Tier, Repeat-Report Tier, Current Case Tier)`
+   - **Severity Routing:** Low $\rightarrow$ HOD (Tier 1), Moderate $\rightarrow$ Dean (Tier 2), Critical $\rightarrow$ Higher Authority (Tier 3). Critical cases immediately bypass lower tiers.
+   - **Linked-Case Escalation:** 1st Report $\rightarrow$ HOD, 2nd Report $\rightarrow$ Dean, 3rd+ Reports $\rightarrow$ Higher Authority.
+   - **Anti-Downgrade Guarantee:** Filing subsequent low-risk reports into an already escalated case group never automatically downgrades the case.
+   - **Case Group Synchronization:** All members of a linked case group are promoted to the maximum case tier while preserving full individual complaint history.
+   - Append-only demonstration audit logging recording timestamps, actors, destination tiers, and transparent rule-based justifications.
 
 4. **Authority Triage Dashboard:**
    - Interactive demonstration role switcher (`HOD`, `Dean`, `Higher Authority`).
    - Dynamic identity masking enforcing whistleblower shielding for HOD and Dean tiers.
-   - Triage actions: Case file inspection, status updates (`In Review`, `Under Investigation`, `Action Taken`, `Resolved`), and manual tier escalation.
+   - Triage actions: Case inspection, status updates (`In Review`, `Under Investigation`, `Action Taken`, `Resolved`).
+   - **Manual Routing Override Controls:** Authorized roles may override routing with mandatory administrative justification ($\ge 15$ characters); unauthorized downgrades of Critical incidents are strictly blocked.
    - Fast demo reset button restoring factory seed records with one click.
 
 ## Launch & Local Testing Instructions
@@ -49,6 +53,11 @@ python -m http.server 5500
 Open your browser and navigate to:
 ```
 http://localhost:5500
+```
+
+To run the automated verification suite:
+```bash
+node test_verification.js
 ```
 
 ## Demonstration & Security Disclosure

@@ -94,6 +94,47 @@ export function renderIdentityBadge(mode) {
 }
 
 /**
+ * Renders a severity badge.
+ * @param {string} severity - 'Low' | 'Moderate' | 'Critical'
+ */
+export function renderSeverityBadge(severity) {
+  const s = (severity || 'Low').toLowerCase();
+  if (s.includes('crit')) {
+    return `<span class="badge badge-escalated" style="box-shadow: 0 0 10px rgba(244,63,94,0.35);">⚡ Critical</span>`;
+  } else if (s.includes('mod')) {
+    return `<span class="badge badge-pending">⚠️ Moderate</span>`;
+  }
+  return `<span class="badge badge-demo">🔹 Low Risk</span>`;
+}
+
+/**
+ * Renders an urgency badge.
+ * @param {string} urgency - 'Routine' | 'Urgent' | 'Immediate Danger'
+ */
+export function renderUrgencyBadge(urgency) {
+  const u = (urgency || 'Routine').toLowerCase();
+  if (u.includes('immediate') || u.includes('danger')) {
+    return `<span class="badge badge-escalated">🆘 Immediate Danger</span>`;
+  } else if (u.includes('urgent')) {
+    return `<span class="badge badge-pending">⏱️ Urgent</span>`;
+  }
+  return `<span class="badge badge-demo">Routine</span>`;
+}
+
+/**
+ * Renders a routing origin badge.
+ */
+export function renderRoutingOriginBadge(origin) {
+  const orig = origin || 'Initial Triage';
+  let badgeClass = 'badge-demo';
+  if (orig.includes('Bypass')) badgeClass = 'badge-escalated';
+  else if (orig.includes('Linked')) badgeClass = 'badge-review';
+  else if (orig.includes('Override')) badgeClass = 'badge-confidential';
+
+  return `<span class="badge ${badgeClass}" style="font-size: 0.68rem;">${escapeHtml(orig)}</span>`;
+}
+
+/**
  * Modal Dialog Controller
  */
 export function openModal({ title, contentHtml, footerHtml = '', onClose = null }) {

@@ -1,12 +1,20 @@
 /**
  * A.E.G.I.S — Complaint Tracking View Component
  * Dual-credential lookup (Ref ID + 6-digit PIN), strictly read-only for reporters,
- * displaying escalation timeline, authority tier, and append-only demo audit logs.
+ * displaying escalation timeline, authority tier, independent severity/urgency, and audit trail.
  */
 
 import { store } from '../store.js';
 import { escapeHtml } from '../security.js';
-import { renderStatusBadge, renderAuthorityBadge, renderIdentityBadge, showToast } from '../ui.js';
+import { 
+  renderStatusBadge, 
+  renderAuthorityBadge, 
+  renderIdentityBadge, 
+  renderSeverityBadge, 
+  renderUrgencyBadge, 
+  renderRoutingOriginBadge, 
+  showToast 
+} from '../ui.js';
 
 export function renderTrackView() {
   return `
@@ -57,7 +65,7 @@ export function renderTrackView() {
           <div style="display: flex; gap: 6px; flex-wrap: wrap;">
             <button type="button" class="btn btn-secondary btn-sm chip-autofill" 
               data-ref="AEG-2026-X7K2" data-pin="482910">
-              Hostel Case (HOD Tier): AEG-2026-X7K2
+              Hostel Case (Dean Tier): AEG-2026-X7K2
             </button>
             <button type="button" class="btn btn-secondary btn-sm chip-autofill" 
               data-ref="AEG-2026-P9R4" data-pin="820145">
@@ -158,12 +166,15 @@ function renderComplaintDetails(complaint, container) {
       <!-- Status & Tier Header -->
       <div class="card-header" style="flex-wrap: wrap; gap: 8px;">
         <div>
-          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap;">
             <h2 style="font-size: 1.4rem; font-family: var(--font-family-mono); margin: 0; color: var(--color-primary-light);">
               ${escapeHtml(complaint.referenceId)}
             </h2>
             ${renderStatusBadge(complaint.status)}
             ${renderAuthorityBadge(complaint.assignedAuthority)}
+            ${renderSeverityBadge(complaint.severity)}
+            ${renderUrgencyBadge(complaint.urgency)}
+            ${renderRoutingOriginBadge(complaint.routingOrigin)}
           </div>
           <div style="font-size: 0.8rem; color: var(--color-text-muted);">
             Filed on: ${new Date(complaint.createdAt).toLocaleString()} | Case Group: 
@@ -182,7 +193,20 @@ function renderComplaintDetails(complaint, container) {
         <div>
           <strong>Read-Only Public Reporter Tracking Interface:</strong>
           Arbitrary editing or tampering is strictly locked on this screen. Only authenticated campus authorities 
-          can record investigation updates or adjust grievance statuses.
+          can record investigation updates, override routing with administrative justification, or adjust grievance statuses.
+        </div>
+      </div>
+
+      <!-- Rule-Based Risk Assessment Card (Refinement 3) -->
+      <div style="background-color: rgba(6, 182, 212, 0.08); border-left: 3px solid var(--color-primary); padding: var(--spacing-4); border-radius: var(--radius-md); margin-bottom: var(--spacing-5); font-size: 0.85rem;">
+        <div style="font-weight: 600; color: var(--color-primary-light); margin-bottom: 4px;">
+          📊 Transparent Rule-Based Routing Rationale:
+        </div>
+        <div style="color: var(--color-text-primary); line-height: 1.5;">
+          ${escapeHtml(complaint.severityReason || 'Standard procedural evaluation.')}
+        </div>
+        <div style="font-size: 0.75rem; color: var(--color-text-muted); margin-top: 4px;">
+          Routing Rule: <code>Final Tier = MAX(Severity Tier, Repeat-Report Tier, Current Case Tier)</code>
         </div>
       </div>
 
@@ -254,8 +278,8 @@ function renderComplaintDetails(complaint, container) {
         </p>
 
         <div class="timeline">
-          ${auditLogs.map((log, index) => {
-            const isEscalation = (log.action || '').includes('ESCALAT');
+          ${auditLogs.map((log) => {
+            const isEscalation = (log.action || '').includes('ESCALAT') || (log.action || '').includes('BYPASS');
             return `
               <div class="timeline-step completed ${isEscalation ? 'escalated' : ''}">
                 <div class="timeline-icon"></div>

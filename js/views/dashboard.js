@@ -1,17 +1,27 @@
 /**
  * A.E.G.I.S — Authority Triage Dashboard Component
  * Role-specific demonstration views (HOD, Dean, Higher Authority).
- * Enforces identity masking (shields confidential whistleblowers from HOD/Dean),
- * provides triage actions, manual escalation, and append-only audit tracking.
+ * Displays severity, assessment reasons, routing origin, enforces whistleblower masking,
+ * provides triage actions, and enables manual routing overrides with mandatory justification
+ * and strict anti-downgrade protections.
  */
 
 import { store } from '../store.js';
 import { escapeHtml, maskIdentity } from '../security.js';
-import { renderStatusBadge, renderAuthorityBadge, renderIdentityBadge, openModal, closeModal, showToast } from '../ui.js';
-import { AUTHORITY_TIERS } from '../escalation.js';
+import { 
+  renderStatusBadge, 
+  renderAuthorityBadge, 
+  renderSeverityBadge, 
+  renderUrgencyBadge, 
+  renderRoutingOriginBadge, 
+  openModal, 
+  closeModal, 
+  showToast 
+} from '../ui.js';
+import { AUTHORITY_TIERS, SEVERITY_LEVELS } from '../escalation.js';
 
 let currentRole = AUTHORITY_TIERS.HOD;
-let currentFilter = 'my-tier'; // 'my-tier' | 'all' | 'escalated' | 'resolved'
+let currentFilter = 'my-tier'; // 'my-tier' | 'all' | 'critical' | 'escalated' | 'resolved'
 
 export function renderDashboardView() {
   return `
@@ -29,7 +39,7 @@ export function renderDashboardView() {
       </div>
     </div>
 
-    <!-- Demonstration Role Disclaimer Notice (Refinement 4) -->
+    <!-- Demonstration Role Disclaimer Notice -->
     <div class="alert alert-warning" style="margin-bottom: var(--spacing-6);">
       <div style="font-size: 1.25rem;">⚠️</div>
       <div>
@@ -37,7 +47,7 @@ export function renderDashboardView() {
         <p style="margin: 3px 0 0; color: inherit; font-size: 0.85rem;">
           This interactive role switcher is provided exclusively for competition evaluation. 
           Client-side JavaScript does not constitute genuine security or role-based access control (RBAC). 
-          In production, tiers are cryptographically authenticated via institution SSO and server-side RBAC.
+          In production, tiers are cryptographically authenticated via institutional SSO and server-side RBAC.
         </p>
       </div>
     </div>
@@ -72,6 +82,9 @@ export function renderDashboardView() {
         <button type="button" class="btn btn-secondary btn-sm filter-tab ${currentFilter === 'all' ? 'btn-primary' : ''}" data-filter="all">
           All Cases
         </button>
+        <button type="button" class="btn btn-secondary btn-sm filter-tab ${currentFilter === 'critical' ? 'btn-primary' : ''}" data-filter="critical">
+          ⚡ Critical Risks
+        </button>
         <button type="button" class="btn btn-secondary btn-sm filter-tab ${currentFilter === 'escalated' ? 'btn-primary' : ''}" data-filter="escalated">
           Escalated Cases
         </button>
@@ -93,9 +106,9 @@ export function renderDashboardView() {
 
     <!-- Triage Table -->
     <div class="card" style="padding: 0; overflow: hidden;">
-      <div style="padding: var(--spacing-4) var(--spacing-6); border-bottom: 1px solid var(--color-border-subtle); display: flex; justify-content: space-between; align-items: center;">
+      <div style="padding: var(--spacing-4) var(--spacing-6); border-bottom: 1px solid var(--color-border-subtle); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
         <h3 style="font-size: 1rem; margin: 0; color: var(--color-text-primary);">
-          Grievance Triage Queue
+          Grievance Triage & Escalation Queue
         </h3>
         <span id="queue-count-badge" class="badge badge-demo">0 Records</span>
       </div>
@@ -105,10 +118,10 @@ export function renderDashboardView() {
           <thead>
             <tr>
               <th>Ref ID & Case</th>
-              <th>Category</th>
+              <th>Category & Severity</th>
               <th>Incident Time</th>
               <th>Reporter Identity</th>
-              <th>Assigned Tier</th>
+              <th>Assigned Tier & Origin</th>
               <th>Status</th>
               <th style="text-align: right;">Actions</th>
             </tr>
@@ -188,6 +201,8 @@ function updateDashboardContent() {
   let filtered = allComplaints;
   if (currentFilter === 'my-tier') {
     filtered = allComplaints.filter(c => c.assignedAuthority === currentRole);
+  } else if (currentFilter === 'critical') {
+    filtered = allComplaints.filter(c => c.severity === SEVERITY_LEVELS.CRITICAL);
   } else if (currentFilter === 'escalated') {
     filtered = allComplaints.filter(c => c.status === 'Escalated' || c.assignedAuthority !== AUTHORITY_TIERS.HOD);
   } else if (currentFilter === 'resolved') {
@@ -197,7 +212,7 @@ function updateDashboardContent() {
   // Update statistics
   const roleComplaints = allComplaints.filter(c => c.assignedAuthority === currentRole);
   const pendingCount = roleComplaints.filter(c => c.status === 'Pending' || c.status === 'In Review').length;
-  const escalatedCount = allComplaints.filter(c => c.status === 'Escalated').length;
+  const criticalCount = allComplaints.filter(c => c.severity === SEVERITY_LEVELS.CRITICAL).length;
   const resolvedCount = roleComplaints.filter(c => c.status === 'Resolved').length;
 
   statsGrid.innerHTML = `
@@ -207,11 +222,11 @@ function updateDashboardContent() {
     </div>
     <div class="stat-card">
       <div class="stat-num" style="color: #fbbf24;">${pendingCount}</div>
-      <div class="stat-label">Awaiting Triage / Review</div>
+      <div class="stat-label">Awaiting Review</div>
     </div>
     <div class="stat-card">
-      <div class="stat-num" style="color: #fb7185;">${escalatedCount}</div>
-      <div class="stat-label">Total Escalated Cases</div>
+      <div class="stat-num" style="color: #fb7185;">${criticalCount}</div>
+      <div class="stat-label">Campus Critical Risks</div>
     </div>
     <div class="stat-card">
       <div class="stat-num" style="color: #34d399;">${resolvedCount}</div>
@@ -248,7 +263,10 @@ function updateDashboardContent() {
 
         <td>
           <div style="font-weight: 500;">${escapeHtml(c.category)}</div>
-          <div style="font-size: 0.75rem; color: var(--color-text-muted);">${escapeHtml(c.incidentType)}</div>
+          <div style="display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap;">
+            ${renderSeverityBadge(c.severity)}
+            ${renderUrgencyBadge(c.urgency)}
+          </div>
         </td>
 
         <td style="font-size: 0.8rem; color: var(--color-text-secondary); white-space: nowrap;">
@@ -263,7 +281,8 @@ function updateDashboardContent() {
         </td>
 
         <td>
-          ${renderAuthorityBadge(c.assignedAuthority)}
+          <div>${renderAuthorityBadge(c.assignedAuthority)}</div>
+          <div style="margin-top: 4px;">${renderRoutingOriginBadge(c.routingOrigin)}</div>
         </td>
 
         <td>
@@ -278,7 +297,9 @@ function updateDashboardContent() {
             <button type="button" class="btn btn-secondary btn-sm btn-action" data-id="${escapeHtml(c.id)}" title="Update Case Status / Add Remarks">
               ✏️ Status
             </button>
-            ${renderEscalateButton(c)}
+            <button type="button" class="btn btn-danger btn-sm btn-override" data-id="${escapeHtml(c.id)}" title="Override Authority Routing / Escalate Tier">
+              ⚡ Override
+            </button>
           </div>
         </td>
       </tr>
@@ -300,32 +321,12 @@ function updateDashboardContent() {
     });
   });
 
-  tbody.querySelectorAll('.btn-manual-escalate').forEach(btn => {
+  tbody.querySelectorAll('.btn-override').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = btn.getAttribute('data-id');
-      const targetTier = btn.getAttribute('data-target-tier');
-      openManualEscalateModal(id, targetTier);
+      openOverrideModal(id);
     });
   });
-}
-
-function renderEscalateButton(complaint) {
-  if (currentRole === AUTHORITY_TIERS.HOD && complaint.assignedAuthority === AUTHORITY_TIERS.HOD) {
-    return `
-      <button type="button" class="btn btn-danger btn-sm btn-manual-escalate" 
-        data-id="${escapeHtml(complaint.id)}" data-target-tier="${AUTHORITY_TIERS.DEAN}">
-        ⚡ To Dean
-      </button>
-    `;
-  } else if (currentRole === AUTHORITY_TIERS.DEAN && complaint.assignedAuthority === AUTHORITY_TIERS.DEAN) {
-    return `
-      <button type="button" class="btn btn-danger btn-sm btn-manual-escalate" 
-        data-id="${escapeHtml(complaint.id)}" data-target-tier="${AUTHORITY_TIERS.HIGHER_AUTH}">
-        ⚡ To Higher Auth
-      </button>
-    `;
-  }
-  return '';
 }
 
 function openInspectModal(id) {
@@ -335,22 +336,38 @@ function openInspectModal(id) {
   const masked = maskIdentity(complaint, currentRole);
   const auditLogs = complaint.auditLogs || [];
 
-  // Check linked cases
   const allInCase = complaint.caseGroupId 
-    ? store.getComplaints().filter(c => c.caseGroupId === complaint.caseGroupId)
+    ? store.getComplaints().filter(c => (c.caseGroupId || '').trim() === (complaint.caseGroupId || '').trim())
     : [complaint];
 
   const content = `
     <div style="margin-bottom: var(--spacing-4);">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
         <span style="font-size: 1.1rem; font-weight: 700; color: var(--color-primary-light);">
           Reference ID: ${escapeHtml(complaint.referenceId)}
         </span>
-        ${renderStatusBadge(complaint.status)}
+        <div style="display: flex; gap: 6px;">
+          ${renderSeverityBadge(complaint.severity)}
+          ${renderUrgencyBadge(complaint.urgency)}
+          ${renderStatusBadge(complaint.status)}
+        </div>
       </div>
       <div style="font-size: 0.8rem; color: var(--color-text-muted);">
         Verification PIN: <code>${escapeHtml(complaint.verificationPin)}</code> (Demo Key) | 
         Case Group: <code>${escapeHtml(complaint.caseGroupId || 'Independent')}</code> (${allInCase.length} Linked Reports)
+      </div>
+    </div>
+
+    <!-- Rule-Based Risk Assessment Details (Refinement 3) -->
+    <div style="background-color: rgba(6, 182, 212, 0.08); border-left: 3px solid var(--color-primary); padding: var(--spacing-4); border-radius: var(--radius-md); margin-bottom: var(--spacing-4); font-size: 0.85rem;">
+      <div style="font-weight: 600; color: var(--color-primary-light); margin-bottom: 4px;">
+        📊 Transparent Rule-Based Risk Assessment Explanation:
+      </div>
+      <div style="color: var(--color-text-primary); line-height: 1.5;">
+        ${escapeHtml(complaint.severityReason || 'Standard procedural evaluation.')}
+      </div>
+      <div style="font-size: 0.75rem; color: var(--color-text-muted); margin-top: 6px;">
+        Routing Mechanism: <strong>${escapeHtml(complaint.routingOrigin || 'Dual-Engine Triage')}</strong> &bull; Current Assigned Authority: <strong>${escapeHtml(complaint.assignedAuthority)}</strong>
       </div>
     </div>
 
@@ -392,7 +409,7 @@ function openInspectModal(id) {
         <strong style="color: #fb7185; font-size: 0.85rem;">⚠️ Correlated Case Group (${allInCase.length} Reports Linked):</strong>
         <div style="font-size: 0.8rem; margin-top: 4px;">
           ${allInCase.map(m => `
-            <div>• Ref <strong>${escapeHtml(m.referenceId)}</strong> (${escapeHtml(m.category)}) — Status: ${escapeHtml(m.status)}</div>
+            <div>• Ref <strong>${escapeHtml(m.referenceId)}</strong> (${escapeHtml(m.category)}) — Tier: ${escapeHtml(m.assignedAuthority)} | Status: ${escapeHtml(m.status)}</div>
           `).join('')}
         </div>
       </div>
@@ -476,49 +493,80 @@ function openStatusModal(id) {
   });
 }
 
-function openManualEscalateModal(id, targetTier) {
+/**
+ * Manual Routing Override Modal (Refinement 4)
+ * Allows authorized roles to override routing or escalate to any tier,
+ * strictly validating mandatory justification and blocking unauthorized downgrades.
+ */
+function openOverrideModal(id) {
   const complaint = store.getComplaintById(id);
   if (!complaint) return;
 
   const content = `
     <div style="margin-bottom: var(--spacing-4);">
-      <p style="font-size: 0.9rem;">
-        Are you sure you want to escalate case <strong>${escapeHtml(complaint.referenceId)}</strong> 
-        ${complaint.caseGroupId ? `(and all correlated cases under <code>${escapeHtml(complaint.caseGroupId)}</code>)` : ''} 
-        from <strong>${escapeHtml(currentRole)}</strong> directly to <strong>${escapeHtml(targetTier)}</strong>?
+      <p style="font-size: 0.9rem; margin-bottom: 8px;">
+        Case Reference: <strong>${escapeHtml(complaint.referenceId)}</strong> | 
+        Current Tier: <strong>${escapeHtml(complaint.assignedAuthority)}</strong> | 
+        Severity: <strong>${escapeHtml(complaint.severity)}</strong>
       </p>
+      <div class="alert alert-info" style="font-size: 0.8rem; margin-bottom: var(--spacing-4);">
+        <div>ℹ️</div>
+        <div>
+          Automated routing acts as a rule-based recommendation. Authorized demo roles may re-assign or escalate tiers. 
+          A detailed administrative justification is mandatory. Unauthorized downgrades of Critical incidents are strictly blocked.
+        </div>
+      </div>
     </div>
 
-    <div class="form-group">
-      <label class="form-label" for="manual-escalate-remarks">
-        Escalation Justification <span class="required">*</span>
-      </label>
-      <textarea id="manual-escalate-remarks" class="form-textarea" rows="3" 
-        placeholder="Document the administrative reason requiring tier advancement..." required></textarea>
-    </div>
+    <form id="form-override-routing">
+      <div class="form-group">
+        <label class="form-label" for="select-target-tier">Target Authority Tier <span class="required">*</span></label>
+        <select id="select-target-tier" class="form-select">
+          <option value="${AUTHORITY_TIERS.HOD}" ${complaint.assignedAuthority === AUTHORITY_TIERS.HOD ? 'selected' : ''}>🏢 Tier 1: HOD (Department Triage)</option>
+          <option value="${AUTHORITY_TIERS.DEAN}" ${complaint.assignedAuthority === AUTHORITY_TIERS.DEAN ? 'selected' : ''}>🎓 Tier 2: Dean of Student Affairs</option>
+          <option value="${AUTHORITY_TIERS.HIGHER_AUTH}" ${complaint.assignedAuthority === AUTHORITY_TIERS.HIGHER_AUTH ? 'selected' : ''}>⚖️ Tier 3: Higher Authority / Campus Ombudsperson</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="override-justification">
+          Administrative Justification <span class="required">*</span>
+        </label>
+        <textarea id="override-justification" class="form-textarea" rows="3" 
+          placeholder="Document the administrative rationale for routing override (minimum 15 characters)..." required minlength="15"></textarea>
+        <span id="err-override-msg" class="form-error-msg"></span>
+      </div>
+    </form>
   `;
 
   const footer = `
     <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
-    <button type="button" id="btn-confirm-escalate" class="btn btn-danger">Confirm Escalation to ${escapeHtml(targetTier)}</button>
+    <button type="button" id="btn-confirm-override" class="btn btn-danger">Confirm Routing Override</button>
   `;
 
   openModal({
-    title: `Confirm Case Escalation &rarr; ${targetTier}`,
+    title: `Manual Routing Override — ${complaint.referenceId}`,
     contentHtml: content,
     footerHtml: footer
   });
 
-  document.getElementById('btn-confirm-escalate')?.addEventListener('click', () => {
-    const remarks = document.getElementById('manual-escalate-remarks').value.trim();
-    if (!remarks) {
-      showToast('Escalation justification is required for the audit log', 'error');
+  document.getElementById('btn-confirm-override')?.addEventListener('click', () => {
+    const targetTier = document.getElementById('select-target-tier').value;
+    const reason = document.getElementById('override-justification').value.trim();
+    const errMsg = document.getElementById('err-override-msg');
+    errMsg.classList.remove('visible');
+
+    const result = store.overrideComplaintRouting(id, targetTier, reason, currentRole);
+
+    if (!result.success) {
+      errMsg.textContent = result.error;
+      errMsg.classList.add('visible');
+      showToast(result.error, 'error');
       return;
     }
 
-    store.manualEscalate(id, targetTier, remarks, currentRole);
     closeModal();
     updateDashboardContent();
-    showToast(`Case successfully escalated to ${targetTier}`, 'success');
+    showToast(`Case routing successfully overridden to ${targetTier}`, 'success');
   });
 }

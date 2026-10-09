@@ -1,12 +1,13 @@
 /**
  * A.E.G.I.S — Incident Reporting View Component
  * Multi-section confidential incident submission form with validation,
- * case linking, evidence checking, and confirmation credentials modal.
+ * independent severity & urgency indicators, reliable case group linking,
+ * emergency guidance, and credentials receipt modal.
  */
 
 import { store } from '../store.js';
 import { validateEvidenceFile, escapeHtml } from '../security.js';
-import { showToast, openModal } from '../ui.js';
+import { showToast, openModal, renderSeverityBadge, renderUrgencyBadge } from '../ui.js';
 
 let pendingEvidenceMeta = null;
 
@@ -20,19 +21,28 @@ export function renderReportView() {
           <h1 class="section-title"><span>📢</span> Incident Grievance Portal</h1>
           <p class="section-subtitle">
             Submit an encrypted, confidential, or anonymous incident report. 
-            All submissions generate a unique Reference ID and a 6-digit demo verification PIN.
+            Dual-engine routing evaluates incident risk and linked case history.
           </p>
         </div>
         <!-- Quick Demo Autofill Bar for Hackathon Judges -->
-        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-          <button type="button" id="btn-autofill-case-1" class="btn btn-secondary btn-sm" title="Fills report #1 for CASE-ALPHA">
-            🧪 Demo: File Report #1 (HOD)
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+          <button type="button" id="btn-autofill-low" class="btn btn-secondary btn-sm" title="Low-Risk Independent -> HOD">
+            🧪 Low-Risk (HOD)
           </button>
-          <button type="button" id="btn-autofill-case-2" class="btn btn-secondary btn-sm" title="Fills report #2 for CASE-ALPHA">
-            🧪 Demo: File Report #2 (Dean)
+          <button type="button" id="btn-autofill-mod" class="btn btn-secondary btn-sm" title="Moderate-Risk Independent -> Dean">
+            🧪 Moderate-Risk (Dean)
           </button>
-          <button type="button" id="btn-autofill-case-3" class="btn btn-secondary btn-sm" title="Fills report #3 for CASE-ALPHA">
-            🧪 Demo: File Report #3 (Higher Auth)
+          <button type="button" id="btn-autofill-crit" class="btn btn-secondary btn-sm" title="Critical-Risk Independent -> Bypasses to Higher Auth">
+            🧪 Critical Bypass (Higher Auth)
+          </button>
+          <button type="button" id="btn-autofill-link-1" class="btn btn-secondary btn-sm" title="Linked Report 1 -> HOD">
+            🧪 Linked #1 (CASE-BETA)
+          </button>
+          <button type="button" id="btn-autofill-link-2" class="btn btn-secondary btn-sm" title="Linked Report 2 -> Dean">
+            🧪 Linked #2 (CASE-BETA)
+          </button>
+          <button type="button" id="btn-autofill-link-crit" class="btn btn-secondary btn-sm" title="High-Risk Linked -> Bumps CASE-BETA to Higher Auth">
+            🧪 Linked High-Risk (Bumps Case)
           </button>
         </div>
       </div>
@@ -62,12 +72,15 @@ export function renderReportView() {
               <label class="form-label" for="incident-category">Grievance Category <span class="required">*</span></label>
               <select id="incident-category" class="form-select" required>
                 <option value="">-- Select Category --</option>
-                <option value="Ragging & Physical Intimidation">Ragging & Physical Intimidation</option>
-                <option value="Hostel Harassment & Bullying">Hostel Harassment & Bullying</option>
-                <option value="Cyber Harassment & Digital Abuse">Cyber Harassment & Digital Abuse</option>
-                <option value="Laboratory Safety & Coercion">Laboratory Safety & Coercion</option>
-                <option value="Academic Bias & Retaliation">Academic Bias & Retaliation</option>
-                <option value="Other Campus Grievance">Other Campus Grievance</option>
+                <option value="Ragging & Physical Intimidation">Ragging & Physical Intimidation (High/Critical Base)</option>
+                <option value="Physical Violence & Assault">Physical Violence & Assault (Critical Base)</option>
+                <option value="Sexual Harassment & Coercion">Sexual Harassment & Coercion (Critical Base)</option>
+                <option value="Hostel Harassment & Bullying">Hostel Harassment & Bullying (Moderate Base)</option>
+                <option value="Laboratory Safety & Coercion">Laboratory Safety & Coercion (Moderate Base)</option>
+                <option value="Cyber Harassment & Digital Abuse">Cyber Harassment & Digital Abuse (Moderate Base)</option>
+                <option value="Academic Bias & Retaliation">Academic Bias & Retaliation (Moderate Base)</option>
+                <option value="General Campus Grievance">General Campus Grievance (Low Base)</option>
+                <option value="Other Campus Grievance">Other Campus Grievance (Low Base)</option>
               </select>
               <span id="err-incident-category" class="form-error-msg">Please select a grievance category.</span>
             </div>
@@ -84,6 +97,34 @@ export function renderReportView() {
               <label class="form-label" for="incident-location">Location / Platform <span class="required">*</span></label>
               <input type="text" id="incident-location" class="form-input" placeholder="e.g. Science Block Floor 2, or Discord Server" required />
               <span id="err-incident-location" class="form-error-msg">Location or platform is required.</span>
+            </div>
+          </div>
+
+          <!-- Explicit Risk & Urgency Indicators Checklist (Refinements 1 & 2) -->
+          <div style="background-color: var(--color-bg-surface); padding: var(--spacing-4); border-radius: var(--radius-md); border: 1px solid var(--color-border-subtle); margin-top: var(--spacing-2);">
+            <label class="form-label" style="margin-bottom: 6px; color: var(--color-primary-light);">
+              Explicit Risk & Urgency Assessment Factors
+            </label>
+            <p class="form-hint" style="margin-bottom: var(--spacing-3);">
+              Explicit risk signals take precedence over narrative keyword scanning to prevent false positives.
+            </p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--spacing-2);">
+              <label class="form-checkbox-label" style="padding: 6px 10px;">
+                <input type="checkbox" id="risk-immediate" />
+                <span style="font-size: 0.8rem;">🚨 Ongoing immediate physical danger / crisis</span>
+              </label>
+              <label class="form-checkbox-label" style="padding: 6px 10px;">
+                <input type="checkbox" id="risk-physical" />
+                <span style="font-size: 0.8rem;">⚠️ Credible threat of bodily injury or physical violence</span>
+              </label>
+              <label class="form-checkbox-label" style="padding: 6px 10px;">
+                <input type="checkbox" id="risk-retaliation" />
+                <span style="font-size: 0.8rem;">🛡️ Retaliation / Extortion by person in institutional power</span>
+              </label>
+              <label class="form-checkbox-label" style="padding: 6px 10px;">
+                <input type="checkbox" id="risk-repeat" />
+                <span style="font-size: 0.8rem;">🔁 Chronic repeat harassment or intimidation pattern</span>
+              </label>
             </div>
           </div>
         </div>
@@ -133,35 +174,62 @@ export function renderReportView() {
           </div>
         </div>
 
-        <!-- Section 4: Demo Case Correlation / Linking Engine -->
+        <!-- Section 4: Demo Case Correlation / Linking Engine (Refinement 5) -->
         <div style="margin-bottom: var(--spacing-6); padding-top: var(--spacing-4); border-top: 1px solid var(--color-border-subtle);">
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--spacing-2);">
             <h3 style="font-size: 1.15rem; margin: 0; color: var(--color-primary-light);">
-              4. Escalation Case Linking <span class="badge badge-demo">Demo Feature</span>
+              4. Escalation Case Linking Engine
             </h3>
+            <span class="badge badge-demo">Reliable Case Sync</span>
           </div>
           <p class="form-hint" style="margin-bottom: var(--spacing-3);">
-            To demonstrate multi-tier escalation (1st: HOD → 2nd: Dean → 3rd+: Higher Authority), 
-            you can link this report to an existing case group or start a new case group.
+            Choose whether to link this complaint to an existing case group or file independently. 
+            Linked reports reliably synchronize without accidental unlinking.
           </p>
 
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-3);">
-            <div class="form-group">
-              <label class="form-label" for="link-case-select">Link to Existing Demo Case</label>
-              <select id="link-case-select" class="form-select">
-                <option value="">-- Start New Independent Case --</option>
-                <option value="CASE-ALPHA">⭐ CASE-ALPHA (For Escalation Test)</option>
-                ${existingCases.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="custom-case-id">Or Specify Custom Case Group ID</label>
-              <input type="text" id="custom-case-id" class="form-input" placeholder="e.g. CASE-HOSTEL-02" />
-            </div>
+          <!-- Explicit linking mode selector to prevent race conditions or dropped links -->
+          <div class="form-radio-group" style="margin-bottom: var(--spacing-3);">
+            <label class="form-radio-card" style="padding: 8px 12px;">
+              <input type="radio" name="case-link-mode" value="independent" checked />
+              <div class="radio-content">
+                <strong>File as Independent Complaint</strong>
+                <span class="form-hint">No case linking. Evaluated solely on incident severity.</span>
+              </div>
+            </label>
+
+            <label class="form-radio-card" style="padding: 8px 12px;">
+              <input type="radio" name="case-link-mode" value="link-existing" />
+              <div class="radio-content">
+                <strong>Link to Existing Case Group</strong>
+                <span class="form-hint">Correlates with existing reports and triggers multi-report escalation.</span>
+              </div>
+            </label>
+
+            <label class="form-radio-card" style="padding: 8px 12px;">
+              <input type="radio" name="case-link-mode" value="create-custom" />
+              <div class="radio-content">
+                <strong>Create New Case Group Identifier</strong>
+                <span class="form-hint">Define a new case tag (e.g. CASE-HOSTEL-02) for subsequent linked reports.</span>
+              </div>
+            </label>
+          </div>
+
+          <div id="case-link-existing-controls" style="display: none; margin-bottom: var(--spacing-3);">
+            <label class="form-label" for="link-case-select">Select Target Case Group <span class="required">*</span></label>
+            <select id="link-case-select" class="form-select">
+              <option value="CASE-ALPHA">⭐ CASE-ALPHA (Demo Escalation Group)</option>
+              <option value="CASE-BETA">⭐ CASE-BETA (Fresh Chain Test Group)</option>
+              ${existingCases.filter(c => c !== 'CASE-ALPHA' && c !== 'CASE-BETA').map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}
+            </select>
+          </div>
+
+          <div id="case-link-custom-controls" style="display: none; margin-bottom: var(--spacing-3);">
+            <label class="form-label" for="custom-case-id">Enter Custom Case Group ID <span class="required">*</span></label>
+            <input type="text" id="custom-case-id" class="form-input" placeholder="e.g. CASE-WING-4" />
           </div>
         </div>
 
-        <!-- Section 5: Confidentiality & Reporter Identity (Refinement 1) -->
+        <!-- Section 5: Confidentiality & Reporter Identity -->
         <div style="margin-bottom: var(--spacing-6); padding-top: var(--spacing-4); border-top: 1px solid var(--color-border-subtle);">
           <h3 style="font-size: 1.15rem; margin-bottom: var(--spacing-2); color: var(--color-primary-light);">
             5. Confidentiality & Identity Preference <span class="required">*</span>
@@ -225,7 +293,7 @@ export function renderReportView() {
         </div>
 
         <!-- Section 6: Optional Evidence Attachment -->
-        <div style="margin-bottom: var(--spacing-8); padding-top: var(--spacing-4); border-top: 1px solid var(--color-border-subtle);">
+        <div style="margin-bottom: var(--spacing-6); padding-top: var(--spacing-4); border-top: 1px solid var(--color-border-subtle);">
           <h3 style="font-size: 1.15rem; margin-bottom: var(--spacing-2); color: var(--color-primary-light);">
             6. Evidence Attachment <span style="font-size: 0.8rem; color: var(--color-text-muted); font-weight: normal;">(Optional)</span>
           </h3>
@@ -246,6 +314,19 @@ export function renderReportView() {
           <span id="err-evidence-file" class="form-error-msg"></span>
         </div>
 
+        <!-- Emergency Guidance Notice (Refinement 3) -->
+        <div id="emergency-guidance-banner" class="alert alert-danger" style="display: none; margin-bottom: var(--spacing-6);">
+          <div style="font-size: 1.5rem;">🆘</div>
+          <div>
+            <strong>High-Risk Emergency Guidance:</strong>
+            <p style="margin: 4px 0 0; font-size: 0.85rem; color: inherit;">
+              Critical signals or imminent hazard indicators are active. 
+              If you are in immediate physical danger, contact Campus Rapid Response (<strong>1800-CAMPUS-SAFE</strong>) or Police (<strong>112</strong>). 
+              This report will automatically bypass lower departmental tiers for direct Higher Authority review.
+            </p>
+          </div>
+        </div>
+
         <!-- Submit Button -->
         <div>
           <button type="submit" id="btn-submit-report" class="btn btn-primary btn-lg btn-block">
@@ -260,27 +341,25 @@ export function renderReportView() {
       <!-- Sidebar Guidance -->
       <aside class="guidance-sidebar">
         <div class="info-card">
-          <h4><span>🔒</span> Zero-Retaliation Policy</h4>
-          <p>
-            A.E.G.I.S employs cryptographic-style procedural separation: 
-            Departmental heads cannot access identity records in confidential mode.
+          <h4><span>⚡</span> Dual-Engine Routing</h4>
+          <p style="font-size: 0.8rem; line-height: 1.5; margin: 0;">
+            A.E.G.I.S computes:<br />
+            <code>Final Tier = MAX(Severity, Repeat, Case Tier)</code><br />
+            Critical complaints bypass lower tiers immediately. Cases never automatically downgrade.
           </p>
         </div>
 
         <div class="info-card">
-          <h4><span>⏱️</span> Escalation SLA Thresholds</h4>
-          <ul style="padding-left: 18px; font-size: 0.8rem; margin: 0;">
-            <li><strong>1st Complaint:</strong> Evaluated by HOD.</li>
-            <li><strong>2nd Complaint in Case:</strong> Auto-escalated to Dean.</li>
-            <li><strong>3rd+ Complaints:</strong> Escalate to Higher Authority.</li>
-          </ul>
+          <h4><span>🔒</span> Zero-Retaliation Policy</h4>
+          <p style="font-size: 0.8rem; margin: 0;">
+            In confidential mode, Department HODs and Deans cannot view reporter identity. Only Tier 3 Higher Authority has protected access.
+          </p>
         </div>
 
         <div class="info-card">
           <h4><span>🔑</span> Save Your Credentials</h4>
-          <p>
-            Upon submission, you will be issued a <strong>Reference ID</strong> and a separate 
-            <strong>6-digit demo verification PIN</strong>. Both are required to track status.
+          <p style="font-size: 0.8rem; margin: 0;">
+            Every filing generates a Reference ID (e.g. <code>AEG-2026-X7K2</code>) and 6-digit PIN. Both are required to track status.
           </p>
         </div>
       </aside>
@@ -299,11 +378,39 @@ export function initReportView() {
   const fileDropzone = document.getElementById('file-dropzone');
   const fileInput = document.getElementById('evidence-input');
   const filePreview = document.getElementById('file-preview-container');
+
+  // Case link mode radio elements
+  const caseLinkRadios = document.querySelectorAll('input[name="case-link-mode"]');
+  const linkExistingControls = document.getElementById('case-link-existing-controls');
+  const linkCustomControls = document.getElementById('case-link-custom-controls');
   const linkCaseSelect = document.getElementById('link-case-select');
   const customCaseInput = document.getElementById('custom-case-id');
 
-  // Reset evidence state
+  // Risk checkboxes & emergency banner
+  const riskImmediate = document.getElementById('risk-immediate');
+  const riskPhysical = document.getElementById('risk-physical');
+  const categorySelect = document.getElementById('incident-category');
+  const emergencyBanner = document.getElementById('emergency-guidance-banner');
+
   pendingEvidenceMeta = null;
+
+  // Emergency banner visibility logic
+  const checkEmergencyState = () => {
+    const isImm = riskImmediate && riskImmediate.checked;
+    const isPhys = riskPhysical && riskPhysical.checked;
+    const cat = categorySelect ? categorySelect.value : '';
+    const isCritCat = cat.includes('Violence') || cat.includes('Sexual') || cat.includes('Ragging');
+
+    if (isImm || isPhys || isCritCat) {
+      if (emergencyBanner) emergencyBanner.style.display = 'flex';
+    } else {
+      if (emergencyBanner) emergencyBanner.style.display = 'none';
+    }
+  };
+
+  [riskImmediate, riskPhysical, categorySelect].forEach(el => {
+    if (el) el.addEventListener('change', checkEmergencyState);
+  });
 
   // Character counter
   if (descInput && charCount) {
@@ -324,14 +431,21 @@ export function initReportView() {
     });
   });
 
-  // Sync case group select and input
-  if (linkCaseSelect && customCaseInput) {
-    linkCaseSelect.addEventListener('change', () => {
-      if (linkCaseSelect.value) {
-        customCaseInput.value = linkCaseSelect.value;
+  // Case link mode toggles
+  caseLinkRadios.forEach(radio => {
+    radio.addEventListener('change', () => {
+      if (radio.value === 'link-existing') {
+        linkExistingControls.style.display = 'block';
+        linkCustomControls.style.display = 'none';
+      } else if (radio.value === 'create-custom') {
+        linkExistingControls.style.display = 'none';
+        linkCustomControls.style.display = 'block';
+      } else {
+        linkExistingControls.style.display = 'none';
+        linkCustomControls.style.display = 'none';
       }
     });
-  }
+  });
 
   // File dropzone click
   if (fileDropzone && fileInput) {
@@ -386,26 +500,116 @@ export function initReportView() {
   }
 
   // Quick Autofill buttons for judges / demonstration
-  const setupAutofill = (btnId, caseId, category, textPrefix) => {
-    const btn = document.getElementById(btnId);
-    if (!btn) return;
-    btn.addEventListener('click', () => {
-      document.getElementById('incident-category').value = category;
-      document.getElementById('incident-datetime').value = new Date().toISOString().slice(0, 16);
-      document.getElementById('incident-location').value = 'East Hostel Corridor / Common Room';
-      document.getElementById('incident-description').value = `${textPrefix}: Witnessed senior students intimidating juniors after campus curfew hours. Physical confrontation threatened.`;
-      document.getElementById('suspect-name').value = 'Target Group Leader';
-      document.getElementById('suspect-dept').value = 'Mechanical Engineering 4th Year';
-      if (customCaseInput) customCaseInput.value = caseId;
-      if (linkCaseSelect) linkCaseSelect.value = caseId;
-      descInput.dispatchEvent(new Event('input'));
-      showToast(`Autofilled demo data for case ${caseId}!`, 'info');
-    });
+  const setFormValues = ({ category, location, desc, suspect, caseMode, caseId, flags = {} }) => {
+    if (categorySelect) categorySelect.value = category;
+    document.getElementById('incident-datetime').value = new Date().toISOString().slice(0, 16);
+    document.getElementById('incident-location').value = location;
+    document.getElementById('incident-description').value = desc;
+    document.getElementById('suspect-name').value = suspect || '';
+    
+    // Set checkboxes
+    document.getElementById('risk-immediate').checked = !!flags.immediateDanger;
+    document.getElementById('risk-physical').checked = !!flags.physicalThreat;
+    document.getElementById('risk-retaliation').checked = !!flags.retaliation;
+    document.getElementById('risk-repeat').checked = !!flags.repeatHarassment;
+
+    // Set case mode
+    const targetRadio = document.querySelector(`input[name="case-link-mode"][value="${caseMode}"]`);
+    if (targetRadio) {
+      targetRadio.checked = true;
+      targetRadio.dispatchEvent(new Event('change'));
+    }
+    if (caseMode === 'link-existing' && linkCaseSelect && caseId) {
+      linkCaseSelect.value = caseId;
+    }
+    if (caseMode === 'create-custom' && customCaseInput && caseId) {
+      customCaseInput.value = caseId;
+    }
+
+    descInput.dispatchEvent(new Event('input'));
+    checkEmergencyState();
   };
 
-  setupAutofill('btn-autofill-case-1', 'CASE-ALPHA', 'Hostel Harassment & Bullying', 'Incident Report 1 of 3');
-  setupAutofill('btn-autofill-case-2', 'CASE-ALPHA', 'Hostel Harassment & Bullying', 'Incident Report 2 of 3 (Should trigger auto-escalation to Dean)');
-  setupAutofill('btn-autofill-case-3', 'CASE-ALPHA', 'Hostel Harassment & Bullying', 'Incident Report 3 of 3 (Should trigger auto-escalation to Higher Authority)');
+  // 1. Low-Risk Independent -> HOD
+  document.getElementById('btn-autofill-low')?.addEventListener('click', () => {
+    setFormValues({
+      category: 'General Campus Grievance',
+      location: 'Central Library Study Room 4',
+      desc: 'Noise disturbance and scheduling dispute regarding reserved project study carrels during evening hours.',
+      suspect: 'Third-party study group',
+      caseMode: 'independent',
+      flags: {}
+    });
+    showToast('Autofilled: Low-Risk Independent Complaint (Expected: HOD)', 'info');
+  });
+
+  // 2. Moderate-Risk Independent -> Dean
+  document.getElementById('btn-autofill-mod')?.addEventListener('click', () => {
+    setFormValues({
+      category: 'Hostel Harassment & Bullying',
+      location: 'Hostel Block C, Floor 2 Corridor',
+      desc: 'Repeated late-night hostel curfew intimidation and forced room cleaning demands targeting junior residents.',
+      suspect: 'Senior Hostel Residents',
+      caseMode: 'independent',
+      flags: { repeatHarassment: true }
+    });
+    showToast('Autofilled: Moderate-Risk Independent Complaint (Expected: Dean)', 'info');
+  });
+
+  // 3. Critical-Risk Independent -> Bypasses to Higher Auth
+  document.getElementById('btn-autofill-crit')?.addEventListener('click', () => {
+    setFormValues({
+      category: 'Physical Violence & Assault',
+      location: 'South Campus Ground / Parking Zone',
+      desc: 'Direct physical assault and weapon threats outside parking lot. Severe bleeding and physical harm threatened if reported.',
+      suspect: 'Out-of-campus associates',
+      caseMode: 'independent',
+      flags: { immediateDanger: true, physicalThreat: true, retaliation: true }
+    });
+    showToast('Autofilled: Critical-Risk Complaint (Expected: Immediate Bypass to Higher Auth)', 'warning');
+  });
+
+  // 4. Linked Report 1 (CASE-BETA) -> HOD
+  document.getElementById('btn-autofill-link-1')?.addEventListener('click', () => {
+    setFormValues({
+      category: 'General Campus Grievance',
+      location: 'Engineering Department Lab Corridor',
+      desc: 'Report #1 for CASE-BETA: Unfair equipment allocation dispute and minor verbal confrontation.',
+      suspect: 'Lab Representative',
+      caseMode: 'link-existing',
+      caseId: 'CASE-BETA',
+      flags: {}
+    });
+    showToast('Autofilled: Report #1 in CASE-BETA (Expected: HOD)', 'info');
+  });
+
+  // 5. Linked Report 2 (CASE-BETA) -> Dean
+  document.getElementById('btn-autofill-link-2')?.addEventListener('click', () => {
+    setFormValues({
+      category: 'General Campus Grievance',
+      location: 'Engineering Department Lab Corridor',
+      desc: 'Report #2 for CASE-BETA: Second student lodging complaint against the same equipment withholding.',
+      suspect: 'Lab Representative',
+      caseMode: 'link-existing',
+      caseId: 'CASE-BETA',
+      flags: {}
+    });
+    showToast('Autofilled: Report #2 in CASE-BETA (Expected: Auto-Escalation to Dean)', 'info');
+  });
+
+  // 6. High-Risk Linked Report -> Bumps entire CASE-BETA to Higher Auth
+  document.getElementById('btn-autofill-link-crit')?.addEventListener('click', () => {
+    setFormValues({
+      category: 'Ragging & Physical Intimidation',
+      location: 'Engineering Department Basement',
+      desc: 'Report for CASE-BETA with physical violence threat: Suspect threatened severe physical retaliation if prior complaints are not withdrawn.',
+      suspect: 'Lab Representative',
+      caseMode: 'link-existing',
+      caseId: 'CASE-BETA',
+      flags: { physicalThreat: true, retaliation: true }
+    });
+    showToast('Autofilled: High-Risk Linked Report (Expected: Bumps CASE-BETA to Higher Auth)', 'warning');
+  });
 
   // Form submit handler with validation
   form.addEventListener('submit', (e) => {
@@ -453,7 +657,22 @@ export function initReportView() {
       return;
     }
 
-    const caseGroupId = (customCaseInput?.value || linkCaseSelect?.value || '').trim().toUpperCase();
+    // Reliably resolve case group ID
+    const caseMode = document.querySelector('input[name="case-link-mode"]:checked')?.value || 'independent';
+    let resolvedCaseGroupId = '';
+    if (caseMode === 'link-existing') {
+      resolvedCaseGroupId = (linkCaseSelect?.value || 'CASE-ALPHA').trim().toUpperCase();
+    } else if (caseMode === 'create-custom') {
+      resolvedCaseGroupId = (customCaseInput?.value || '').trim().toUpperCase();
+    }
+
+    // Collect risk flags
+    const riskFlags = {
+      immediateDanger: !!document.getElementById('risk-immediate')?.checked,
+      physicalThreat: !!document.getElementById('risk-physical')?.checked,
+      retaliation: !!document.getElementById('risk-retaliation')?.checked,
+      repeatHarassment: !!document.getElementById('risk-repeat')?.checked
+    };
 
     // Prepare payload
     const payload = {
@@ -469,7 +688,8 @@ export function initReportView() {
       reporterName,
       reporterContact,
       reporterDepartment: reporterDept,
-      caseGroupId,
+      caseGroupId: resolvedCaseGroupId,
+      riskFlags,
       evidenceFile: pendingEvidenceMeta
     };
 
@@ -505,18 +725,32 @@ export function initReportView() {
         </button>
       </div>
 
-      <div style="background-color: var(--color-bg-surface); padding: var(--spacing-3); border-radius: var(--radius-md); font-size: 0.85rem; margin-top: var(--spacing-4);">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+      <div style="background-color: var(--color-bg-surface); padding: var(--spacing-4); border-radius: var(--radius-md); font-size: 0.85rem; margin-top: var(--spacing-4); border: 1px solid var(--color-border-subtle);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
           <span style="color: var(--color-text-muted);">Assigned Authority Tier:</span>
           <strong>${escapeHtml(saved.assignedAuthority)}</strong>
         </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-          <span style="color: var(--color-text-muted);">Demo Case Group:</span>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <span style="color: var(--color-text-muted);">Assessed Severity & Urgency:</span>
+          <div>
+            ${renderSeverityBadge(saved.severity)}
+            ${renderUrgencyBadge(saved.urgency)}
+          </div>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <span style="color: var(--color-text-muted);">Routing Origin:</span>
+          <code>${escapeHtml(saved.routingOrigin || 'Dual-Engine Triage')}</code>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <span style="color: var(--color-text-muted);">Case Group Link:</span>
           <code>${escapeHtml(saved.caseGroupId || 'Independent (No Group)')}</code>
         </div>
-        <div style="display: flex; justify-content: space-between;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
           <span style="color: var(--color-text-muted);">Confidentiality Mode:</span>
           <span>${saved.identityMode === 'anonymous' ? '🔒 Anonymous' : (saved.identityMode === 'confidential' ? '🛡️ Confidential' : '👤 Standard')}</span>
+        </div>
+        <div style="background: rgba(6,182,212,0.06); padding: 8px; border-radius: 4px; font-size: 0.8rem; color: var(--color-text-secondary); border-left: 3px solid var(--color-primary);">
+          <strong>Risk Assessment Note:</strong> ${escapeHtml(saved.severityReason)}
         </div>
       </div>
     `;
@@ -534,6 +768,7 @@ export function initReportView() {
         form.reset();
         pendingEvidenceMeta = null;
         descInput.dispatchEvent(new Event('input'));
+        checkEmergencyState();
       }
     });
 
@@ -549,7 +784,6 @@ export function initReportView() {
     });
 
     document.getElementById('btn-goto-track')?.addEventListener('click', () => {
-      // Store credentials temporarily for prefill
       sessionStorage.setItem('aegis_prefill_ref', saved.referenceId);
       sessionStorage.setItem('aegis_prefill_pin', saved.verificationPin);
     });
