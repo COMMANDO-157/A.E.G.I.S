@@ -1,47 +1,26 @@
 {
-  "rewrites": [
+  "routes": [
     {
-      "source": "/server/:path*",
-      "destination": "/api/not-found"
+      "src": "/(.*)",
+      "headers": {
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
+        "Content-Security-Policy": "default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; connect-src 'self' https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; img-src 'self' data: https://*.googleusercontent.com; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+      },
+      "continue": true
     },
     {
-      "source": "/scripts/:path*",
-      "destination": "/api/not-found"
+      "src": "/(server|scripts|migrations)/.*",
+      "dest": "/api/index?route=not-found"
     },
     {
-      "source": "/migrations/:path*",
-      "destination": "/api/not-found"
+      "src": "/api/(.*)",
+      "dest": "/api/index?route=$1"
     },
     {
-      "source": "/api/:path*",
-      "destination": "/api/index?route=:path*"
-    }
-  ],
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        },
-        {
-          "key": "X-Frame-Options",
-          "value": "DENY"
-        },
-        {
-          "key": "Referrer-Policy",
-          "value": "strict-origin-when-cross-origin"
-        },
-        {
-          "key": "Cross-Origin-Opener-Policy",
-          "value": "same-origin-allow-popups"
-        },
-        {
-          "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; connect-src 'self' https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; img-src 'self' data: https://*.googleusercontent.com; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
-        }
-      ]
+      "handle": "filesystem"
     }
   ]
 }
