@@ -6,14 +6,22 @@
 export function renderHomeView() {
   return `
     <div class="hero-section">
+      <div class="hero-emblem"><svg class="holo-shield" viewBox="0 0 240 240" fill="none" aria-hidden="true">
+  <circle class="shield-orbit" cx="120" cy="120" r="108" stroke="currentColor" stroke-opacity=".28" stroke-dasharray="100 20 3 20"/>
+  <circle cx="120" cy="120" r="91" stroke="currentColor" stroke-opacity=".14"/>
+  <path class="shield-body" d="M120 40 182 65v56c0 41-34 67-62 81-28-14-62-40-62-81V65Z" fill="currentColor" fill-opacity=".055" stroke="currentColor" stroke-width="2"/>
+  <path d="m120 53 50 20v47c0 32-26 55-50 68-24-13-50-36-50-68V73Z" stroke="currentColor" stroke-opacity=".4"/>
+  <path class="shield-ecg" d="M32 120h52l12-18 15 41 18-65 15 42h64" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="120" cy="12" r="3" fill="currentColor"/><circle cx="120" cy="228" r="3" fill="currentColor"/>
+</svg></div>
       <div class="hero-tag">
         <span>🛡️ Automated Escalation, Grievance & Incident Shield</span>
       </div>
-      <h1 class="hero-title">Protecting Campus Voices with Autonomous Accountability</h1>
+      <h1 class="hero-title">Because Every Voice Deserves Protection.</h1>
       <p class="hero-description">
         A.E.G.I.S safeguards students and faculty with confidential grievance reporting, 
         deterministic multi-tier escalation, and dual-credential complaint tracking. 
-        Zero administrative friction. Zero retaliation risk.
+        Fictional demonstration of reporting and escalation workflows.
       </p>
 
       <div class="hero-actions">
@@ -40,7 +48,7 @@ export function renderHomeView() {
       </div>
       <div style="display: flex; gap: 8px; flex-wrap: wrap;">
         <span class="badge" style="background:#881337; color:#fecdd3; border: 1px solid #f43f5e; font-size: 0.8rem; padding: 6px 12px;">
-          Campus Control Room: <strong>1800-CAMPUS-SAFE</strong>
+          Fictional Campus Contact: <strong>1800-CAMPUS-SAFE</strong>
         </span>
         <span class="badge" style="background:#1e1b4b; color:#c7d2fe; border: 1px solid #6366f1; font-size: 0.8rem; padding: 6px 12px;">
           National Women Helpline: <strong>1091</strong>

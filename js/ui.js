@@ -137,47 +137,58 @@ export function renderRoutingOriginBadge(origin) {
 /**
  * Modal Dialog Controller
  */
+let activeModal = null;
 export function openModal({ title, contentHtml, footerHtml = '', onClose = null }) {
-  const modalBackdrop = document.getElementById('global-modal');
-  if (!modalBackdrop) return;
-
-  const titleEl = modalBackdrop.querySelector('.modal-title');
-  const bodyEl = modalBackdrop.querySelector('.modal-body');
-  const footerEl = modalBackdrop.querySelector('.modal-footer');
-
-  if (titleEl) titleEl.textContent = title;
-  if (bodyEl) bodyEl.innerHTML = contentHtml;
-  if (footerEl) footerEl.innerHTML = footerHtml;
-
-  modalBackdrop.classList.remove('hidden');
-  modalBackdrop.setAttribute('aria-hidden', 'false');
-
-  // Wire close buttons
-  const closeButtons = modalBackdrop.querySelectorAll('[data-close-modal]');
-  closeButtons.forEach(btn => {
-    btn.onclick = () => {
-      closeModal();
-      if (onClose) onClose();
-    };
-  });
-
-  // ESC key listener
-  const escHandler = (e) => {
-    if (e.key === 'Escape') {
-      closeModal();
-      if (onClose) onClose();
-      document.removeEventListener('keydown', escHandler);
+  closeModal();
+  const backdrop = document.getElementById('global-modal');
+  if (!backdrop) return;
+  const dialog = backdrop.querySelector('.modal-dialog');
+  const previousFocus = document.activeElement;
+  backdrop.querySelector('.modal-title').textContent = title;
+  backdrop.querySelector('.modal-body').innerHTML = contentHtml;
+  backdrop.querySelector('.modal-footer').innerHTML = footerHtml;
+  backdrop.classList.remove('hidden');
+  backdrop.setAttribute('aria-hidden', 'false');
+  dialog.setAttribute('tabindex', '-1');
+  const background = [...document.body.children].filter(el => el !== backdrop &&
+    ['HEADER', 'MAIN', 'FOOTER', 'ASIDE', 'A'].includes(el.tagName));
+  const priorInert = background.map(el => el.inert);
+  background.forEach(el => { el.inert = true; });
+  const focusable = () => [...dialog.querySelectorAll('button, input, select, textarea, a[href], [tabindex]')]
+    .filter(el => !el.disabled && el.tabIndex >= 0 && el.getClientRects().length);
+  const keyHandler = event => {
+    if (event.key === 'Escape') { event.preventDefault(); closeModal(); }
+    if (event.key === 'Tab') {
+      const items = focusable();
+      const first = items[0], last = items.at(-1);
+      if (!first) { event.preventDefault(); dialog.focus(); return; }
+      if (event.shiftKey && (document.activeElement === first || !items.includes(document.activeElement))) {
+        event.preventDefault(); last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !items.includes(document.activeElement))) {
+        event.preventDefault(); first.focus();
+      }
     }
   };
-  document.addEventListener('keydown', escHandler);
+  const clickHandler = event => {
+    if (event.target === backdrop || event.target.closest('[data-close-modal]')) closeModal();
+  };
+  activeModal = { backdrop, previousFocus, background, priorInert, keyHandler, clickHandler, onClose };
+  document.addEventListener('keydown', keyHandler);
+  backdrop.addEventListener('click', clickHandler);
+  (focusable()[0] || dialog).focus();
 }
 
 export function closeModal() {
-  const modalBackdrop = document.getElementById('global-modal');
-  if (modalBackdrop) {
-    modalBackdrop.classList.add('hidden');
-    modalBackdrop.setAttribute('aria-hidden', 'true');
-  }
+  if (!activeModal) return;
+  const state = activeModal;
+  activeModal = null;
+  document.removeEventListener('keydown', state.keyHandler);
+  state.backdrop.removeEventListener('click', state.clickHandler);
+  state.backdrop.classList.add('hidden');
+  state.backdrop.setAttribute('aria-hidden', 'true');
+  state.background.forEach((el, i) => { el.inert = state.priorInert[i]; });
+  if (state.previousFocus?.isConnected) state.previousFocus.focus();
+  if (state.onClose) state.onClose();
 }
 
 /**

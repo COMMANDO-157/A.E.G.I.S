@@ -322,6 +322,7 @@ export function validateManualOverride(complaint, targetTier, overrideReason, ac
     };
   }
 
+  if (!canManageComplaint(complaint, actorRole)) return { valid: false, error: 'Permission denied: use assigned authority or Higher Authority.' };
   const currentLevel = TIER_LEVELS[complaint.assignedAuthority] || 1;
   const targetLevel = TIER_LEVELS[targetTier];
 
@@ -355,5 +356,28 @@ export function validateManualOverride(complaint, targetTier, overrideReason, ac
     }
   }
 
+  return { valid: true };
+}
+
+/** Demo workflow checks only; not authentication. */
+export function canManageComplaint(complaint, role) {
+  return Object.values(AUTHORITY_TIERS).includes(role) &&
+    (role === AUTHORITY_TIERS.HIGHER_AUTH || role === complaint.assignedAuthority);
+}
+export const STATUS_TRANSITIONS = Object.freeze({
+  Pending: ['In Review'],
+  Escalated: ['In Review', 'Under Investigation'],
+  'In Review': ['Under Investigation'],
+  'Under Investigation': ['Action Taken'],
+  'Action Taken': ['Resolved'],
+  Resolved: []
+});
+export function allowedStatusTransitions(complaint, role) {
+  return canManageComplaint(complaint, role) ? [...(STATUS_TRANSITIONS[complaint.status] || [])] : [];
+}
+export function validateStatusTransition(complaint, status, remarks, role) {
+  if (!canManageComplaint(complaint, role)) return { valid: false, error: 'Permission denied: use assigned authority or Higher Authority.' };
+  if (!allowedStatusTransitions(complaint, role).includes(status)) return { valid: false, error: 'This status transition is not allowed.' };
+  if (typeof remarks !== 'string' || !remarks.trim()) return { valid: false, error: 'Administrative remarks are required.' };
   return { valid: true };
 }

@@ -144,3 +144,18 @@ code, pre {
   font-size: var(--font-size-base);
   color: var(--color-text-muted);
 }
+
+.sr-only:focus {
+  width: auto; height: auto; margin: 8px; padding: 12px;
+  clip: auto; overflow: visible; z-index: 10000;
+  background: var(--color-bg-surface); color: var(--color-text-primary);
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

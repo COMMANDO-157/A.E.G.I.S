@@ -4,11 +4,12 @@
  * Prominently clarifies that this client-side store is for prototyping only.
  */
 
-import { generateReferenceId, generateVerificationPin } from './security.js';
+import { generateReferenceId, generateVerificationPin, isValidVerificationPin } from './security.js';
 import { 
   evaluateCaseEscalation, 
   createAuditLogEntry, 
-  validateManualOverride, 
+  validateManualOverride,
+  validateStatusTransition,
   AUTHORITY_TIERS,
   SEVERITY_LEVELS,
   URGENCY_LEVELS
@@ -188,28 +189,48 @@ const INITIAL_DEMO_COMPLAINTS = [
   }
 ];
 
-class AegisStore {
-  constructor() {
-    this.init();
+export class AegisStore {
+  constructor(storage = null) {
+    this.storage = storage;
+    this.lastError = null;
+    try {
+      this.storage ||= globalThis.localStorage;
+      if (!this.storage) throw new Error('Browser storage unavailable');
+      this.init();
+    } catch (error) {
+      this.lastError = 'Demo storage is unavailable. Enable browser storage and reload.';
+    }
   }
 
   init() {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      this.resetToSeedData();
+    const raw = this.storage.getItem(STORAGE_KEY);
+    if (raw === null) this.resetToSeedData();
+  }
+
+  writeComplaints(records) {
+    try {
+      this.storage.setItem(STORAGE_KEY, JSON.stringify(records));
+      this.lastError = null;
+    } catch (error) {
+      this.lastError = 'Could not save demo records. Storage may be full or unavailable. No success was recorded.';
+      throw new Error(this.lastError);
     }
   }
 
   resetToSeedData() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_DEMO_COMPLAINTS));
+    this.writeComplaints(INITIAL_DEMO_COMPLAINTS);
   }
 
-  getComplaints() {
+  readComplaints() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return [];
+      if (!this.storage) throw new Error('Storage unavailable');
+      const raw = this.storage.getItem(STORAGE_KEY);
+      if (raw === null) throw new Error('Missing demo records');
       const list = JSON.parse(raw);
-      // Backward compatibility normalization for existing records
+      if (!Array.isArray(list) || list.some(c => !c || typeof c !== 'object' ||
+        typeof c.id !== 'string' || typeof c.referenceId !== 'string' ||
+        typeof c.verificationPin !== 'string')) throw new Error('Invalid records');
+      this.lastError = null;
       return list.map(c => ({
         ...c,
         severity: c.severity || SEVERITY_LEVELS.LOW,
@@ -217,10 +238,14 @@ class AegisStore {
         severityReason: c.severityReason || 'Standard procedural evaluation.',
         routingOrigin: c.routingOrigin || 'Initial Triage Routing'
       }));
-    } catch (e) {
-      console.error('Failed reading demo complaints from localStorage', e);
-      return [];
+    } catch (error) {
+      this.lastError = 'Could not read demo records. Existing storage has been preserved; no automatic reset was performed.';
+      throw new Error(this.lastError);
     }
+  }
+
+  getComplaints() {
+    try { return this.readComplaints(); } catch { return []; }
   }
 
   getComplaintById(id) {
@@ -232,7 +257,7 @@ class AegisStore {
    * Tracks complaint by requiring both Reference ID and separate demo verification PIN.
    */
   getComplaintByCredentials(referenceId, pin) {
-    if (!referenceId || !pin) return null;
+    if (typeof referenceId !== 'string' || typeof pin !== 'string' || !isValidVerificationPin(pin.trim())) return null;
     const cleanRef = referenceId.trim().toUpperCase();
     const cleanPin = pin.trim();
     const list = this.getComplaints();
@@ -262,9 +287,10 @@ class AegisStore {
    * @returns {Object} - Created complaint record
    */
   saveComplaint(input) {
-    const complaints = this.getComplaints();
-    const newId = `COMP-${Date.now().toString().slice(-5)}`;
-    const referenceId = generateReferenceId();
+    const complaints = this.readComplaints();
+    const referenceId = generateReferenceId(complaints.map(c => c.referenceId));
+    let newId = 'COMP-' + Date.now() + '-' + referenceId;
+    while (complaints.some(c => c.id === newId)) newId += '-1';
     const verificationPin = generateVerificationPin();
 
     const candidateRecord = {
@@ -317,7 +343,7 @@ class AegisStore {
     });
 
     updatedAll.unshift(candidateRecord);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedAll));
+    this.writeComplaints(updatedAll);
 
     return candidateRecord;
   }
@@ -326,11 +352,13 @@ class AegisStore {
    * Authority action to update complaint status with append-only demo audit log.
    */
   updateComplaintStatus(id, newStatus, remarks, authorityRole) {
-    const complaints = this.getComplaints();
+    const complaints = this.readComplaints();
     const index = complaints.findIndex(c => c.id === id);
-    if (index === -1) return null;
+    if (index === -1) throw new Error('Complaint record not found.');
 
     const complaint = complaints[index];
+    const validation = validateStatusTransition(complaint, newStatus, remarks, authorityRole);
+    if (!validation.valid) throw new Error(validation.error);
     const log = createAuditLogEntry(
       'STATUS_UPDATE',
       complaint.assignedAuthority,
@@ -342,7 +370,7 @@ class AegisStore {
     complaint.auditLogs = [...(complaint.auditLogs || []), log];
 
     complaints[index] = complaint;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(complaints));
+    this.writeComplaints(complaints);
     return complaint;
   }
 
@@ -352,38 +380,39 @@ class AegisStore {
    * synchronizes case groups, and logs mandatory rationale.
    */
   overrideComplaintRouting(id, targetTier, overrideReason, actorRole) {
-    const complaints = this.getComplaints();
+    const complaints = this.readComplaints();
     const target = complaints.find(c => c.id === id);
     if (!target) return { success: false, error: 'Complaint record not found.' };
 
-    const validation = validateManualOverride(target, targetTier, overrideReason, actorRole);
-    if (!validation.valid) {
-      return { success: false, error: validation.error };
+    const caseId = (target.caseGroupId || '').trim().toUpperCase();
+    const members = complaints.filter(c => c.id === id || (caseId &&
+      (c.caseGroupId || '').trim().toUpperCase() === caseId));
+    // Validate every member before constructing or persisting any changes.
+    for (const member of members) {
+      const validation = validateManualOverride(member, targetTier, overrideReason, actorRole);
+      if (!validation.valid) return { success: false, error: member.referenceId + ': ' + validation.error };
     }
 
-    const previousTier = target.assignedAuthority;
-    const caseId = (target.caseGroupId || '').trim();
-    const logReason = `Manual Routing Override: Rerouted from ${previousTier} to ${targetTier} by ${actorRole}. Justification: "${overrideReason.trim()}"`;
-
     const updated = complaints.map(c => {
-      // Apply to this complaint, or all members of the linked case if moving to a higher tier
+      // Apply the validated override atomically to every linked member.
       const isTarget = c.id === id;
-      const isLinkedCaseMember = caseId && (c.caseGroupId || '').trim() === caseId;
+      const isLinkedCaseMember = caseId && (c.caseGroupId || '').trim().toUpperCase() === caseId;
 
       if (isTarget || isLinkedCaseMember) {
+        const logReason = 'Manual Routing Override: Rerouted from ' + c.assignedAuthority + ' to ' + targetTier + ' by ' + actorRole + '. Justification: ' + overrideReason.trim();
         const log = createAuditLogEntry('MANUAL_ROUTING_OVERRIDE', targetTier, logReason, actorRole);
         return {
           ...c,
           assignedAuthority: targetTier,
           routingOrigin: `Manual Override (${actorRole})`,
-          status: targetTier === AUTHORITY_TIERS.HOD ? c.status : 'Escalated',
+          status: ['Pending', 'Escalated'].includes(c.status) && targetTier !== AUTHORITY_TIERS.HOD ? 'Escalated' : c.status,
           auditLogs: [...(c.auditLogs || []), log]
         };
       }
       return c;
     });
 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    this.writeComplaints(updated);
     return { success: true, complaint: this.getComplaintById(id) };
   }
 

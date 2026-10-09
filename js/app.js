@@ -4,6 +4,9 @@
  * mobile navigation toggle, and view lifecycle initialization.
  */
 
+import { initIntro } from './intro.js';
+import { closeModal, showToast } from './ui.js';
+import { store } from './store.js';
 import { renderHomeView } from './views/home.js';
 import { renderReportView, initReportView } from './views/report.js';
 import { renderTrackView, initTrackView } from './views/track.js';
@@ -46,6 +49,7 @@ function navigate() {
   document.title = route.title;
 
   // Render View
+  closeModal();
   container.innerHTML = route.render();
 
   // Run View Initializer
@@ -71,8 +75,10 @@ function navigate() {
     navLinks.classList.remove('open');
   }
 
-  // Scroll to top
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  document.getElementById('mobile-menu-btn')?.setAttribute('aria-expanded', 'false');
+  const heading = container.querySelector('h1');
+  if (heading) { heading.setAttribute('tabindex', '-1'); heading.focus({ preventScroll: true }); }
+  window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
 }
 
 function initApp() {
@@ -89,19 +95,10 @@ function initApp() {
     });
   }
 
-  // Global modal backdrop close click
-  const globalModal = document.getElementById('global-modal');
-  if (globalModal) {
-    globalModal.addEventListener('click', (e) => {
-      if (e.target === globalModal) {
-        globalModal.classList.add('hidden');
-        globalModal.setAttribute('aria-hidden', 'true');
-      }
-    });
-  }
-
   // Initial routing
   navigate();
+  initIntro();
+  if (store.lastError) showToast(store.lastError, 'error', 0);
 }
 
 // Bootstrap on DOM ready

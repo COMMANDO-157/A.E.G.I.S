@@ -1,4 +1,6 @@
 import http from 'http';
+import { startTestServer } from './test_server.js';
+const testServer = await startTestServer();
 import { escapeHtml, maskIdentity, generateReferenceId, generateVerificationPin } from './js/security.js';
 import { 
   assessIncidentRisk, 
@@ -45,7 +47,7 @@ async function testStaticServerFiles() {
 
   for (const path of files) {
     await new Promise((resolve) => {
-      http.get(`http://127.0.0.1:5500${path}`, (res) => {
+      http.get(testServer.url + path, (res) => {
         assert(res.statusCode === 200, `HTTP GET ${path} returned 200 OK`);
         resolve();
       }).on('error', (err) => {
@@ -67,7 +69,7 @@ function testSecurityAndMasking() {
 
   // ID and PIN format
   const refId = generateReferenceId();
-  assert(/^AEG-2026-[A-Z0-9]{4}$/.test(refId), `Generated Reference ID format valid: ${refId}`);
+  assert(new RegExp('^AEG-' + new Date().getFullYear() + '-[A-Z0-9]{4}$').test(refId), `Generated Reference ID format valid: ${refId}`);
 
   const pin = generateVerificationPin();
   assert(/^\d{6}$/.test(pin), `Generated 6-digit Verification PIN valid: ${pin}`);
@@ -353,8 +355,8 @@ async function runAllTests() {
   console.log('========================================================');
 
   if (failed > 0) {
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 
-runAllTests();
+try { await runAllTests(); } finally { await testServer.close(); }

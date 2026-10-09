@@ -63,3 +63,44 @@ node test_verification.js
 ## Demonstration & Security Disclosure
 - **Browser Storage:** This prototype uses browser `localStorage` for synthetic demo persistence. Real confidential records or evidence should not be stored in client-side storage.
 - **Verification PIN & Role Switcher:** Client-side role switching is provided exclusively for hackathon evaluation and does not replace server-side role-based access control (RBAC) and authentication.
+
+## Final submission: local launch
+
+Extract this ZIP into a folder. Keep `index.html`, `css/`, and `js/` together.
+Open a terminal in the extracted folder and run:
+
+```sh
+python -m http.server 5500 --bind 127.0.0.1
+```
+
+Then open http://localhost:5500 in a modern browser. If port 5500 is occupied,
+use another port, such as 5501, and open that port instead. Stop your server
+with Ctrl+C when finished. Do not launch by double-clicking index.html:
+JavaScript ES modules may be blocked under `file://`.
+
+The cinematic introduction plays once per browser-tab session on the homepage.
+It closes after approximately three seconds, supports Skip Intro and Escape,
+and is bypassed for reduced-motion preferences. Direct links to reporting,
+tracking, and the dashboard open immediately.
+
+### Verification
+
+Use Node.js 22.7 or newer (verified with Node.js 24):
+
+```sh
+node test_baseline.js
+node test_verification.js
+```
+
+The verification suite starts and closes its own temporary local HTTP server;
+it does not require the launch server above. The application and these two
+suites require no installed npm dependencies.
+
+Optional browser checks: `node test_cinematic.js`. These require an existing
+Playwright installation and compatible Chromium. `AEGIS_PLAYWRIGHT_PATH` can
+point to an existing Playwright package; `AEGIS_CHROMIUM_PATH` can point to an
+existing Chromium executable. Neither is required to run the application.
+
+All scenarios are fictional. The app does not provide production authentication,
+confidential storage, evidence security, or emergency dispatch. Evidence handling
+stores demonstration metadata only.

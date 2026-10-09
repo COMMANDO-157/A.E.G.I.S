@@ -11,8 +11,31 @@
   <link rel="stylesheet" href="css/base.css" />
   <link rel="stylesheet" href="css/components.css" />
   <link rel="stylesheet" href="css/views.css" />
+  <link rel="stylesheet" href="css/cinematic.css" />
 </head>
 <body>
+
+  <dialog id="startup-intro" class="startup-intro" aria-labelledby="intro-title" aria-describedby="intro-tagline">
+    <div class="intro-grid" aria-hidden="true"></div>
+    <div class="intro-content">
+      <p class="intro-eyebrow">CAMPUS SAFETY / DEMONSTRATION</p>
+      <svg class="holo-shield" viewBox="0 0 240 240" fill="none" aria-hidden="true">
+  <circle class="shield-orbit" cx="120" cy="120" r="108" stroke="currentColor" stroke-opacity=".28" stroke-dasharray="100 20 3 20"/>
+  <circle cx="120" cy="120" r="91" stroke="currentColor" stroke-opacity=".14"/>
+  <path class="shield-body" d="M120 40 182 65v56c0 41-34 67-62 81-28-14-62-40-62-81V65Z" fill="currentColor" fill-opacity=".055" stroke="currentColor" stroke-width="2"/>
+  <path d="m120 53 50 20v47c0 32-26 55-50 68-24-13-50-36-50-68V73Z" stroke="currentColor" stroke-opacity=".4"/>
+  <path class="shield-ecg" d="M32 120h52l12-18 15 41 18-65 15 42h64" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="120" cy="12" r="3" fill="currentColor"/><circle cx="120" cy="228" r="3" fill="currentColor"/>
+</svg>
+      <h1 id="intro-title">A.E.G.I.S</h1>
+      <p class="intro-full-form">Automated Escalation, Grievance &amp; Incident Shield</p>
+      <p id="intro-tagline">Because Every Voice Deserves Protection.</p>
+      <div class="intro-progress" aria-hidden="true"><span></span></div>
+      <p class="intro-caption">INITIALIZING INTERFACE</p>
+    </div>
+    <button id="skip-intro" class="intro-skip" type="button" autofocus>Skip Intro <span aria-hidden="true">↗</span></button>
+  </dialog>
+
 
   <!-- Top Demo Disclaimer Strip (Refinement 4) -->
   <aside class="demo-disclaimer-strip" role="note" aria-label="Prototype Notice">
@@ -71,17 +94,17 @@
         <div>90-Minute Web Development Competition Build &bull; Zero Build Step Architecture</div>
       </div>
       <div>
-        <span>Campus SOS Dispatch: <strong>1800-CAMPUS-SAFE</strong></span> &bull; 
-        <span>Confidential Whistleblower Protocol Active</span>
+        <span>Fictional Campus Contact: <strong>1800-CAMPUS-SAFE</strong></span> &bull;
+        <span>Demo Identity Masking Enabled</span>
       </div>
     </div>
   </footer>
 
   <!-- Accessible Global Modal Dialog Container -->
-  <div id="global-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-hidden="true">
+  <div id="global-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="global-modal-title">
     <div class="modal-dialog">
       <div class="modal-header">
-        <h3 class="modal-title" style="font-size: 1.15rem; margin: 0; color: var(--color-text-primary);">Notice</h3>
+        <h3 id="global-modal-title" class="modal-title" style="font-size: 1.15rem; margin: 0; color: var(--color-text-primary);">Notice</h3>
         <button type="button" class="btn-close" data-close-modal aria-label="Close dialog">&times;</button>
       </div>
       <div class="modal-body">

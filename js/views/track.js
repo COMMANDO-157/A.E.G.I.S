@@ -5,7 +5,7 @@
  */
 
 import { store } from '../store.js';
-import { escapeHtml } from '../security.js';
+import { escapeHtml, isValidVerificationPin } from '../security.js';
 import { 
   renderStatusBadge, 
   renderAuthorityBadge, 
@@ -21,7 +21,7 @@ export function renderTrackView() {
     <div class="section-header">
       <h1 class="section-title"><span>🔍</span> Grievance Tracking & Verification</h1>
       <p class="section-subtitle">
-        Securely query investigation status using your unique Reference ID and 6-digit demo verification PIN.
+        Query fictional investigation status using your unique Reference ID and 6-digit demo verification PIN.
       </p>
     </div>
 
@@ -48,7 +48,7 @@ export function renderTrackView() {
               6-Digit Verification PIN <span class="badge badge-demo" style="font-size: 0.65rem;">Demo Only</span>
             </label>
             <input type="text" id="track-pin" class="form-input" 
-              placeholder="e.g. 482910" maxlength="6" required autocomplete="off" />
+              placeholder="e.g. 482910" maxlength="6" inputmode="numeric" pattern="[0-9]{6}" aria-describedby="err-track-pin" required autocomplete="off" />
             <span id="err-track-pin" class="form-error-msg">Valid 6-digit PIN is required.</span>
           </div>
         </div>
@@ -93,13 +93,16 @@ export function initTrackView() {
   if (!form || !refInput || !pinInput || !resultsContainer) return;
 
   // Check if credentials were pass-through stored in sessionStorage
-  const prefillRef = sessionStorage.getItem('aegis_prefill_ref');
-  const prefillPin = sessionStorage.getItem('aegis_prefill_pin');
+  let prefillRef, prefillPin;
+  try {
+    prefillRef = sessionStorage.getItem('aegis_prefill_ref');
+    prefillPin = sessionStorage.getItem('aegis_prefill_pin');
+    sessionStorage.removeItem('aegis_prefill_ref');
+    sessionStorage.removeItem('aegis_prefill_pin');
+  } catch { /* Manual credential entry remains available. */ }
   if (prefillRef && prefillPin) {
     refInput.value = prefillRef;
     pinInput.value = prefillPin;
-    sessionStorage.removeItem('aegis_prefill_ref');
-    sessionStorage.removeItem('aegis_prefill_pin');
     setTimeout(() => form.dispatchEvent(new Event('submit')), 100);
   }
 
@@ -118,6 +121,7 @@ export function initTrackView() {
     const ref = refInput.value.trim().toUpperCase();
     const pin = pinInput.value.trim();
 
+    resultsContainer.innerHTML = '';
     let valid = true;
     const errRef = document.getElementById('err-track-ref');
     const errPin = document.getElementById('err-track-pin');
@@ -128,15 +132,18 @@ export function initTrackView() {
       errRef.classList.add('visible');
       valid = false;
     }
-    if (!pin || pin.length < 4) {
+    if (!isValidVerificationPin(pin)) {
       errPin.classList.add('visible');
       valid = false;
     }
 
-    if (!valid) return;
+    refInput.setAttribute('aria-invalid', String(!ref));
+    pinInput.setAttribute('aria-invalid', String(!isValidVerificationPin(pin)));
+    if (!valid) { (!ref ? refInput : pinInput).focus(); return; }
 
     const complaint = store.getComplaintByCredentials(ref, pin);
 
+    if (store.lastError) { showToast(store.lastError, 'error'); return; }
     if (!complaint) {
       resultsContainer.innerHTML = `
         <div class="card track-result-card" style="text-align: center; border-color: #f43f5e; padding: var(--spacing-8);">

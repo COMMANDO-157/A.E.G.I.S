@@ -18,7 +18,7 @@ import {
   closeModal, 
   showToast 
 } from '../ui.js';
-import { AUTHORITY_TIERS, SEVERITY_LEVELS } from '../escalation.js';
+import { AUTHORITY_TIERS, SEVERITY_LEVELS, canManageComplaint, allowedStatusTransitions } from '../escalation.js';
 
 let currentRole = AUTHORITY_TIERS.HOD;
 let currentFilter = 'my-tier'; // 'my-tier' | 'all' | 'critical' | 'escalated' | 'resolved'
@@ -47,7 +47,7 @@ export function renderDashboardView() {
         <p style="margin: 3px 0 0; color: inherit; font-size: 0.85rem;">
           This interactive role switcher is provided exclusively for competition evaluation. 
           Client-side JavaScript does not constitute genuine security or role-based access control (RBAC). 
-          In production, tiers are cryptographically authenticated via institutional SSO and server-side RBAC.
+          Production use would require institutional authentication and server-side authorization; neither is implemented here.
         </p>
       </div>
     </div>
@@ -166,7 +166,8 @@ export function initDashboardView() {
   // Reset demo data handler
   document.getElementById('btn-reset-demo-data')?.addEventListener('click', () => {
     if (confirm('Reset demo complaints back to default seed records?')) {
-      store.resetToSeedData();
+      try { store.resetToSeedData(); }
+      catch (error) { showToast(error.message, 'error', 0); return; }
       updateDashboardContent();
       showToast('Demo dataset reset to initial state', 'success');
     }
@@ -175,6 +176,7 @@ export function initDashboardView() {
 
 function updateDashboardContent() {
   const allComplaints = store.getComplaints();
+  if (store.lastError) showToast(store.lastError, 'error', 0);
   const privacyBanner = document.getElementById('role-privacy-banner');
   const statsGrid = document.getElementById('dashboard-stats-grid');
   const tbody = document.getElementById('triage-table-body');
@@ -294,10 +296,10 @@ function updateDashboardContent() {
             <button type="button" class="btn btn-secondary btn-sm btn-inspect" data-id="${escapeHtml(c.id)}" title="Inspect Full Complaint Details">
               👁️ Inspect
             </button>
-            <button type="button" class="btn btn-secondary btn-sm btn-action" data-id="${escapeHtml(c.id)}" title="Update Case Status / Add Remarks">
+            <button type="button" class="btn btn-secondary btn-sm btn-action" ${allowedStatusTransitions(c, currentRole).length ? '' : 'disabled'} data-id="${escapeHtml(c.id)}" title="Update Case Status / Add Remarks">
               ✏️ Status
             </button>
-            <button type="button" class="btn btn-danger btn-sm btn-override" data-id="${escapeHtml(c.id)}" title="Override Authority Routing / Escalate Tier">
+            <button type="button" class="btn btn-danger btn-sm btn-override" ${canManageComplaint(c, currentRole) ? '' : 'disabled'} data-id="${escapeHtml(c.id)}" title="Override Authority Routing / Escalate Tier">
               ⚡ Override
             </button>
           </div>
@@ -443,16 +445,15 @@ function openInspectModal(id) {
 function openStatusModal(id) {
   const complaint = store.getComplaintById(id);
   if (!complaint) return;
+  const transitions = allowedStatusTransitions(complaint, currentRole);
+  if (!transitions.length) { showToast('No permitted status transitions for this role and case.', 'warning'); return; }
 
   const content = `
     <form id="form-update-status">
       <div class="form-group">
         <label class="form-label" for="select-new-status">Update Case Status</label>
         <select id="select-new-status" class="form-select">
-          <option value="In Review" ${complaint.status === 'In Review' ? 'selected' : ''}>In Review</option>
-          <option value="Under Investigation" ${complaint.status === 'Under Investigation' ? 'selected' : ''}>Under Investigation</option>
-          <option value="Action Taken" ${complaint.status === 'Action Taken' ? 'selected' : ''}>Action Taken</option>
-          <option value="Resolved" ${complaint.status === 'Resolved' ? 'selected' : ''}>Resolved</option>
+          ${transitions.map(status => '<option value="' + escapeHtml(status) + '">' + escapeHtml(status) + '</option>').join('')}
         </select>
       </div>
 
@@ -486,7 +487,8 @@ function openStatusModal(id) {
       return;
     }
 
-    store.updateComplaintStatus(id, newStatus, remarks, currentRole);
+    try { store.updateComplaintStatus(id, newStatus, remarks, currentRole); }
+    catch (error) { showToast(error.message, 'error', 0); return; }
     closeModal();
     updateDashboardContent();
     showToast(`Status updated to "${newStatus}" and logged in audit trail`, 'success');
@@ -556,7 +558,9 @@ function openOverrideModal(id) {
     const errMsg = document.getElementById('err-override-msg');
     errMsg.classList.remove('visible');
 
-    const result = store.overrideComplaintRouting(id, targetTier, reason, currentRole);
+    let result;
+    try { result = store.overrideComplaintRouting(id, targetTier, reason, currentRole); }
+    catch (error) { showToast(error.message, 'error', 0); return; }
 
     if (!result.success) {
       errMsg.textContent = result.error;

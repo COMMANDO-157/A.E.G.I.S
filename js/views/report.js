@@ -7,7 +7,7 @@
 
 import { store } from '../store.js';
 import { validateEvidenceFile, escapeHtml } from '../security.js';
-import { showToast, openModal, renderSeverityBadge, renderUrgencyBadge } from '../ui.js';
+import { showToast, openModal, renderSeverityBadge, renderUrgencyBadge, copyToClipboard } from '../ui.js';
 
 let pendingEvidenceMeta = null;
 
@@ -20,7 +20,7 @@ export function renderReportView() {
         <div>
           <h1 class="section-title"><span>📢</span> Incident Grievance Portal</h1>
           <p class="section-subtitle">
-            Submit an encrypted, confidential, or anonymous incident report. 
+            Submit a fictional demo report in anonymous, confidential-display, or standard mode.
             Dual-engine routing evaluates incident risk and linked case history.
           </p>
         </div>
@@ -51,7 +51,7 @@ export function renderReportView() {
     <div class="report-grid">
       <!-- Main Reporting Form -->
       <form id="incident-report-form" class="card" novalidate>
-        
+
         <!-- Section 1: Incident Classification & Timing -->
         <div style="margin-bottom: var(--spacing-6);">
           <h3 style="font-size: 1.15rem; margin-bottom: var(--spacing-4); color: var(--color-primary-light);">
@@ -139,8 +139,8 @@ export function renderReportView() {
             <label class="form-label" for="incident-description">
               Describe what occurred <span class="required">*</span>
             </label>
-            <textarea id="incident-description" class="form-textarea" rows="4" 
-              placeholder="State the facts clearly. Mention any specific actions, words used, or sequence of events (minimum 20 characters)..." 
+            <textarea id="incident-description" class="form-textarea" rows="4"
+              placeholder="State the facts clearly. Mention any specific actions, words used, or sequence of events (minimum 20 characters)..."
               required minlength="20"></textarea>
             <div style="display: flex; justify-content: space-between; margin-top: 4px;">
               <span id="err-incident-description" class="form-error-msg">Description must be at least 20 characters.</span>
@@ -183,7 +183,7 @@ export function renderReportView() {
             <span class="badge badge-demo">Reliable Case Sync</span>
           </div>
           <p class="form-hint" style="margin-bottom: var(--spacing-3);">
-            Choose whether to link this complaint to an existing case group or file independently. 
+            Choose whether to link this complaint to an existing case group or file independently.
             Linked reports reliably synchronize without accidental unlinking.
           </p>
 
@@ -254,7 +254,7 @@ export function renderReportView() {
               <div class="radio-content">
                 <strong>🛡️ Confidential Whistleblower (Masked from HOD & Dean)</strong>
                 <p style="font-size: 0.8rem; margin: 2px 0 0; color: var(--color-text-secondary);">
-                  Your contact details are recorded for investigation follow-up, but strictly <strong>masked</strong> 
+                  Your contact details are recorded for investigation follow-up, but strictly <strong>masked</strong>
                   from Department HOD and Dean displays. Only Higher Authority (Tier 3) may access contact details.
                 </p>
               </div>
@@ -304,7 +304,7 @@ export function renderReportView() {
           <div id="file-dropzone" class="file-dropzone" tabindex="0" role="button" aria-label="Upload evidence file">
             <div style="font-size: 2rem; margin-bottom: 8px;">📎</div>
             <p style="margin: 0; font-weight: 500; color: var(--color-text-primary);">
-              Click or drag file here to attach evidence
+              Click here to select a demo evidence file
             </p>
             <span class="form-hint">Client-side demonstration preview only.</span>
             <input type="file" id="evidence-input" accept=".jpg,.jpeg,.png,.webp,.pdf" />
@@ -320,8 +320,8 @@ export function renderReportView() {
           <div>
             <strong>High-Risk Emergency Guidance:</strong>
             <p style="margin: 4px 0 0; font-size: 0.85rem; color: inherit;">
-              Critical signals or imminent hazard indicators are active. 
-              If you are in immediate physical danger, contact Campus Rapid Response (<strong>1800-CAMPUS-SAFE</strong>) or Police (<strong>112</strong>). 
+              Critical signals or imminent hazard indicators are active.
+              If you are in immediate physical danger, contact Campus Rapid Response (<strong>1800-CAMPUS-SAFE</strong>) or Police (<strong>112</strong>).
               This report will automatically bypass lower departmental tiers for direct Higher Authority review.
             </p>
           </div>
@@ -330,7 +330,7 @@ export function renderReportView() {
         <!-- Submit Button -->
         <div>
           <button type="submit" id="btn-submit-report" class="btn btn-primary btn-lg btn-block">
-            <span>🛡️</span> Submit Incident Report Securely
+            <span>🛡️</span> Submit Demo Incident Report
           </button>
           <p class="form-hint" style="text-align: center; margin-top: var(--spacing-3);">
             By submitting, you acknowledge that this is a competition demonstration prototype.
@@ -350,9 +350,9 @@ export function renderReportView() {
         </div>
 
         <div class="info-card">
-          <h4><span>🔒</span> Zero-Retaliation Policy</h4>
+          <h4><span>🔒</span> Demo Identity Display Rules</h4>
           <p style="font-size: 0.8rem; margin: 0;">
-            In confidential mode, Department HODs and Deans cannot view reporter identity. Only Tier 3 Higher Authority has protected access.
+            In confidential mode, HOD and Dean screens mask identity; Higher Authority screens display it. Browser storage still contains the record. This is not access control.
           </p>
         </div>
 
@@ -506,7 +506,7 @@ export function initReportView() {
     document.getElementById('incident-location').value = location;
     document.getElementById('incident-description').value = desc;
     document.getElementById('suspect-name').value = suspect || '';
-    
+
     // Set checkboxes
     document.getElementById('risk-immediate').checked = !!flags.immediateDanger;
     document.getElementById('risk-physical').checked = !!flags.physicalThreat;
@@ -693,7 +693,9 @@ export function initReportView() {
       evidenceFile: pendingEvidenceMeta
     };
 
-    const saved = store.saveComplaint(payload);
+    let saved;
+    try { saved = store.saveComplaint(payload); }
+    catch (error) { showToast(error.message, 'error', 0); return; }
 
     // Show Confirmation Modal
     const modalContent = `
@@ -769,23 +771,27 @@ export function initReportView() {
         pendingEvidenceMeta = null;
         descInput.dispatchEvent(new Event('input'));
         checkEmergencyState();
+        radioModeButtons.forEach(radio => { if (radio.checked) radio.dispatchEvent(new Event('change')); });
+        caseLinkRadios.forEach(radio => { if (radio.checked) radio.dispatchEvent(new Event('change')); });
+        fileInput.value = '';
+        filePreview.style.display = 'none';
       }
     });
 
     // Wire copy buttons
     document.getElementById('btn-copy-ref')?.addEventListener('click', () => {
-      navigator.clipboard.writeText(saved.referenceId);
-      showToast('Reference ID copied!', 'success');
+      copyToClipboard(saved.referenceId, 'Reference ID');
     });
 
     document.getElementById('btn-copy-pin')?.addEventListener('click', () => {
-      navigator.clipboard.writeText(saved.verificationPin);
-      showToast('Verification PIN copied!', 'success');
+      copyToClipboard(saved.verificationPin, 'Verification PIN');
     });
 
     document.getElementById('btn-goto-track')?.addEventListener('click', () => {
-      sessionStorage.setItem('aegis_prefill_ref', saved.referenceId);
-      sessionStorage.setItem('aegis_prefill_pin', saved.verificationPin);
+      try {
+        sessionStorage.setItem('aegis_prefill_ref', saved.referenceId);
+        sessionStorage.setItem('aegis_prefill_pin', saved.verificationPin);
+      } catch { showToast('Automatic tracking prefill unavailable. Enter the receipt credentials manually.', 'warning'); }
     });
 
     showToast('Incident report logged successfully!', 'success');

@@ -118,13 +118,20 @@ export async function validateEvidenceFile(file) {
  * Generates a unique, human-readable Complaint Reference ID.
  * Format: AEG-2026-[4 alphanumeric characters]
  */
-export function generateReferenceId() {
+export function generateReferenceId(existing = [], year = new Date().getFullYear(), random = Math.random) {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let rand = '';
-  for (let i = 0; i < 4; i++) {
-    rand += chars.charAt(Math.floor(Math.random() * chars.length));
+  const used = new Set(existing.map(value => String(value).toUpperCase()));
+  for (let attempt = 0; attempt < 100; attempt++) {
+    let suffix = '';
+    for (let i = 0; i < 4; i++) suffix += chars[Math.floor(random() * chars.length)];
+    const reference = 'AEG-' + year + '-' + suffix;
+    if (!used.has(reference)) return reference;
   }
-  return `AEG-2026-${rand}`;
+  throw new Error('Unable to allocate a unique reference. Please try again.');
+}
+
+export function isValidVerificationPin(pin) {
+  return typeof pin === 'string' && /^\d{6}$/.test(pin);
 }
 
 /**
