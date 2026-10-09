@@ -110,7 +110,7 @@ test('Actual complaint endpoints enforce ownership, department scope and payload
  process.env.GOOGLE_CLIENT_ID='123-test.apps.googleusercontent.com';process.env.LIVE_INTAKE_ENABLED='true';
  let currentUser=student,currentComplaint={...complaint,id:'00000000-0000-0000-0000-000000000001',owner_user_id:'student-b'};
  const db={query:async()=>({rows:[currentComplaint],rowCount:1})};
- const server=http.createServer(createHandler({sessionUser:async()=>currentUser,logout},{database:()=>db,transaction:fn=>fn(db)}));
+ const server=http.createServer(createHandler({sessionUser:async()=>currentUser,logout},{database:()=>db,transaction:fn=>fn(db)},{consumeRateLimit:async()=>({remaining:100})}));
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  const origin='http://127.0.0.1:'+server.address().port;process.env.APP_ORIGIN=origin;
  const path=origin+'/api/complaints/'+currentComplaint.id;

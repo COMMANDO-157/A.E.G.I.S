@@ -1,4 +1,7 @@
 import {randomUUID} from 'node:crypto';
+import {consumeRateLimit} from './rate-limit.js';
+import {authorizeMaintenance,cleanupExpired} from './maintenance.js';
+import {cookie} from './auth.js';
 import {intakeEnabled} from './config.js';
 import {database,transaction} from './db.js';
 import {challenge,login,sessionUser,logout,checkOrigin,configured} from './auth.js';
@@ -14,7 +17,7 @@ async function body(req) {
  try{return JSON.parse(raw||'{}');}catch{fail(400,'Invalid JSON.');}
 }
 function userView(u) { return {id:u.id,email:u.email,name:u.name,department:u.department,role:u.role,account_status:u.account_status,staff_requested:u.staff_requested}; }
-export function createHandler(auth={sessionUser,logout},store={database,transaction}) {
+export function createHandler(auth={sessionUser,logout},store={database,transaction},security={consumeRateLimit}) {
  const {database,transaction}=store;
  return async function handler(req,res) {
  res.setHeader('Cache-Control','no-store'); res.setHeader('X-Content-Type-Options','nosniff');
@@ -23,16 +26,22 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
   const url=new URL(req.url,'http://localhost');
   const path='/api/'+(url.searchParams.get('route')||url.pathname.replace(/^\/api\/?/,'')).replace(/^\/|\/$/g,'');
   const method=req.method;
+  if(path==='/api/not-found')fail(404,'Endpoint not found.');
+  const limit=(bucket,max)=>security.consumeRateLimit(database(),bucket,max);
+  if(path==='/api/maintenance'&&method==='GET'){authorizeMaintenance(req);return send(200,{removed:await cleanupExpired(database())});}
+  if(path==='/api/health'&&method==='GET'){await limit('health:global',120);await database().query('SELECT 1');return send(200,{status:'ok',intakeEnabled:intakeEnabled()});}
   if(method==='GET'&&path==='/api/config') return send(200,{ready:intakeEnabled(),configured:configured(),googleClientId:intakeEnabled()?process.env.GOOGLE_CLIENT_ID:null});
   if(!['GET','HEAD'].includes(method)) {
    checkOrigin(req);
-   if(!String(req.headers['content-type']||'').startsWith('application/json')) fail(415,'JSON requests required.');
+   if(!/^application\/json(?:\s*;|$)/i.test(String(req.headers['content-type']||''))) fail(415,'JSON requests required.');
   }
-  if(path==='/api/auth/logout'&&method==='POST') {await auth.logout(req,res);return send(200,{ok:true});}
+  if(path==='/api/auth/logout'&&method==='POST') {res.setHeader('Set-Cookie',[cookie('aegis_session','',0),cookie('aegis_challenge','',0)]);if(process.env.DATABASE_URL) await limit('logout:global',240);await auth.logout(req,res);return send(200,{ok:true});}
   if(!intakeEnabled()) fail(503,'Authenticated intake is disabled pending integration and security verification.');
-  if(path==='/api/auth/challenge'&&method==='POST') return send(200,await challenge(res));
-  if(path==='/api/auth/google'&&method==='POST') {const input=await body(req);fieldsOnly(input,['credential']);return send(200,{user:userView(await login(req,res,input.credential))});}
+  if(path==='/api/auth/challenge'&&method==='POST'){await limit('challenge:global',120);return send(200,await challenge(res));}
+  if(path==='/api/auth/google'&&method==='POST') {await limit('google:global',60);const input=await body(req);fieldsOnly(input,['credential']);return send(200,{user:userView(await login(req,res,input.credential))});}
+  await limit('session:global',1200);
   const user=await auth.sessionUser(req);
+  await limit('user:'+user.id+':'+(method==='GET'?'read':'write'),method==='GET'?240:30);
   if(path==='/api/me'&&method==='GET') return send(200,{user:userView(user)});
 
   if(path==='/api/me'&&method==='PATCH') {
@@ -69,10 +78,12 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
     if(input.linkedComplaintId) {
      const linked=await db.query('SELECT * FROM complaints WHERE id=$1 AND owner_user_id=$2',[input.linkedComplaintId,user.id]);
      if(!linked.rowCount) fail(404,'Owned linked complaint not found.');
+     if(linked.rows[0].department!==user.department) fail(422,'Linked reports must remain in their original department.');
      caseId=linked.rows[0].case_id;
     }
     await db.query('SELECT pg_advisory_xact_lock(hashtext($1))',[caseId]);
     const existing=await db.query('SELECT * FROM complaints WHERE case_id=$1 FOR UPDATE',[caseId]);
+    if(existing.rows.some(c=>c.owner_user_id!==user.id||c.department!==user.department)) fail(403,'Linked case scope rejected.');
     const engineRecords=existing.rows.map(c=>({...c,caseGroupId:c.case_id,assignedAuthority:c.assigned_authority,auditLogs:[]}));
     const evaluation=evaluateCaseEscalation({...input,caseGroupId:caseId},engineRecords);
     for(const c of evaluation.caseComplaintsToUpdate) {
@@ -100,7 +111,11 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
    }
    if(method!=='PATCH') fail(405,'Method not allowed.');
    const input=await body(req);
+   if(typeof input.notes!=='string'||input.notes.length>10000) fail(422,'Supporting notes must be at most 10000 characters.');
    const updated=await transaction(async db=>{
+    const initial=await db.query('SELECT * FROM complaints WHERE id=$1',[match[1]]);
+    if(!initial.rows[0]||!canRead(user,initial.rows[0])) fail(404,'Complaint not found.');
+    await db.query('SELECT pg_advisory_xact_lock(hashtext($1))',[initial.rows[0].case_id]);
     const locked=await db.query('SELECT * FROM complaints WHERE id=$1 FOR UPDATE',[match[1]]);
     const c=locked.rows[0];if(!c||!canRead(user,c)) fail(404,'Complaint not found.');
     if(!canAct(user,c)) fail(403,'Approved assigned authority required.');
@@ -109,7 +124,7 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
      const valid=validateStatusTransition({status:c.status,assignedAuthority:c.assigned_authority},input.status,input.notes,user.role);
      if(!valid.valid) fail(422,valid.error);
      await db.query('UPDATE complaints SET status=$1,updated_at=now() WHERE id=$2',[input.status,c.id]);
-     await audit(db,user,c.id,'STATUS_UPDATE',{status:input.status});
+     await audit(db,user,c.id,'STATUS_UPDATE',{status:input.status,reason:input.notes.trim()});
     } else if(match[2]==='routing') {
      fieldsOnly(input,['targetTier','notes']);
      const members=await db.query('SELECT * FROM complaints WHERE case_id=$1 ORDER BY id FOR UPDATE',[c.case_id]);
@@ -123,8 +138,7 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
     } else if(match[2]==='verification') {
      fieldsOnly(input,['verification_status','notes','evidence_status','allegation_status']);reviewDecision(user,c,input);
      if(input.evidence_status==='Authenticity Confirmed') {
-      const evidence=await db.query('SELECT id FROM complaint_evidence WHERE complaint_id=$1',[c.id]);
-      if(!evidence.rowCount) fail(422,'No privately stored evidence is available to authenticate.');
+      fail(422,'Private evidence review is not configured; authenticity cannot be confirmed.');
      }
      await db.query('UPDATE complaints SET verification_status=$1,evidence_status=$2,allegation_status=$3,updated_at=now() WHERE id=$4',
       [input.verification_status,input.evidence_status||c.evidence_status,input.allegation_status||c.allegation_status,c.id]);
@@ -152,6 +166,7 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
   fail(404,'Endpoint not found.');
  } catch(error) {
   const status=error.status|| (error.code==='23505'?409:503);
+  if(status===429)res.setHeader('Retry-After',String(Math.max(1,error.retryAfter||60)));
   if(!error.status) console.error('API failure code:',error.code||error.name);
   send(status,{error:error.status?error.message:'Backend unavailable. Check server configuration and migration.'});
  }

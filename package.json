@@ -9,7 +9,10 @@
     "start": "node --env-file-if-exists=.env server/local.js",
     "migrate": "node --env-file-if-exists=.env scripts/migrate.js",
     "admin:bootstrap": "node --env-file-if-exists=.env scripts/bootstrap-admin.js",
-    "test:auth": "node --test test_auth.js"
+    "test:auth": "node --test test_auth.js",
+    "db:health": "node --env-file-if-exists=.env scripts/health.js",
+    "security:cleanup": "node --env-file-if-exists=.env scripts/cleanup.js",
+    "test:integration": "node --env-file-if-exists=.env test_integration.js"
   },
   "dependencies": {
     "google-auth-library": "^10.5.0",
