@@ -39,15 +39,14 @@ export function renderDashboardView() {
       </div>
     </div>
 
-    <!-- Demonstration Role Disclaimer Notice -->
+    <!-- Legacy Demo Notice -->
     <div class="alert alert-warning" style="margin-bottom: var(--spacing-6);">
       <div style="font-size: 1.25rem;">⚠️</div>
       <div>
-        <strong>Demonstration Role Switcher (Prototype Notice):</strong>
+        <strong>Legacy Demo Dashboard:</strong>
         <p style="margin: 3px 0 0; color: inherit; font-size: 0.85rem;">
-          This interactive role switcher is provided exclusively for competition evaluation. 
-          Client-side JavaScript does not constitute genuine security or role-based access control (RBAC). 
-          Production use would require institutional authentication and server-side authorization; neither is implemented here.
+          This dashboard uses local browser storage and does not connect to the live database. 
+          For authenticated, server-backed access, use the <a href="#authority">Authority Portal</a> instead.
         </p>
       </div>
     </div>

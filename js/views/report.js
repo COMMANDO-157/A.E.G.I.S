@@ -321,7 +321,7 @@ export function renderReportView() {
             <strong>High-Risk Emergency Guidance:</strong>
             <p style="margin: 4px 0 0; font-size: 0.85rem; color: inherit;">
               Critical signals or imminent hazard indicators are active.
-              If you are in immediate physical danger, contact Campus Rapid Response (<strong>1800-CAMPUS-SAFE</strong>) or Police (<strong>112</strong>).
+              If you are in immediate physical danger, contact Emergency Services (<strong>112</strong>) or National Women Helpline (<strong>1091</strong>).
               This report will automatically bypass lower departmental tiers for direct Higher Authority review.
             </p>
           </div>
@@ -330,10 +330,10 @@ export function renderReportView() {
         <!-- Submit Button -->
         <div>
           <button type="submit" id="btn-submit-report" class="btn btn-primary btn-lg btn-block">
-            <span>🛡️</span> Submit Demo Incident Report
+            <span>🛡️</span> Submit Incident Report
           </button>
           <p class="form-hint" style="text-align: center; margin-top: var(--spacing-3);">
-            By submitting, you acknowledge that this is a competition demonstration prototype.
+            By submitting, you acknowledge the information provided is accurate to the best of your knowledge.
           </p>
         </div>
       </form>

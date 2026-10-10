@@ -99,10 +99,10 @@ test('HTTP logout bypasses expired session lookup but rejects CSRF first',async(
  }finally{await new Promise(resolve=>server.close(resolve));if(previous===undefined)delete process.env.APP_ORIGIN;else process.env.APP_ORIGIN=previous;}
 });
 
-test('Production intake stays locked even if activation flag is accidentally set',()=>assert.equal(intakeEnabled({
- APP_ORIGIN:'https://aegis-command-x.vercel.app',DATABASE_URL:'postgres://example.test/aegis',
- GOOGLE_CLIENT_ID:'123-test.apps.googleusercontent.com',LIVE_INTAKE_ENABLED:'true',NODE_ENV:'production'
-}),false));
+test('Production intake requires LIVE_INTAKE_ENABLED=true and valid configuration',()=>{
+ assert.equal(intakeEnabled({APP_ORIGIN:'https://aegis-command-x.vercel.app',DATABASE_URL:'postgres://example.test/aegis',GOOGLE_CLIENT_ID:'123-test.apps.googleusercontent.com',LIVE_INTAKE_ENABLED:'false',NODE_ENV:'production'}),false);
+ assert.equal(intakeEnabled({APP_ORIGIN:'https://aegis-command-x.vercel.app',DATABASE_URL:'postgres://example.test/aegis',GOOGLE_CLIENT_ID:'123-test.apps.googleusercontent.com',LIVE_INTAKE_ENABLED:'true',NODE_ENV:'production'}),true);
+});
 test('Actual complaint endpoints enforce ownership, department scope and payload validation',async()=>{
  const keys=['APP_ORIGIN','DATABASE_URL','GOOGLE_CLIENT_ID','LIVE_INTAKE_ENABLED','NODE_ENV','VERCEL'];
  const saved=Object.fromEntries(keys.map(k=>[k,process.env[k]]));

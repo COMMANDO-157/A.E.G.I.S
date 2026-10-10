@@ -21,4 +21,4 @@ export function databaseOptions(env=process.env) {
 export function configured(env=process.env) {
  try {appOrigin(env);databaseOptions(env);return /^\d+-[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$/.test(env.GOOGLE_CLIENT_ID||'');}catch{return false;}
 }
-export const intakeEnabled=(env=process.env)=>!production(env)&&env.LIVE_INTAKE_ENABLED==='true'&&configured(env);
+export const intakeEnabled=(env=process.env)=>env.LIVE_INTAKE_ENABLED==='true'&&configured(env);

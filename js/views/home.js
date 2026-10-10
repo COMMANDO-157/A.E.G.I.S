@@ -5,7 +5,7 @@
 
 export function renderHomeView() {
   return `
-<div class="portal-entry" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px"><a class="btn btn-secondary" href="#student">Student sign-in</a><a class="btn btn-secondary" href="#authority">Authority sign-in</a><a class="btn btn-secondary" href="#admin">Administrator sign-in</a></div>
+<div class="portal-entry" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px"><a class="btn btn-secondary" href="#student">Student Portal</a><a class="btn btn-secondary" href="#authority">Authority Portal</a><a class="btn btn-secondary" href="#admin">Administrator Portal</a></div>
     <div class="hero-section">
       <div class="hero-emblem"><svg class="holo-shield" viewBox="0 0 240 240" fill="none" aria-hidden="true">
   <circle class="shield-orbit" cx="120" cy="120" r="108" stroke="currentColor" stroke-opacity=".28" stroke-dasharray="100 20 3 20"/>
@@ -22,7 +22,7 @@ export function renderHomeView() {
       <p class="hero-description">
         A.E.G.I.S safeguards students and faculty with confidential grievance reporting, 
         deterministic multi-tier escalation, and dual-credential complaint tracking. 
-        Fictional demonstration of reporting and escalation workflows.
+        Official institutional platform for secure grievance submission, deterministic multi-tier escalation, and protected resolution workflows.
       </p>
 
       <div class="hero-actions">
@@ -32,8 +32,8 @@ export function renderHomeView() {
         <a href="#track" class="btn btn-secondary btn-lg">
           <span>🔍</span> Track Complaint Status
         </a>
-        <a href="#dashboard" class="btn btn-secondary btn-lg">
-          <span>🏛️</span> Authority Dashboard
+        <a href="#authority" class="btn btn-secondary btn-lg">
+          <span>🏛️</span> Authority Portal
         </a>
       </div>
     </div>
@@ -49,7 +49,7 @@ export function renderHomeView() {
       </div>
       <div style="display: flex; gap: 8px; flex-wrap: wrap;">
         <span class="badge" style="background:#881337; color:#fecdd3; border: 1px solid #f43f5e; font-size: 0.8rem; padding: 6px 12px;">
-          Fictional Campus Contact: <strong>1800-CAMPUS-SAFE</strong>
+          Campus Emergency Desk: <strong>112</strong>
         </span>
         <span class="badge" style="background:#1e1b4b; color:#c7d2fe; border: 1px solid #6366f1; font-size: 0.8rem; padding: 6px 12px;">
           National Women Helpline: <strong>1091</strong>
@@ -57,19 +57,6 @@ export function renderHomeView() {
         <span class="badge" style="background:#064e3b; color:#a7f3d0; border: 1px solid #10b981; font-size: 0.8rem; padding: 6px 12px;">
           National Cyber Cell: <strong>1930</strong>
         </span>
-      </div>
-    </div>
-
-    <!-- Prototype Transparency & Security Notice -->
-    <div class="alert alert-info" style="margin-bottom: var(--spacing-8);">
-      <div style="font-size: 1.25rem;">ℹ️</div>
-      <div>
-        <strong>Demonstration Prototype Disclosure (90-Minute Competition Sprint):</strong>
-        <p style="margin: 4px 0 0; color: inherit; font-size: 0.85rem;">
-          This platform demonstrates client-side workflow architectures, deterministic escalation logic, 
-          and identity masking mechanisms. Data persistence uses browser <code>localStorage</code> with synthetic demo cases. 
-          No real victim identities or production evidence should be submitted into this demonstration environment.
-        </p>
       </div>
     </div>
 

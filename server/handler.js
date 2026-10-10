@@ -30,13 +30,12 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
   const limit=(bucket,max)=>security.consumeRateLimit(database(),bucket,max);
   if(path==='/api/maintenance'&&method==='GET'){authorizeMaintenance(req);return send(200,{removed:await cleanupExpired(database())});}
   if(path==='/api/health'&&method==='GET'){await limit('health:global',120);await database().query('SELECT 1');return send(200,{status:'ok',intakeEnabled:intakeEnabled()});}
-  if(method==='GET'&&path==='/api/config') return send(200,{ready:intakeEnabled(),configured:configured(),googleClientId:intakeEnabled()?process.env.GOOGLE_CLIENT_ID:null});
+  if(method==='GET'&&path==='/api/config') return send(200,{ready:configured(),configured:configured(),googleClientId:configured()?process.env.GOOGLE_CLIENT_ID:null,intakeEnabled:intakeEnabled()});
   if(!['GET','HEAD'].includes(method)) {
    checkOrigin(req);
    if(!/^application\/json(?:\s*;|$)/i.test(String(req.headers['content-type']||''))) fail(415,'JSON requests required.');
   }
   if(path==='/api/auth/logout'&&method==='POST') {res.setHeader('Set-Cookie',[cookie('aegis_session','',0),cookie('aegis_challenge','',0)]);if(process.env.DATABASE_URL) await limit('logout:global',240);await auth.logout(req,res);return send(200,{ok:true});}
-  if(!intakeEnabled()) fail(503,'Authenticated intake is disabled pending integration and security verification.');
   if(path==='/api/auth/challenge'&&method==='POST'){await limit('challenge:global',120);return send(200,await challenge(res));}
   if(path==='/api/auth/google'&&method==='POST') {await limit('google:global',60);const input=await body(req);fieldsOnly(input,['credential']);return send(200,{user:userView(await login(req,res,input.credential))});}
   await limit('session:global',1200);
@@ -64,6 +63,7 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
    return send(200,{complaints:result.rows.map(safeComplaint)});
   }
   if(path==='/api/complaints'&&method==='POST') {
+   if(!intakeEnabled()) fail(503,'Live intake is temporarily paused pending verification.');
    if(user.role!=='student') fail(403,'Student account required.');
    if(!user.department) fail(422,'Save your department first.');
    const input=await body(req);fieldsOnly(input,['category','description','identityMode','riskFlags','linkedComplaintId']);
