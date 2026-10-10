@@ -1,5 +1,5 @@
 /**
- * A.E.G.I.S 4.0 — Student Dashboard Placeholder
+ * A.E.G.I.S 4.0 â€” Student Dashboard Placeholder
  * WP-4.1.1
  */
 
@@ -23,7 +23,7 @@ export default function StudentDashboardPage() {
               Welcome back, {user?.name ?? 'Student'}
             </h1>
             <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
-              Department: <strong>{user?.department || 'Unassigned'}</strong> · Account Status:{' '}
+              Department: <strong>{user?.department || 'Unassigned'}</strong> Â· Account Status:{' '}
               <span className="badge badge-success">{user?.account_status}</span>
             </p>
           </div>
@@ -39,15 +39,25 @@ export default function StudentDashboardPage() {
       </section>
 
       {/* Security & Confidentiality Advisory */}
-      <div className="alert alert-info">
-        <div>
-          <strong>{en.common.confidentialNotice}</strong>
-          <p style={{ marginTop: 'var(--spacing-1)', fontSize: 'var(--font-size-xs)' }}>
-            All reports submitted through A.E.G.I.S follow strict anti-retaliation protocols.
-            Your submissions are processed directly through the institutional escalation engine.
-          </p>
-        </div>
+
+{/* Reporting availability advisory */}
+    <div className="alert alert-warning" role="status">
+      <div>
+        <strong>Reporting is not yet available</strong>
+        <p
+          style={{
+            marginTop: 'var(--spacing-1)',
+            fontSize: 'var(--font-size-sm)',
+          }}
+        >
+          A.E.G.I.S is preparing its confidential reporting
+          service. Incident submission and live case tracking
+          are not yet enabled. This dashboard does not display
+          live case information.
+        </p>
       </div>
+    </div>
+
 
       {/* Overview Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 'var(--spacing-6)' }}>
@@ -56,7 +66,7 @@ export default function StudentDashboardPage() {
             Confidential Reporting
           </h2>
           <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)', marginBottom: 'var(--spacing-4)' }}>
-            Submit grievances regarding harassment, ragging, hostel issues, or academic coercion with full identity privacy.
+            Learn about the planned reporting service for campus grievances. Incident submission remains disabled until security and privacy verification is complete.
           </p>
           <Link to="/student/report" className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start' }}>
             Open Reporting Form &rarr;

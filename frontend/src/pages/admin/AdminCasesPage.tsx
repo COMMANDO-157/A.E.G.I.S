@@ -14,7 +14,7 @@ export default function AdminCasesPage() {
           Campus-Wide Case Oversight
         </h1>
         <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
-          High-level monitoring of all registered grievances, escalation SLAs, and resolution timelines.
+          This workspace will support authorized case oversight after secure integration. No live case data is displayed.
         </p>
       </div>
 
@@ -23,7 +23,7 @@ export default function AdminCasesPage() {
           <div className="empty-state-icon" aria-hidden="true">📊</div>
           <div className="empty-state-title">All Cases Registry</div>
           <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)', maxWidth: 440 }}>
-            Platform-wide case querying and status tracking table will activate in WP-4.2.
+            Platform-wide case querying and status tracking are not connected to this interface. No live case records are displayed.
           </p>
         </div>
       </div>

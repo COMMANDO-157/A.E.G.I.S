@@ -1,66 +1,148 @@
+
 /**
- * A.E.G.I.S 4.0 — Owner/Admin Overview Placeholder
- * WP-4.1.1
+ * A.E.G.I.S 4.0 — Owner Governance Dashboard
+ * WP-4.1.5
+ *
+ * Presentation only. No privileged actions or data queries.
  */
 
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 
+const governanceSections = [
+  {
+    title: 'User & Role Governance',
+    description:
+      'Review the planned account directory, staff verification, and authority role management workspace.',
+    path: '/admin/users',
+    action: 'View user workspace',
+  },
+  {
+    title: 'Case Oversight',
+    description:
+      'Explore the case oversight workspace. Live grievance records and escalation metrics are not connected.',
+    path: '/admin/cases',
+    action: 'View oversight workspace',
+  },
+  {
+    title: 'Security Audit',
+    description:
+      'Access the audit viewer placeholder. Live audit records are not displayed in this release.',
+    path: '/admin/audit',
+    action: 'View audit workspace',
+  },
+] as const;
+
 export default function AdminOverviewPage() {
   const { user } = useAuth();
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-6)' }}>
-      <header className="card" style={{ borderColor: 'var(--aegis-amber-500)', background: 'linear-gradient(to right, #FFFFFF, var(--aegis-amber-50))' }}>
-        <span className="badge badge-warning" style={{ marginBottom: 'var(--spacing-2)' }}>
-          Root System Administrator
+    <main
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--spacing-6)',
+      }}
+    >
+      <header
+        className="card"
+        style={{
+          borderColor: 'var(--aegis-amber-500)',
+          background: 'var(--aegis-amber-50)',
+        }}
+      >
+        <span className="badge badge-warning">
+          Owner Administration
         </span>
-        <h1 style={{ fontSize: 'var(--font-size-2xl)', color: 'var(--aegis-navy)', marginBottom: 'var(--spacing-1)' }}>
-          Platform Governance &amp; Administration
+
+        <h1
+          style={{
+            fontSize: 'var(--font-size-2xl)',
+            color: 'var(--aegis-navy)',
+            marginTop: 'var(--spacing-3)',
+          }}
+        >
+          Platform Governance
         </h1>
-        <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
-          Root Administrator: <strong>{user?.email}</strong> · Session Security: <strong>HttpOnly Cookie Boundary</strong>
+
+        <p style={{ color: 'var(--color-text-secondary)' }}>
+          Signed in as: {user?.email ?? 'Unavailable'}
         </p>
       </header>
 
-      {/* Admin Quick Panels */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 'var(--spacing-4)' }}>
-        <div className="card">
-          <h2 style={{ fontSize: 'var(--font-size-base)', marginBottom: 'var(--spacing-2)' }}>
-            User Roles &amp; Staff Requests
-          </h2>
-          <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)', marginBottom: 'var(--spacing-4)' }}>
-            Manage student registrations, approve staff privilege requests, and promote faculty to authority tiers.
+      <section className="alert alert-warning" role="status">
+        <div>
+          <strong>Administrative controls not yet enabled</strong>
+          <p>
+            This dashboard is a navigation shell. Staff approvals,
+            role changes, live case oversight, and audit queries
+            require verified backend integration and additional
+            owner security controls.
           </p>
-          <Link to="/admin/users" className="btn btn-secondary btn-sm">
-            Manage Users &rarr;
-          </Link>
         </div>
+      </section>
 
-        <div className="card">
-          <h2 style={{ fontSize: 'var(--font-size-base)', marginBottom: 'var(--spacing-2)' }}>
-            System-Wide Case Oversight
-          </h2>
-          <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)', marginBottom: 'var(--spacing-4)' }}>
-            Audit active grievances across all department branches and inspect escalation SLA compliance.
-          </p>
-          <Link to="/admin/cases" className="btn btn-secondary btn-sm">
-            Oversight Console &rarr;
-          </Link>
-        </div>
+      <section aria-labelledby="governance-heading">
+        <h2
+          id="governance-heading"
+          style={{
+            fontSize: 'var(--font-size-xl)',
+            marginBottom: 'var(--spacing-4)',
+          }}
+        >
+          Governance Workspaces
+        </h2>
 
-        <div className="card">
-          <h2 style={{ fontSize: 'var(--font-size-base)', marginBottom: 'var(--spacing-2)' }}>
-            Immutable Audit Trail
-          </h2>
-          <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)', marginBottom: 'var(--spacing-4)' }}>
-            Review tamper-evident audit logs protected by PostgreSQL triggers.
-          </p>
-          <Link to="/admin/audit" className="btn btn-secondary btn-sm">
-            Inspect Audit Logs &rarr;
-          </Link>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns:
+              'repeat(auto-fit, minmax(min(100%, 260px), 1fr))',
+            gap: 'var(--spacing-4)',
+          }}
+        >
+          {governanceSections.map((section) => (
+            <article className="card" key={section.path}>
+              <h3
+                style={{
+                  fontSize: 'var(--font-size-lg)',
+                  marginBottom: 'var(--spacing-3)',
+                }}
+              >
+                {section.title}
+              </h3>
+
+              <p
+                style={{
+                  color: 'var(--color-text-secondary)',
+                  marginBottom: 'var(--spacing-4)',
+                }}
+              >
+                {section.description}
+              </p>
+
+              <Link
+                to={section.path}
+                className="btn btn-secondary btn-sm"
+              >
+                {section.action}
+              </Link>
+            </article>
+          ))}
         </div>
-      </div>
-    </div>
+      </section>
+
+      <section className="card" aria-labelledby="security-heading">
+        <h2 id="security-heading">Security Readiness</h2>
+        <p style={{ color: 'var(--color-text-secondary)' }}>
+          Owner MFA, action PIN verification, and privileged
+          workflow approvals are pending implementation
+          and security testing.
+        </p>
+        <span className="badge badge-warning">
+          Activation pending
+        </span>
+      </section>
+    </main>
   );
 }

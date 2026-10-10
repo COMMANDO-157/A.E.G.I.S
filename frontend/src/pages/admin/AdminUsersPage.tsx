@@ -14,7 +14,7 @@ export default function AdminUsersPage() {
           User Directory &amp; Role Assignments
         </h1>
         <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
-          Review registered accounts, departmental mappings, and faculty staff promotion requests.
+          This workspace is reserved for future account review, departmental mapping, and authorized role management.
         </p>
       </div>
 
@@ -33,7 +33,7 @@ export default function AdminUsersPage() {
           <div className="empty-state-icon" aria-hidden="true">👥</div>
           <div className="empty-state-title">User Management Console</div>
           <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)', maxWidth: 440 }}>
-            Interactive user directory table and role delegation tooling activate in WP-4.2.
+            The interactive user directory and role management tools are not yet available. Activation requires verified owner authorization and security controls.
           </p>
         </div>
       </div>

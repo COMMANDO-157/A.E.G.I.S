@@ -1,48 +1,43 @@
+
 /**
- * A.E.G.I.S 4.0 — Authority Verification Review Placeholder
- * WP-4.1.1
+ * A.E.G.I.S 4.0 — Authority Verification Shell
+ * WP-4.1.5
  */
 
 import { Link } from 'react-router-dom';
 
 export default function AuthorityReviewPage() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-6)' }}>
-      <div>
-        <span className="badge badge-warning">Human Verification Protocol</span>
+    <main style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-6)' }}>
+      <header>
+        <span className="badge badge-warning">
+          Human Verification Protocol
+        </span>
         <h1 style={{ fontSize: 'var(--font-size-2xl)', marginTop: 'var(--spacing-2)' }}>
-          Evidence &amp; Allegation Review Console
+          Evidence &amp; Allegation Review
         </h1>
-        <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
-          Record findings, substantiate allegations, and verify supporting evidence under institutional anti-ragging standards.
+        <p style={{ color: 'var(--color-text-secondary)' }}>
+          This workspace is intended for authorized review of case evidence
+          and verification findings.
         </p>
-      </div>
+      </header>
 
-      <div className="card">
-        <div className="alert alert-info" style={{ marginBottom: 'var(--spacing-6)' }}>
+      <section className="card">
+        <div className="alert alert-warning" role="status">
           <div>
-            <strong>Verification Review Boundary</strong>
-            <p style={{ fontSize: 'var(--font-size-xs)', marginTop: 'var(--spacing-1)' }}>
-              Authority officers record verification decisions via <code>/api/complaints/:id/verification</code>.
-              Interactive findings recording and status updates activate in WP-4.2.
+            <strong>Verification workspace not yet active</strong>
+            <p>
+              Pending reviews, evidence records, and verification findings
+              are not connected to this interface. No decisions can be
+              recorded here.
             </p>
           </div>
         </div>
+      </section>
 
-        <div className="empty-state">
-          <div className="empty-state-icon" aria-hidden="true">🔍</div>
-          <div className="empty-state-title">No Cases Pending Review</div>
-          <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)', maxWidth: 440 }}>
-            All currently assigned grievances have up-to-date verification findings.
-          </p>
-        </div>
-      </div>
-
-      <div>
-        <Link to="/authority" className="btn btn-secondary">
-          &larr; Back to Dashboard
-        </Link>
-      </div>
-    </div>
+      <Link to="/authority" className="btn btn-secondary">
+        Back to Authority Dashboard
+      </Link>
+    </main>
   );
 }

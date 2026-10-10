@@ -23,8 +23,7 @@ export default function AdminAuditPage() {
           <div>
             <strong>Append-Only Integrity Guarantee</strong>
             <p style={{ fontSize: 'var(--font-size-xs)', marginTop: 'var(--spacing-1)' }}>
-              All administrative role changes, case status updates, and verification decisions are written
-              to the append-only audit ledger and retrieved via <code>GET /api/admin/audit</code>.
+              The backend audit architecture is separate from this interface. Live audit records are not currently retrieved or displayed here. Audit integrity and access controls require integration verification. <code>GET /api/admin/audit</code>.
             </p>
           </div>
         </div>
@@ -33,7 +32,7 @@ export default function AdminAuditPage() {
           <div className="empty-state-icon" aria-hidden="true">🛡️</div>
           <div className="empty-state-title">Audit Ledger Viewer</div>
           <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)', maxWidth: 440 }}>
-            Structured JSON and timeline viewing table will activate in WP-4.2.
+            The structured audit ledger viewer is not yet connected. Live audit records are not retrieved or displayed in this release.
           </p>
         </div>
       </div>

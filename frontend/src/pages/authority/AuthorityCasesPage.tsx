@@ -1,38 +1,40 @@
+
 /**
- * A.E.G.I.S 4.0 — Authority Active Cases Placeholder
- * WP-4.1.1
+ * A.E.G.I.S 4.0 — Authority Cases Shell
+ * WP-4.1.5
  */
 
 import { Link } from 'react-router-dom';
 
 export default function AuthorityCasesPage() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-6)' }}>
-      <div>
+    <main style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-6)' }}>
+      <header>
         <span className="badge badge-navy">Case Management</span>
         <h1 style={{ fontSize: 'var(--font-size-2xl)', marginTop: 'var(--spacing-2)' }}>
-          Active Case Roster
+          Assigned Case Workspace
         </h1>
-        <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
-          Assigned cases routed according to severity, escalation SLA, and departmental jurisdiction.
+        <p style={{ color: 'var(--color-text-secondary)' }}>
+          A dedicated workspace for cases assigned to your authorized jurisdiction.
         </p>
-      </div>
+      </header>
 
-      <div className="card">
-        <div className="empty-state">
-          <div className="empty-state-icon" aria-hidden="true">📋</div>
-          <div className="empty-state-title">No Active Cases in Queue</div>
-          <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)', maxWidth: 460 }}>
-            There are currently no open cases assigned to your authority jurisdiction requiring action.
-          </p>
+      <section className="card">
+        <div className="alert alert-info" role="status">
+          <div>
+            <strong>Case roster not connected</strong>
+            <p>
+              Assigned case records, severity indicators, and escalation deadlines
+              are not being retrieved in this release. The absence of displayed
+              cases does not indicate that your queue is empty.
+            </p>
+          </div>
         </div>
-      </div>
+      </section>
 
-      <div>
-        <Link to="/authority" className="btn btn-secondary">
-          &larr; Back to Dashboard
-        </Link>
-      </div>
-    </div>
+      <Link to="/authority" className="btn btn-secondary">
+        Back to Authority Dashboard
+      </Link>
+    </main>
   );
 }
