@@ -1,0 +1,105 @@
+/**
+ * A.E.G.I.S Guardian Design System — Accessibility Styles
+ * WP-4.1.1
+ *
+ * Keyboard focus, reduced motion, ARIA states, responsive text scaling.
+ * These rules must not be suppressed by component-level CSS.
+ */
+
+/* ─── Focus-Visible (Global Rule) ───────────────────────── */
+:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-sm);
+}
+
+/* Remove outline for mouse-only interactions */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ─── Reduced Motion ─────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ─── High Contrast Mode Support ────────────────────────── */
+@media (forced-colors: active) {
+  .btn,
+  .form-input,
+  .form-select,
+  .form-textarea {
+    border: 1px solid ButtonText;
+  }
+
+  .badge {
+    border: 1px solid currentColor;
+  }
+}
+
+/* ─── Text Scaling (browser zoom support) ────────────────── */
+@media (min-resolution: 192dpi) {
+  body {
+    -webkit-font-smoothing: subpixel-antialiased;
+  }
+}
+
+/* ─── Interactive States for ARIA ────────────────────────── */
+[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+[aria-busy="true"] {
+  cursor: progress;
+}
+
+/* ─── Skip link — must be first focusable element ───────── */
+.skip-to-main {
+  position: absolute;
+  top: -100%;
+  left: 1rem;
+  background: var(--color-action-bg);
+  color: var(--color-action-text);
+  padding: 0.5rem 1rem;
+  z-index: var(--z-toast);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  font-weight: var(--font-weight-semibold);
+}
+
+.skip-to-main:focus {
+  top: 1rem;
+}
+
+/* ─── Navigation landmarks ───────────────────────────────── */
+nav[aria-label] {
+  /* Landmarks are identified by aria-label; no extra styling needed */
+}
+
+/* ─── ARIA Live regions ──────────────────────────────────── */
+[aria-live="polite"],
+[aria-live="assertive"] {
+  /* Ensure visibility for screen readers */
+}
+
+/* ─── Required field indicator ───────────────────────────── */
+.required-indicator {
+  color: var(--aegis-red-500);
+  margin-left: var(--spacing-1);
+  aria-hidden: "true"; /* presentational only — use aria-required on the input */
+}
+
+/* ─── Error state ────────────────────────────────────────── */
+[aria-invalid="true"] {
+  border-color: var(--aegis-red-500) !important;
+  box-shadow: 0 0 0 var(--focus-ring-width) rgba(239, 68, 68, 0.2) !important;
+}

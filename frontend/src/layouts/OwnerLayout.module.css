@@ -1,0 +1,171 @@
+.shell {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-page);
+}
+
+/* ─── Header ─────────────────────────────────────────────── */
+.header {
+  background: var(--aegis-navy-900);
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--shadow-nav);
+  min-height: var(--layout-header-height);
+}
+
+.headerInner {
+  max-width: var(--layout-max-width);
+  margin-inline: auto;
+  padding-inline: var(--spacing-6);
+  padding-block: var(--spacing-2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-6);
+}
+
+/* ─── Brand ──────────────────────────────────────────────── */
+.brandGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.brandMark {
+  font-size: var(--font-size-xl);
+}
+
+.brandText {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-bold);
+  color: var(--aegis-neutral-0);
+  letter-spacing: var(--letter-spacing-wider);
+}
+
+.brandPortal {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--aegis-teal-300);
+  background: rgba(45, 179, 171, 0.12);
+  padding: 2px var(--spacing-2);
+  border-radius: var(--radius-full);
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+.motto {
+  font-size: 11px;
+  color: var(--aegis-navy-300);
+  letter-spacing: var(--letter-spacing-wide);
+  font-weight: var(--font-weight-medium);
+}
+
+/* ─── Nav ────────────────────────────────────────────────── */
+.nav {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.navLink {
+  padding: var(--spacing-2) var(--spacing-3);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--aegis-navy-200);
+  text-decoration: none;
+  border-radius: var(--radius-md);
+  transition:
+    color var(--transition-fast),
+    background-color var(--transition-fast);
+}
+
+.navLink:hover {
+  color: var(--aegis-neutral-0);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.navActive {
+  color: var(--aegis-teal-300);
+  background: rgba(45, 179, 171, 0.12);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* ─── User Menu ──────────────────────────────────────────── */
+.userMenu {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  flex-shrink: 0;
+}
+
+.userBadge {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.userEmail {
+  font-size: var(--font-size-sm);
+  color: var(--aegis-navy-200);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.adminBadge {
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-widest);
+  color: var(--aegis-amber-400);
+  background: rgba(217, 155, 48, 0.12);
+  padding: 2px var(--spacing-2);
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(217, 155, 48, 0.3);
+}
+
+/* ─── Main ───────────────────────────────────────────────── */
+.main {
+  flex: 1;
+  outline: none;
+  padding-block: var(--spacing-6);
+}
+
+.mainInner {
+  max-width: var(--layout-max-width);
+  margin-inline: auto;
+  padding-inline: var(--spacing-6);
+}
+
+/* ─── Mobile ─────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .headerInner {
+    padding-inline: var(--spacing-4);
+  }
+
+  .nav {
+    display: none;
+  }
+
+  .userEmail {
+    display: none;
+  }
+
+  .motto {
+    display: none;
+  }
+
+  .mainInner {
+    padding-inline: var(--spacing-4);
+  }
+}

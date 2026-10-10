@@ -1,0 +1,180 @@
+.shell {
+  min-height: 100dvh;
+  display: flex;
+}
+
+/* ─── Sidebar ─────────────────────────────────────────────── */
+.sidebar {
+  width: var(--layout-sidebar-width);
+  flex-shrink: 0;
+  background: var(--color-surface-primary);
+  color: var(--color-text-inverse);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-nav);
+}
+
+/* ─── Brand ──────────────────────────────────────────────── */
+.sidebarBrand {
+  padding: var(--spacing-6) var(--spacing-5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.sidebarBrand a {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  text-decoration: none;
+}
+
+.brandMark {
+  font-size: var(--font-size-xl);
+}
+
+.brandText {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-bold);
+  color: var(--aegis-neutral-0);
+  letter-spacing: var(--letter-spacing-wider);
+}
+
+.brandPortal {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--aegis-teal-300);
+  background: rgba(45, 179, 171, 0.12);
+  padding: 2px var(--spacing-2);
+  border-radius: var(--radius-full);
+  letter-spacing: var(--letter-spacing-wide);
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+.motto {
+  font-size: 11px;
+  color: var(--aegis-navy-200);
+  letter-spacing: var(--letter-spacing-wide);
+  font-weight: var(--font-weight-medium);
+  margin-top: 4px;
+}
+
+/* ─── Nav ────────────────────────────────────────────────── */
+.nav {
+  flex: 1;
+  padding: var(--spacing-4) var(--spacing-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.navLink {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-3);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-nav-text);
+  text-decoration: none;
+  border-radius: var(--radius-md);
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.navLink:hover {
+  background: var(--color-nav-hover);
+  color: var(--color-nav-text-active);
+}
+
+.navActive {
+  background: rgba(20, 125, 120, 0.22);
+  color: var(--aegis-teal-300);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* ─── User info ──────────────────────────────────────────── */
+.sidebarUser {
+  padding: var(--spacing-4) var(--spacing-5);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.userInfo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.userName {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--aegis-neutral-0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.userRole {
+  font-size: var(--font-size-xs);
+  color: var(--aegis-teal-300);
+  font-weight: var(--font-weight-medium);
+}
+
+.userDept {
+  font-size: var(--font-size-xs);
+  color: var(--color-nav-text);
+  opacity: 0.7;
+}
+
+/* ─── Main Content ───────────────────────────────────────── */
+.main {
+  flex: 1;
+  background: var(--color-bg-page);
+  min-width: 0;
+  outline: none;
+  overflow-y: auto;
+}
+
+.mobileBar {
+  display: none;
+  background: var(--color-surface-primary);
+  padding: var(--spacing-3) var(--spacing-4);
+  align-items: center;
+  justify-content: space-between;
+  color: var(--aegis-neutral-0);
+}
+
+.mainInner {
+  max-width: var(--layout-max-width);
+  margin-inline: auto;
+  padding: var(--spacing-8) var(--spacing-8);
+}
+
+/* ─── Responsive: stack on mobile ───────────────────────── */
+@media (max-width: 768px) {
+  .shell {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    display: none;
+  }
+
+  .mobileBar {
+    display: flex;
+  }
+
+  .mainInner {
+    padding: var(--spacing-4);
+  }
+}

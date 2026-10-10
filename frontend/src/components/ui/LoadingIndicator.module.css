@@ -1,0 +1,49 @@
+.wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  font-family: var(--font-sans);
+  color: var(--color-text-secondary);
+}
+
+.spinner {
+  display: inline-block;
+  border-radius: 50%;
+  border: 2.5px solid var(--color-border-subtle);
+  border-top-color: var(--aegis-teal-500);
+  animation: aegisSpin 0.8s linear infinite;
+}
+
+.sm {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+}
+
+.md {
+  width: 24px;
+  height: 24px;
+  border-width: 2.5px;
+}
+
+.lg {
+  width: 36px;
+  height: 36px;
+  border-width: 3px;
+}
+
+.text {
+  font-size: var(--font-size-sm);
+}
+
+@keyframes aegisSpin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+    border-top-color: var(--aegis-teal-500);
+    opacity: 0.75;
+  }
+}

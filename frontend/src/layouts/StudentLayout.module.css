@@ -1,0 +1,186 @@
+.shell {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-page);
+}
+
+/* ─── Header ─────────────────────────────────────────────── */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  background: var(--color-bg-surface);
+  border-bottom: 1px solid var(--color-border-subtle);
+  box-shadow: var(--shadow-xs);
+  min-height: var(--layout-header-height);
+}
+
+.headerInner {
+  max-width: var(--layout-max-width);
+  margin-inline: auto;
+  padding-inline: var(--spacing-6);
+  padding-block: var(--spacing-2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-6);
+}
+
+/* ─── Brand ──────────────────────────────────────────────── */
+.brandGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.brandMark {
+  font-size: var(--font-size-xl);
+  line-height: 1;
+}
+
+.brandText {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-bold);
+  color: var(--aegis-navy);
+  letter-spacing: var(--letter-spacing-wider);
+}
+
+.brandPortal {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--student-accent);
+  background: var(--student-accent-soft);
+  padding: 2px var(--spacing-2);
+  border-radius: var(--radius-full);
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+.motto {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  letter-spacing: var(--letter-spacing-wide);
+  font-weight: var(--font-weight-medium);
+  display: block;
+}
+
+/* ─── Nav ────────────────────────────────────────────────── */
+.nav {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.navLink {
+  padding: var(--spacing-2) var(--spacing-3);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  border-radius: var(--radius-md);
+  transition:
+    color var(--transition-fast),
+    background-color var(--transition-fast);
+}
+
+.navLink:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-muted);
+}
+
+.navActive {
+  color: var(--student-accent);
+  background: var(--student-accent-soft);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* ─── User Menu ──────────────────────────────────────────── */
+.userMenu {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  flex-shrink: 0;
+}
+
+.userName {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ─── Main ───────────────────────────────────────────────── */
+.main {
+  flex: 1;
+  outline: none;
+  padding-block: var(--spacing-6);
+}
+
+.breadcrumbsContainer {
+  max-width: var(--layout-max-width);
+  margin-inline: auto;
+  padding-inline: var(--spacing-6);
+}
+
+/* ─── Footer ─────────────────────────────────────────────── */
+.footer {
+  background: var(--color-bg-subtle);
+  border-top: 1px solid var(--color-border-subtle);
+  padding: var(--spacing-6) var(--spacing-6);
+  text-align: center;
+}
+
+.footerText {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin-bottom: var(--spacing-2);
+}
+
+.footerLinks {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.footerLinks a {
+  color: var(--student-accent);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+}
+
+.footerLinks a:hover {
+  text-decoration: underline;
+}
+
+/* ─── Mobile ─────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .headerInner {
+    padding-inline: var(--spacing-4);
+  }
+
+  .nav {
+    display: none;
+  }
+
+  .userName {
+    display: none;
+  }
+
+  .motto {
+    display: none;
+  }
+
+  .breadcrumbsContainer {
+    padding-inline: var(--spacing-4);
+  }
+}

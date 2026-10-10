@@ -1,0 +1,231 @@
+.page {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── Hero Section ────────────────────────────────────────── */
+.hero {
+  background: linear-gradient(180deg, var(--aegis-navy-900) 0%, var(--aegis-navy) 100%);
+  color: var(--aegis-neutral-0);
+  padding-block: var(--spacing-14) var(--spacing-16);
+  text-align: center;
+}
+
+.heroInner {
+  max-width: 800px;
+  margin-inline: auto;
+  padding-inline: var(--spacing-6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-4);
+}
+
+.heroBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: 4px var(--spacing-3);
+  border-radius: var(--radius-full);
+  background: rgba(20, 125, 120, 0.25);
+  border: 1px solid var(--aegis-teal-400);
+  color: var(--aegis-teal-300);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+.heroTitle {
+  font-size: var(--font-size-4xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--aegis-neutral-0);
+  line-height: var(--line-height-tight);
+  margin: 0;
+}
+
+.heroSubtitle {
+  font-size: var(--font-size-lg);
+  color: var(--aegis-navy-100);
+  line-height: var(--line-height-relaxed);
+  max-width: 680px;
+  margin: 0;
+}
+
+/* ─── Content Sections ────────────────────────────────────── */
+.section {
+  padding-block: var(--spacing-14);
+}
+
+.sectionAlt {
+  background: var(--color-bg-subtle);
+  border-block: 1px solid var(--color-border-subtle);
+}
+
+.sectionHeader {
+  max-width: 720px;
+  margin-bottom: var(--spacing-8);
+}
+
+.sectionTitle {
+  font-size: var(--font-size-2xl);
+  color: var(--aegis-navy);
+  margin-bottom: var(--spacing-3);
+}
+
+.sectionSubtitle {
+  font-size: var(--font-size-base);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
+/* ─── Mission Narrative ───────────────────────────────────── */
+.narrativeCard {
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-subtle);
+  border-left: 4px solid var(--aegis-teal-500);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-8);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.narrativeText {
+  font-size: var(--font-size-base);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-relaxed);
+  margin: 0;
+}
+
+/* ─── Escalation Tier Grid ────────────────────────────────── */
+.tierGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-6);
+  margin-top: var(--spacing-6);
+}
+
+.tierCard {
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  box-shadow: var(--shadow-xs);
+  position: relative;
+  transition: box-shadow var(--transition-normal);
+}
+
+.tierCard:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.tierBadge {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  padding: 4px var(--spacing-3);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-wide);
+  background: var(--aegis-teal-50);
+  color: var(--aegis-teal-700);
+  border: 1px solid var(--aegis-teal-200);
+}
+
+.tierTitle {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--aegis-navy);
+  margin: 0;
+}
+
+.tierText {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-relaxed);
+  margin: 0;
+}
+
+/* ─── Roles & Responsibilities ────────────────────────────── */
+.rolesGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-6);
+}
+
+.roleCard {
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.roleIcon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.roleTitle {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--aegis-navy);
+  margin: 0;
+}
+
+.roleText {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-relaxed);
+  margin: 0;
+}
+
+/* ─── Human Verification Banner ───────────────────────────── */
+.verificationBox {
+  background: linear-gradient(135deg, var(--aegis-neutral-0) 0%, var(--aegis-teal-50) 100%);
+  border: 1.5px solid var(--aegis-teal-200);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-8) var(--spacing-10);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  margin-top: var(--spacing-4);
+}
+
+.verificationIcon {
+  font-size: 3rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* ─── Responsive Adjustments ──────────────────────────────── */
+@media (max-width: 900px) {
+  .tierGrid,
+  .rolesGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .verificationBox {
+    flex-direction: column;
+    text-align: center;
+    gap: var(--spacing-4);
+    padding: var(--spacing-6);
+  }
+}
+
+@media (max-width: 640px) {
+  .heroTitle {
+    font-size: var(--font-size-3xl);
+  }
+
+  .section {
+    padding-block: var(--spacing-10);
+  }
+}

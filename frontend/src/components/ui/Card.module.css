@@ -1,0 +1,62 @@
+.card {
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  transition:
+    box-shadow var(--transition-normal),
+    border-color var(--transition-normal),
+    transform var(--transition-normal);
+  overflow: hidden;
+}
+
+.standard {
+  background: var(--color-surface-card);
+  border-color: var(--color-border-subtle);
+  box-shadow: var(--shadow-sm);
+}
+
+.elevated {
+  background: var(--color-surface-card);
+  border-color: var(--color-border-subtle);
+  box-shadow: var(--shadow-md);
+}
+
+.interactive {
+  cursor: pointer;
+}
+
+.interactive:hover {
+  border-color: var(--color-border-brand);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
+}
+
+.interactive:focus-within {
+  border-color: var(--color-border-brand);
+  box-shadow: 0 0 0 var(--focus-ring-width) rgba(20, 125, 120, 0.2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .interactive:hover {
+    transform: none;
+  }
+}
+
+.header {
+  padding: var(--spacing-5) var(--spacing-6);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.body {
+  padding: var(--spacing-6);
+  flex: 1;
+}
+
+.footer {
+  padding: var(--spacing-4) var(--spacing-6);
+  border-top: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-subtle);
+}

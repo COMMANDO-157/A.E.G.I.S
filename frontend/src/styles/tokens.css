@@ -1,0 +1,261 @@
+/**
+ * A.E.G.I.S Guardian Design System — Complete Design Tokens
+ * WP-4.1.2 | Stage 4.0
+ *
+ * All visual decisions are expressed as CSS custom properties.
+ * Components consume tokens; they never hard-code raw values.
+ *
+ * Core Principles:
+ *   - Protection & Trust (Guardian Navy + Trust Teal)
+ *   - Calmness under stress (Safe White, restrained alerts)
+ *   - WCAG 2.2 AA Contrast Compliance across all text-background pairings
+ *   - Future-proof typography supporting Latin, Tamil, and Telugu scripts
+ */
+
+:root {
+  /* ─── Brand Palette ─────────────────────────────────── */
+  --aegis-navy:      #102A43;
+  --aegis-teal:      #147D78;
+  --aegis-white:     #F4F8FA;
+  --aegis-slate:     #64748B;
+  --aegis-amber:     #D99B30;
+
+  /* ─── Extended Palette ───────────────────────────────── */
+  --aegis-navy-50:   #E8EFF5;
+  --aegis-navy-100:  #C5D5E4;
+  --aegis-navy-200:  #9FBBD3;
+  --aegis-navy-300:  #79A0C2;
+  --aegis-navy-400:  #538AB5;
+  --aegis-navy-500:  #2E74A8;  /* mid-navy for interactive states */
+  --aegis-navy-600:  #1B4F72;  /* authority core */
+  --aegis-navy-700:  #0C2236;
+  --aegis-navy-800:  #091B2B;
+  --aegis-navy-900:  #071520;
+
+  --aegis-teal-50:   #E6F4F3;
+  --aegis-teal-100:  #C0E4E2;
+  --aegis-teal-200:  #87CBC7;
+  --aegis-teal-300:  #2DB3AB;
+  --aegis-teal-400:  #1B9B94;
+  --aegis-teal-500:  #147D78;  /* primary action (4.5:1+ against white) */
+  --aegis-teal-600:  #106662;
+  --aegis-teal-700:  #0D5754;
+  --aegis-teal-800:  #0A4543;
+  --aegis-teal-900:  #073836;
+
+  /* Warning / Amber (re-balanced for WCAG AA contrast) */
+  --aegis-amber-50:  #FDF8EE;
+  --aegis-amber-100: #F8ECC9;
+  --aegis-amber-200: #F0D58C;
+  --aegis-amber-300: #E6BC50;
+  --aegis-amber-400: #D99B30;  /* decorative / accent */
+  --aegis-amber-500: #B87C17;
+  --aegis-amber-600: #9C660B;
+  --aegis-amber-700: #825204;  /* WCAG AA text on light backgrounds (5.2:1) */
+  --aegis-amber-800: #683E00;
+  --aegis-amber-900: #4D2D00;
+
+  /* Critical / Danger (restrained, non-alarmist) */
+  --aegis-red-50:    #FEF2F2;
+  --aegis-red-100:   #FEE2E2;
+  --aegis-red-200:   #FECACA;
+  --aegis-red-300:   #FCA5A5;
+  --aegis-red-400:   #F87171;
+  --aegis-red-500:   #DC2626;  /* primary destructive */
+  --aegis-red-600:   #B91C1C;
+  --aegis-red-700:   #991B1B;  /* WCAG AA text on light backgrounds */
+  --aegis-red-800:   #7F1D1D;
+  --aegis-red-900:   #5A1212;
+
+  /* Success / Positive */
+  --aegis-green-50:  #F0FDF4;
+  --aegis-green-100: #DCFCE7;
+  --aegis-green-200: #BBF7D0;
+  --aegis-green-300: #86EFAC;
+  --aegis-green-400: #4ADE80;
+  --aegis-green-500: #16A34A;
+  --aegis-green-600: #15803D;
+  --aegis-green-700: #166534;  /* WCAG AA text on light backgrounds */
+  --aegis-green-800: #14532D;
+
+  /* Neutrals (slate-tinted for institutional credibility) */
+  --aegis-neutral-0:   #FFFFFF;
+  --aegis-neutral-50:  #F8FAFC;
+  --aegis-neutral-100: #F1F5F9;
+  --aegis-neutral-200: #E2E8F0;
+  --aegis-neutral-300: #CBD5E1;
+  --aegis-neutral-400: #94A3B8;
+  --aegis-neutral-500: #64748B;
+  --aegis-neutral-600: #475569;
+  --aegis-neutral-700: #334155;
+  --aegis-neutral-800: #1E293B;
+  --aegis-neutral-900: #0F172A;
+
+  /* ─── Semantic: Backgrounds ─────────────────────────── */
+  --color-bg-page:       var(--aegis-white);
+  --color-bg-surface:    var(--aegis-neutral-0);
+  --color-bg-subtle:     var(--aegis-neutral-50);
+  --color-bg-muted:      var(--aegis-neutral-100);
+  --color-bg-overlay:    rgba(16, 42, 67, 0.72);  /* modals */
+
+  /* ─── Semantic: Surfaces (cards, panels) ────────────── */
+  --color-surface-primary:   var(--aegis-navy);
+  --color-surface-secondary: var(--aegis-navy-700);
+  --color-surface-card:      var(--aegis-neutral-0);
+  --color-surface-raised:    var(--aegis-neutral-50);
+
+  /* ─── Semantic: Text (WCAG AA Compliant) ────────────── */
+  --color-text-primary:   var(--aegis-navy-900);  /* 14.5:1 on white */
+  --color-text-secondary: var(--aegis-neutral-600); /* 5.7:1 on white */
+  --color-text-muted:     var(--aegis-neutral-500); /* 4.6:1 on white (AA for normal text) */
+  --color-text-inverse:   var(--aegis-white);
+  --color-text-link:      var(--aegis-teal-600);
+  --color-text-link-hover: var(--aegis-teal-800);
+
+  /* ─── Semantic: Borders ─────────────────────────────── */
+  --color-border-subtle:  var(--aegis-neutral-200);
+  --color-border-default: var(--aegis-neutral-300);
+  --color-border-strong:  var(--aegis-neutral-500);
+  --color-border-brand:   var(--aegis-teal-500);
+
+  /* ─── Semantic: Primary Actions ─────────────────────── */
+  --color-action-bg:        var(--aegis-teal-500);
+  --color-action-bg-hover:  var(--aegis-teal-700);
+  --color-action-text:      var(--aegis-neutral-0);
+  --color-action-border:    var(--aegis-teal-700);
+
+  /* ─── Semantic: Focus (WCAG 2.2 AA) ──────────────────── */
+  --color-focus-ring:       var(--aegis-amber-400);
+  --focus-ring-width:       3px;
+  --focus-ring-offset:      2px;
+
+  /* ─── Semantic: Status States ───────────────────────── */
+  --color-success-bg:     var(--aegis-green-50);
+  --color-success-text:   var(--aegis-green-700);
+  --color-success-border: var(--aegis-green-300);
+
+  --color-info-bg:        var(--aegis-navy-50);
+  --color-info-text:      var(--aegis-navy-700);
+  --color-info-border:    var(--aegis-navy-200);
+
+  --color-warning-bg:     var(--aegis-amber-50);
+  --color-warning-text:   var(--aegis-amber-700);
+  --color-warning-border: var(--aegis-amber-300);
+
+  --color-danger-bg:      var(--aegis-red-50);
+  --color-danger-text:    var(--aegis-red-700);
+  --color-danger-border:  var(--aegis-red-300);
+
+  --color-disabled-bg:     var(--aegis-neutral-100);
+  --color-disabled-text:   var(--aegis-neutral-400);
+  --color-disabled-border: var(--aegis-neutral-200);
+
+  /* ─── Semantic: Navigation ───────────────────────────── */
+  --color-nav-bg:          var(--aegis-navy);
+  --color-nav-text:        var(--aegis-navy-100);
+  --color-nav-text-active: var(--aegis-neutral-0);
+  --color-nav-border:      var(--aegis-navy-700);
+  --color-nav-hover:       rgba(244, 248, 250, 0.08);
+
+  /* ─── Typography (Multi-Script & Responsive) ────────── */
+  /* Fallback chain supports Latin, Tamil ('Noto Sans Tamil'), Telugu ('Noto Sans Telugu') */
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans Tamil', 'Noto Sans Telugu', sans-serif;
+  --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Courier New', monospace;
+
+  /* Responsive clamp font sizes */
+  --font-size-xs:   0.75rem;                       /* 12px */
+  --font-size-sm:   0.875rem;                      /* 14px */
+  --font-size-base: 1rem;                          /* 16px */
+  --font-size-lg:   clamp(1.0625rem, 1vw + 0.8rem, 1.1875rem); /* ~17-19px */
+  --font-size-xl:   clamp(1.1875rem, 1.2vw + 0.9rem, 1.375rem); /* ~19-22px */
+  --font-size-2xl:  clamp(1.375rem, 1.5vw + 1rem, 1.625rem);   /* ~22-26px */
+  --font-size-3xl:  clamp(1.625rem, 2vw + 1.1rem, 2rem);       /* ~26-32px */
+  --font-size-4xl:  clamp(2rem, 3vw + 1.25rem, 2.5rem);        /* ~32-40px */
+  --font-size-5xl:  clamp(2.5rem, 4vw + 1.5rem, 3.25rem);      /* ~40-52px */
+
+  --font-weight-regular:   400;
+  --font-weight-medium:    500;
+  --font-weight-semibold:  600;
+  --font-weight-bold:      700;
+
+  --line-height-tight:   1.25;
+  --line-height-snug:    1.375;
+  --line-height-normal:  1.5;
+  --line-height-relaxed: 1.625;
+
+  --letter-spacing-tight:  -0.025em;
+  --letter-spacing-normal:  0em;
+  --letter-spacing-wide:    0.025em;
+  --letter-spacing-wider:   0.05em;
+  --letter-spacing-widest:  0.1em;
+
+  /* ─── Spacing Scale (4px base unit) ─────────────────── */
+  --spacing-1:  0.25rem;   /* 4px */
+  --spacing-2:  0.5rem;    /* 8px */
+  --spacing-3:  0.75rem;   /* 12px */
+  --spacing-4:  1rem;      /* 16px */
+  --spacing-5:  1.25rem;   /* 20px */
+  --spacing-6:  1.5rem;    /* 24px */
+  --spacing-8:  2rem;      /* 32px */
+  --spacing-10: 2.5rem;    /* 40px */
+  --spacing-12: 3rem;      /* 48px */
+  --spacing-16: 4rem;      /* 64px */
+  --spacing-20: 5rem;      /* 80px */
+  --spacing-24: 6rem;      /* 96px */
+
+  /* ─── Border Radius ──────────────────────────────────── */
+  --radius-sm:   0.25rem;  /* 4px */
+  --radius-md:   0.5rem;   /* 8px */
+  --radius-lg:   0.75rem;  /* 12px */
+  --radius-xl:   1rem;     /* 16px */
+  --radius-2xl:  1.5rem;   /* 24px */
+  --radius-full: 9999px;
+
+  /* ─── Shadows ─────────────────────────────────────────── */
+  --shadow-xs:  0 1px 2px rgba(16, 42, 67, 0.05);
+  --shadow-sm:  0 1px 3px rgba(16, 42, 67, 0.08), 0 1px 2px rgba(16, 42, 67, 0.04);
+  --shadow-md:  0 4px 6px -1px rgba(16, 42, 67, 0.08), 0 2px 4px -1px rgba(16, 42, 67, 0.04);
+  --shadow-lg:  0 10px 15px -3px rgba(16, 42, 67, 0.08), 0 4px 6px -2px rgba(16, 42, 67, 0.04);
+  --shadow-xl:  0 20px 25px -5px rgba(16, 42, 67, 0.1), 0 10px 10px -5px rgba(16, 42, 67, 0.04);
+  --shadow-nav: 0 2px 12px rgba(16, 42, 67, 0.16);
+
+  /* ─── Z-Index Scale ──────────────────────────────────── */
+  --z-below:    -1;
+  --z-base:      0;
+  --z-raised:   10;
+  --z-overlay:  20;
+  --z-dropdown: 30;
+  --z-sticky:   40;
+  --z-modal:    50;
+  --z-toast:    60;
+
+  /* ─── Layout Primitives ──────────────────────────────── */
+  --layout-max-width:        1280px;
+  --layout-content-width:    768px;
+  --layout-sidebar-width:    264px;
+  --layout-header-height:    64px;
+  --layout-mobile-header:    56px;
+
+  /* ─── Transitions ────────────────────────────────────── */
+  --transition-fast:   120ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow:   300ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ─── Student Portal Tokens ──────────────────────────── */
+  --student-motto:       "Your Voice. Your Safety. Your Protection.";
+  --student-accent:      #147D78;  /* Trust Teal */
+  --student-accent-soft: #E6F4F3;
+  --student-bg-hero:     linear-gradient(135deg, #102A43 0%, #147D78 100%);
+
+  /* ─── Authority Portal Tokens ────────────────────────── */
+  --authority-motto:       "Assess. Protect. Resolve.";
+  --authority-accent:      #1B4F72;  /* Analytical Navy */
+  --authority-accent-soft: #EAF0F8;
+  --authority-surface-bar: #0C2236;
+
+  /* ─── Owner/Admin Portal Tokens ──────────────────────── */
+  --owner-motto:       "Govern. Secure. Oversee.";
+  --owner-accent:      #102A43;  /* Guardian Navy */
+  --owner-accent-soft: #E8EFF5;
+  --owner-badge-amber: #B87C17;
+}

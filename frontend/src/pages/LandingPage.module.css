@@ -1,0 +1,245 @@
+.page {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── Hero Section ────────────────────────────────────────── */
+.hero {
+  background: linear-gradient(180deg, var(--aegis-navy-900) 0%, var(--aegis-navy) 60%, var(--aegis-navy-700) 100%);
+  color: var(--aegis-neutral-0);
+  padding-block: var(--spacing-16) var(--spacing-20);
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 48px;
+  background: linear-gradient(to top, var(--color-bg-page), transparent);
+  pointer-events: none;
+}
+
+.heroInner {
+  max-width: 840px;
+  margin-inline: auto;
+  padding-inline: var(--spacing-6);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-5);
+  position: relative;
+  z-index: 1;
+}
+
+.heroBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: 6px var(--spacing-4);
+  border-radius: var(--radius-full);
+  background: rgba(20, 125, 120, 0.25);
+  border: 1px solid var(--aegis-teal-300);
+  color: var(--aegis-teal-300);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-wider);
+}
+
+.heroTitle {
+  font-size: var(--font-size-5xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--aegis-neutral-0);
+  letter-spacing: var(--letter-spacing-tight);
+  line-height: 1.1;
+  margin: 0;
+}
+
+.heroTagline {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--aegis-teal-300);
+  letter-spacing: var(--letter-spacing-normal);
+  line-height: var(--line-height-tight);
+}
+
+.heroSubtitle {
+  font-size: var(--font-size-lg);
+  color: var(--aegis-navy-100);
+  line-height: var(--line-height-relaxed);
+  max-width: 680px;
+}
+
+.heroActions {
+  display: flex;
+  gap: var(--spacing-4);
+  margin-top: var(--spacing-4);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* ─── Content Sections ────────────────────────────────────── */
+.section {
+  padding-block: var(--spacing-16);
+}
+
+.sectionAlt {
+  background: var(--color-bg-subtle);
+  border-block: 1px solid var(--color-border-subtle);
+}
+
+.sectionHeader {
+  text-align: center;
+  max-width: 680px;
+  margin-inline: auto;
+  margin-bottom: var(--spacing-12);
+}
+
+.sectionTitle {
+  font-size: var(--font-size-3xl);
+  color: var(--aegis-navy);
+  margin-bottom: var(--spacing-2);
+}
+
+.sectionSubtitle {
+  font-size: var(--font-size-base);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
+/* ─── Grid Systems ────────────────────────────────────────── */
+.gridCards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--spacing-6);
+}
+
+.featureCard {
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-8);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  transition:
+    box-shadow var(--transition-normal),
+    border-color var(--transition-normal);
+}
+
+.featureCard:hover {
+  border-color: var(--color-border-brand);
+  box-shadow: var(--shadow-md);
+}
+
+.featureIcon {
+  font-size: 2.25rem;
+  line-height: 1;
+}
+
+.featureTitle {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--aegis-navy);
+}
+
+.featureText {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
+/* ─── Workflow Steps ──────────────────────────────────────── */
+.workflowGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-6);
+  position: relative;
+}
+
+.workflowStep {
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  box-shadow: var(--shadow-xs);
+  position: relative;
+}
+
+.stepNumber {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--aegis-teal-50);
+  border: 2px solid var(--aegis-teal-500);
+  color: var(--aegis-teal-700);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ─── Confidentiality Banner ──────────────────────────────── */
+.confidentialityCard {
+  background: linear-gradient(to right, #FFFFFF, var(--aegis-teal-50));
+  border: 1.5px solid var(--aegis-teal-200);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-10);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-8);
+  flex-wrap: wrap;
+}
+
+.confidentialityText {
+  max-width: 640px;
+}
+
+/* ─── Safety Callout Strip ────────────────────────────────── */
+.safetyCallout {
+  background: var(--color-danger-bg);
+  border: 1px solid var(--color-danger-border);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-8);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-6);
+  flex-wrap: wrap;
+}
+
+/* ─── Responsive ─────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .workflowGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero {
+    padding-block: var(--spacing-12);
+  }
+
+  .heroTitle {
+    font-size: var(--font-size-4xl);
+  }
+
+  .heroTagline {
+    font-size: var(--font-size-xl);
+  }
+
+  .confidentialityCard,
+  .safetyCallout {
+    padding: var(--spacing-6);
+  }
+}

@@ -1,0 +1,54 @@
+.container {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+  cursor: pointer;
+  user-select: none;
+}
+
+.disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.checkbox {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  accent-color: var(--aegis-teal-500);
+  cursor: inherit;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--color-border-default);
+}
+
+.checkbox:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+
+.textGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  cursor: inherit;
+}
+
+.description {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-normal);
+}
+
+.errorText {
+  font-size: var(--font-size-xs);
+  color: var(--aegis-red-700);
+  font-weight: var(--font-weight-medium);
+  margin-top: var(--spacing-1);
+}

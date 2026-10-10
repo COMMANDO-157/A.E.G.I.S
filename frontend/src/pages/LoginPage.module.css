@@ -1,0 +1,197 @@
+.page {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--aegis-navy-900) 0%, var(--aegis-navy) 60%, var(--aegis-teal-900) 100%);
+  padding: var(--spacing-6) var(--spacing-4);
+  position: relative;
+}
+
+.topBar {
+  position: absolute;
+  top: var(--spacing-6);
+  left: var(--spacing-6);
+  z-index: 10;
+}
+
+.backHomeLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  color: var(--aegis-neutral-100);
+  text-decoration: none;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(8px);
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.backHomeLink:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--aegis-neutral-0);
+}
+
+.panel {
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  padding: var(--spacing-10) var(--spacing-8);
+  width: 100%;
+  max-width: 440px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-6);
+  position: relative;
+  z-index: 1;
+}
+
+/* ─── Header ─────────────────────────────────────────────── */
+.header {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.shield {
+  font-size: 3rem;
+  line-height: 1;
+  filter: drop-shadow(0 4px 8px rgba(20, 125, 120, 0.25));
+}
+
+.title {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--aegis-navy);
+  letter-spacing: var(--letter-spacing-wide);
+  margin: 0;
+}
+
+.subtitle {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-normal);
+  text-align: center;
+  margin: 0;
+}
+
+/* ─── Security Notice ─────────────────────────────────────── */
+.securityBanner {
+  background: var(--aegis-teal-50);
+  border: 1px solid var(--aegis-teal-200);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-3) var(--spacing-4);
+  font-size: var(--font-size-xs);
+  color: var(--aegis-teal-800);
+  line-height: var(--line-height-relaxed);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+}
+
+/* ─── Sign-In Area ────────────────────────────────────────── */
+.signIn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.signInLabel {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  text-align: center;
+  margin: 0;
+}
+
+.googleBtn {
+  background: var(--aegis-neutral-0);
+  color: var(--aegis-neutral-700);
+  border: 1.5px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  gap: var(--spacing-3);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  padding-block: var(--spacing-3);
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: not-allowed;
+  opacity: 0.8;
+  position: relative;
+}
+
+.stageNotice {
+  background: var(--color-bg-subtle);
+  border: 1px dashed var(--color-border-default);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-3);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  text-align: center;
+  line-height: var(--line-height-relaxed);
+  margin: 0;
+}
+
+/* ─── Registration & Links ─────────────────────────────────── */
+.registerPrompt {
+  text-align: center;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding-top: var(--spacing-2);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.registerLink {
+  color: var(--aegis-teal-600);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+}
+
+.registerLink:hover {
+  text-decoration: underline;
+}
+
+/* ─── Emergency Footer ────────────────────────────────────── */
+.footer {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  text-align: center;
+  line-height: var(--line-height-relaxed);
+  margin: 0;
+}
+
+.footer a {
+  color: var(--aegis-teal-500);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+}
+
+.footer a:hover {
+  text-decoration: underline;
+}
+
+/* ─── Mobile ─────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .topBar {
+    position: static;
+    margin-bottom: var(--spacing-4);
+    align-self: flex-start;
+  }
+
+  .panel {
+    padding: var(--spacing-6);
+    border-radius: var(--radius-lg);
+  }
+}
