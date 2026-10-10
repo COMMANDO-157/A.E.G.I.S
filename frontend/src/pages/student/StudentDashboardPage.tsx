@@ -5,10 +5,11 @@
 
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { en } from '@/locales/en';
+import { useLocale } from '@/context/LocaleContext';
 
 export default function StudentDashboardPage() {
   const { user } = useAuth();
+  const { t } = useLocale();
 
   return (
     <div className="container" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-6)' }}>
@@ -17,71 +18,65 @@ export default function StudentDashboardPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 'var(--spacing-4)' }}>
           <div>
             <span className="badge badge-primary" style={{ marginBottom: 'var(--spacing-2)' }}>
-              Protected Student Account
+              {t.student.badge}
             </span>
             <h1 style={{ fontSize: 'var(--font-size-2xl)', color: 'var(--aegis-navy)', marginBottom: 'var(--spacing-1)' }}>
-              Welcome back, {user?.name ?? 'Student'}
+              {t.student.welcomeBack}, {user?.name ?? t.roles.student}
             </h1>
             <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
-              Department: <strong>{user?.department || 'Unassigned'}</strong> Â· Account Status:{' '}
+              {t.student.departmentLabel}: <strong>{user?.department || 'Unassigned'}</strong> · {t.student.statusLabel}:{' '}
               <span className="badge badge-success">{user?.account_status}</span>
             </p>
           </div>
           <div style={{ display: 'flex', gap: 'var(--spacing-3)' }}>
             <Link to="/student/report" className="btn btn-primary">
-              + {en.common.reportIncident}
+              + {t.common.reportIncident}
             </Link>
             <Link to="/student/track" className="btn btn-secondary">
-              {en.common.trackCases}
+              {t.common.trackCases}
             </Link>
           </div>
         </div>
       </section>
 
-      {/* Security & Confidentiality Advisory */}
-
-{/* Reporting availability advisory */}
-    <div className="alert alert-warning" role="status">
-      <div>
-        <strong>Reporting is not yet available</strong>
-        <p
-          style={{
-            marginTop: 'var(--spacing-1)',
-            fontSize: 'var(--font-size-sm)',
-          }}
-        >
-          A.E.G.I.S is preparing its confidential reporting
-          service. Incident submission and live case tracking
-          are not yet enabled. This dashboard does not display
-          live case information.
-        </p>
+      {/* Reporting availability advisory */}
+      <div className="alert alert-warning" role="status">
+        <div>
+          <strong>{t.student.reportingDisabledTitle}</strong>
+          <p
+            style={{
+              marginTop: 'var(--spacing-1)',
+              fontSize: 'var(--font-size-sm)',
+            }}
+          >
+            {t.student.reportingDisabledDesc}
+          </p>
+        </div>
       </div>
-    </div>
-
 
       {/* Overview Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 'var(--spacing-6)' }}>
         <div className="card">
           <h2 style={{ fontSize: 'var(--font-size-lg)', marginBottom: 'var(--spacing-2)' }}>
-            Confidential Reporting
+            {t.student.confidentialReportingTitle}
           </h2>
           <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)', marginBottom: 'var(--spacing-4)' }}>
-            Learn about the planned reporting service for campus grievances. Incident submission remains disabled until security and privacy verification is complete.
+            {t.student.confidentialReportingDesc}
           </p>
           <Link to="/student/report" className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start' }}>
-            Open Reporting Form &rarr;
+            {t.student.openReportingForm} &rarr;
           </Link>
         </div>
 
         <div className="card">
           <h2 style={{ fontSize: 'var(--font-size-lg)', marginBottom: 'var(--spacing-2)' }}>
-            Active Case Status
+            {t.student.activeCaseStatusTitle}
           </h2>
           <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)', marginBottom: 'var(--spacing-4)' }}>
-            Track escalation timelines, authority assignments, and verification updates on your active reports.
+            {t.student.activeCaseStatusDesc}
           </p>
           <Link to="/student/track" className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start' }}>
-            View Tracking Dashboard &rarr;
+            {t.student.viewTrackingDashboard} &rarr;
           </Link>
         </div>
       </div>

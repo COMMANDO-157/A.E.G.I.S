@@ -7,12 +7,13 @@
  */
 
 import { Link } from 'react-router-dom';
-import { en } from '@/locales/en';
+import { useLocale } from '@/context/LocaleContext';
 import { Button } from '@/components/ui/Button';
 import { PageContainer } from '@/components/ui/PageContainer';
 import styles from './AboutPage.module.css';
 
 export default function AboutPage() {
+  const { t } = useLocale();
   return (
     <div className={styles.page}>
       {/* ─── Hero Section ────────────────────────────────────────── */}
@@ -24,10 +25,10 @@ export default function AboutPage() {
           </div>
 
           <h1 id="about-hero-title" className={styles.heroTitle}>
-            {en.about.title}
+            {t.about.title}
           </h1>
 
-          <p className={styles.heroSubtitle}>{en.about.subtitle}</p>
+          <p className={styles.heroSubtitle}>{t.about.subtitle}</p>
         </div>
       </section>
 
@@ -36,7 +37,7 @@ export default function AboutPage() {
         <PageContainer>
           <div className={styles.sectionHeader}>
             <h2 id="mission-title" className={styles.sectionTitle}>
-              {en.about.missionTitle}
+              {t.about.missionTitle}
             </h2>
             <p className={styles.sectionSubtitle}>
               Empowering campus safety through accountability, transparency, and timely intervention.
@@ -45,7 +46,7 @@ export default function AboutPage() {
 
           <div className={styles.narrativeCard}>
             <p className={styles.narrativeText}>
-              {en.about.missionDesc}
+              {t.about.missionDesc}
             </p>
             <p className={styles.narrativeText}>
               A.E.G.I.S provides students with a protected reporting channel where cases cannot be silently ignored or arbitrarily closed.
@@ -60,30 +61,30 @@ export default function AboutPage() {
         <PageContainer>
           <div className={styles.sectionHeader}>
             <h2 id="tiers-title" className={styles.sectionTitle}>
-              {en.about.tiersTitle}
+              {t.about.tiersTitle}
             </h2>
             <p className={styles.sectionSubtitle}>
-              {en.about.tiersSubtitle}
+              {t.about.tiersSubtitle}
             </p>
           </div>
 
           <div className={styles.tierGrid}>
             <div className={styles.tierCard}>
               <div className={styles.tierBadge}>Tier 1</div>
-              <h3 className={styles.tierTitle}>{en.about.tierHod}</h3>
-              <p className={styles.tierText}>{en.about.tierHodDesc}</p>
+              <h3 className={styles.tierTitle}>{t.about.tierHod}</h3>
+              <p className={styles.tierText}>{t.about.tierHodDesc}</p>
             </div>
 
             <div className={styles.tierCard}>
               <div className={styles.tierBadge}>Tier 2</div>
-              <h3 className={styles.tierTitle}>{en.about.tierDean}</h3>
-              <p className={styles.tierText}>{en.about.tierDeanDesc}</p>
+              <h3 className={styles.tierTitle}>{t.about.tierDean}</h3>
+              <p className={styles.tierText}>{t.about.tierDeanDesc}</p>
             </div>
 
             <div className={styles.tierCard}>
               <div className={styles.tierBadge}>Tier 3</div>
-              <h3 className={styles.tierTitle}>{en.about.tierHigherAuth}</h3>
-              <p className={styles.tierText}>{en.about.tierHigherAuthDesc}</p>
+              <h3 className={styles.tierTitle}>{t.about.tierHigherAuth}</h3>
+              <p className={styles.tierText}>{t.about.tierHigherAuthDesc}</p>
             </div>
           </div>
         </PageContainer>
@@ -94,7 +95,7 @@ export default function AboutPage() {
         <PageContainer>
           <div className={styles.sectionHeader}>
             <h2 id="roles-title" className={styles.sectionTitle}>
-              {en.about.responsibilitiesTitle}
+              {t.about.responsibilitiesTitle}
             </h2>
             <p className={styles.sectionSubtitle}>
               Clear separation of institutional duties ensures fairness, prevents conflicts of interest, and safeguards privacy.
@@ -104,20 +105,20 @@ export default function AboutPage() {
           <div className={styles.rolesGrid}>
             <div className={styles.roleCard}>
               <div className={styles.roleIcon} aria-hidden="true">🎓</div>
-              <h3 className={styles.roleTitle}>{en.about.studentsRole}</h3>
-              <p className={styles.roleText}>{en.about.studentsRoleDesc}</p>
+              <h3 className={styles.roleTitle}>{t.about.studentsRole}</h3>
+              <p className={styles.roleText}>{t.about.studentsRoleDesc}</p>
             </div>
 
             <div className={styles.roleCard}>
               <div className={styles.roleIcon} aria-hidden="true">👔</div>
-              <h3 className={styles.roleTitle}>{en.about.authoritiesRole}</h3>
-              <p className={styles.roleText}>{en.about.authoritiesRoleDesc}</p>
+              <h3 className={styles.roleTitle}>{t.about.authoritiesRole}</h3>
+              <p className={styles.roleText}>{t.about.authoritiesRoleDesc}</p>
             </div>
 
             <div className={styles.roleCard}>
               <div className={styles.roleIcon} aria-hidden="true">🛡️</div>
-              <h3 className={styles.roleTitle}>{en.about.ownerRole}</h3>
-              <p className={styles.roleText}>{en.about.ownerRoleDesc}</p>
+              <h3 className={styles.roleTitle}>{t.about.ownerRole}</h3>
+              <p className={styles.roleText}>{t.about.ownerRoleDesc}</p>
             </div>
           </div>
         </PageContainer>
@@ -130,10 +131,10 @@ export default function AboutPage() {
             <div className={styles.verificationIcon} aria-hidden="true">⚖️</div>
             <div>
               <h2 id="verification-title" className={styles.sectionTitle} style={{ margin: '0 0 var(--spacing-2)' }}>
-                {en.about.verificationTitle}
+                {t.about.verificationTitle}
               </h2>
               <p style={{ margin: 0, color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-base)', lineHeight: 'var(--line-height-relaxed)' }}>
-                {en.about.verificationDesc}
+                {t.about.verificationDesc}
               </p>
             </div>
           </div>

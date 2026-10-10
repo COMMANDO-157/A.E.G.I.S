@@ -7,8 +7,11 @@
  */
 
 import { Link } from 'react-router-dom';
+import { useLocale } from '@/context/LocaleContext';
 
 export default function StudentTrackPage() {
+  const { t } = useLocale();
+
   return (
     <main
       className="container"
@@ -16,7 +19,7 @@ export default function StudentTrackPage() {
     >
       <section className="card">
         <span className="badge badge-primary">
-          Student Case Tracking
+          {t.student.trackingBadge}
         </span>
 
         <h1
@@ -25,7 +28,7 @@ export default function StudentTrackPage() {
             marginTop: 'var(--spacing-3)',
           }}
         >
-          Track Your Reports
+          {t.student.trackingTitle}
         </h1>
 
         <p
@@ -34,9 +37,7 @@ export default function StudentTrackPage() {
             marginTop: 'var(--spacing-2)',
           }}
         >
-          This workspace will allow students to view their
-          submitted reports and follow institutional review
-          and escalation progress.
+          {t.student.trackingDesc}
         </p>
 
         <div
@@ -45,18 +46,16 @@ export default function StudentTrackPage() {
           style={{ marginTop: 'var(--spacing-6)' }}
         >
           <div>
-            <strong>Case tracking is not yet available</strong>
+            <strong>{t.student.trackingDisabledTitle}</strong>
             <p>
-              Live case records and escalation statuses are
-              not connected to this interface. No case
-              information is being retrieved or displayed.
+              {t.student.trackingDisabledDesc}
             </p>
           </div>
         </div>
 
         <div style={{ marginTop: 'var(--spacing-6)' }}>
           <Link to="/student" className="btn btn-secondary">
-            Back to Student Dashboard
+            {t.student.backToDashboard}
           </Link>
         </div>
       </section>

@@ -12,7 +12,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test test/auth_routing.test.js"
+    "test": "node --experimental-strip-types --test test/auth_routing.test.js test/locale_a11y.test.js"
   },
   "dependencies": {
     "react": "^18.3.1",

@@ -4,9 +4,11 @@
  */
 
 import { Link } from 'react-router-dom';
-import { en } from '@/locales/en';
+import { useLocale } from '@/context/LocaleContext';
 
 export default function NotFoundPage() {
+  const { t } = useLocale();
+
   return (
     <div
       style={{
@@ -23,16 +25,16 @@ export default function NotFoundPage() {
           🛡️
         </div>
         <h1 style={{ fontSize: 'var(--font-size-3xl)', color: 'var(--aegis-navy)', marginBottom: 'var(--spacing-2)' }}>
-          404
+          {t.notFound.heading}
         </h1>
         <h2 style={{ fontSize: 'var(--font-size-lg)', color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-4)' }}>
-          Page Not Found
+          {t.notFound.title}
         </h2>
         <p style={{ color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-6)' }}>
-          The requested protective URL or resource does not exist or has been relocated.
+          {t.notFound.description}
         </p>
         <Link to="/" className="btn btn-primary">
-          {en.common.backToHome}
+          {t.common.backToHome}
         </Link>
       </div>
     </div>

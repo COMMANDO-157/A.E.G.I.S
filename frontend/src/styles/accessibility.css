@@ -63,7 +63,8 @@
 }
 
 /* ─── Skip link — must be first focusable element ───────── */
-.skip-to-main {
+.skip-to-main,
+.skip-link {
   position: absolute;
   top: -100%;
   left: 1rem;
@@ -76,7 +77,8 @@
   font-weight: var(--font-weight-semibold);
 }
 
-.skip-to-main:focus {
+.skip-to-main:focus,
+.skip-link:focus {
   top: 1rem;
 }
 

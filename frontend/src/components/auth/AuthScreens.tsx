@@ -12,16 +12,18 @@
 
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
-import { en } from '@/locales/en';
+import { useLocale } from '@/context/LocaleContext';
 import styles from './AuthScreens.module.css';
 
 // ─── Loading Screen ───────────────────────────────────────────────────────────
 
 export function AuthLoadingScreen() {
+  const { t } = useLocale();
+
   return (
     <div
       className={styles.screenWrapper}
-      aria-label="Verifying institutional session…"
+      aria-label={`${t.authScreens.loadingTitle}…`}
       aria-busy="true"
     >
       <div className={styles.panel} style={{ maxWidth: 360, gap: 'var(--spacing-4)' }}>
@@ -38,10 +40,10 @@ export function AuthLoadingScreen() {
           aria-hidden="true"
         />
         <h1 className={styles.title} style={{ fontSize: 'var(--font-size-xl)' }}>
-          Verifying Session…
+          {t.authScreens.loadingTitle}
         </h1>
         <p className={styles.description} style={{ fontSize: 'var(--font-size-sm)' }}>
-          Securing campus perimeter credentials.
+          {t.authScreens.loadingDesc}
         </p>
       </div>
     </div>
@@ -61,6 +63,8 @@ export function AccessDeniedScreen({
   userRole,
   customMessage,
 }: AccessDeniedScreenProps) {
+  const { t } = useLocale();
+
   const getPortalTarget = () => {
     if (!userRole) return '/';
     if (userRole === 'admin') return '/admin';
@@ -74,26 +78,25 @@ export function AccessDeniedScreen({
       <div className={styles.panel}>
         <div className={styles.icon} aria-hidden="true">🚫</div>
         <h1 id="access-denied-title" className={`${styles.title} ${styles.titleDanger}`}>
-          403 — Access Restricted
+          {t.authScreens.accessDeniedTitle}
         </h1>
         <p className={styles.description}>
-          {customMessage ||
-            'You do not have the institutional clearance required to access this portal or resource.'}
+          {customMessage || t.authScreens.accessDeniedDesc}
         </p>
 
         {(requiredRole || userRole) && (
           <div className={styles.metaBox}>
-            {requiredRole && <div><strong>Required Clearance:</strong> {requiredRole}</div>}
-            {userRole && <div><strong>Your Current Role:</strong> {userRole}</div>}
+            {requiredRole && <div><strong>{t.authScreens.requiredClearance}:</strong> {requiredRole}</div>}
+            {userRole && <div><strong>{t.authScreens.currentRole}:</strong> {userRole}</div>}
           </div>
         )}
 
         <div className={styles.actions}>
           <Link to={getPortalTarget()} style={{ textDecoration: 'none' }}>
-            <Button variant="primary">Return to Your Portal</Button>
+            <Button variant="primary">{t.authScreens.returnToPortal}</Button>
           </Link>
           <Link to="/" style={{ textDecoration: 'none' }}>
-            <Button variant="secondary">{en.common.backToHome}</Button>
+            <Button variant="secondary">{t.common.backToHome}</Button>
           </Link>
         </div>
       </div>
@@ -108,6 +111,7 @@ export interface SessionExpiredScreenProps {
 }
 
 export function SessionExpiredScreen({ returnUrl }: SessionExpiredScreenProps) {
+  const { t } = useLocale();
   const loginUrl = returnUrl ? `/login?from=${encodeURIComponent(returnUrl)}` : '/login';
 
   return (
@@ -115,19 +119,18 @@ export function SessionExpiredScreen({ returnUrl }: SessionExpiredScreenProps) {
       <div className={styles.panel}>
         <div className={styles.icon} aria-hidden="true">⏱️</div>
         <h1 id="session-expired-title" className={`${styles.title} ${styles.titleWarning}`}>
-          Security Session Expired
+          {t.authScreens.sessionExpiredTitle}
         </h1>
         <p className={styles.description}>
-          Your institutional security session has expired. To maintain student protection and confidentiality,
-          please re-authenticate with your institutional credentials.
+          {t.authScreens.sessionExpiredDesc}
         </p>
 
         <div className={styles.actions}>
           <Link to={loginUrl} style={{ textDecoration: 'none' }}>
-            <Button variant="primary">Sign In Again</Button>
+            <Button variant="primary">{t.authScreens.signInAgain}</Button>
           </Link>
           <Link to="/" style={{ textDecoration: 'none' }}>
-            <Button variant="secondary">{en.common.backToHome}</Button>
+            <Button variant="secondary">{t.common.backToHome}</Button>
           </Link>
         </div>
       </div>
@@ -146,30 +149,33 @@ export function ServiceUnavailableScreen({
   onRetry,
   errorMessage,
 }: ServiceUnavailableScreenProps) {
+  const { t } = useLocale();
+
   return (
     <div className={styles.screenWrapper} role="alert" aria-labelledby="service-unavailable-title">
       <div className={styles.panel}>
         <div className={styles.icon} aria-hidden="true">📡</div>
         <h1 id="service-unavailable-title" className={styles.title}>
-          Service Temporarily Unavailable
+          {t.authScreens.serviceUnavailableTitle}
         </h1>
         <p className={styles.description}>
-          {errorMessage ||
-            'The institutional safety server is temporarily unreachable. Please check your network connection or try again shortly.'}
+          {errorMessage || t.authScreens.serviceUnavailableDesc}
         </p>
 
         <div className={styles.emergencyBanner}>
-          <strong>Immediate Safety Concern?</strong> Call emergency campus dispatch: <a href="tel:100">Police 100</a> · <a href="tel:1800-180-5522">Anti-Ragging 1800-180-5522</a>
+          <strong>{t.authScreens.immediateSafetyConcern}</strong> {t.authScreens.callCampusDispatch}{' '}
+          <a href={`tel:${t.emergency.police.number}`}>Police {t.emergency.police.number}</a> ·{' '}
+          <a href={`tel:${t.emergency.antiRagging.number}`}>Anti-Ragging {t.emergency.antiRagging.number}</a>
         </div>
 
         <div className={styles.actions}>
           {onRetry && (
             <Button variant="primary" onClick={onRetry}>
-              Retry Connection
+              {t.authScreens.retryConnection}
             </Button>
           )}
           <Link to="/" style={{ textDecoration: 'none' }}>
-            <Button variant="secondary">{en.common.backToHome}</Button>
+            <Button variant="secondary">{t.common.backToHome}</Button>
           </Link>
         </div>
       </div>
@@ -185,40 +191,41 @@ export interface UnknownRoleScreenProps {
 }
 
 export function UnknownRoleScreen({ role, onLogout }: UnknownRoleScreenProps) {
+  const { t } = useLocale();
+
   return (
     <div className={styles.screenWrapper} role="alert" aria-labelledby="unknown-role-title">
       <div className={styles.panel}>
         <div className={styles.icon} aria-hidden="true">⚠️</div>
         <h1 id="unknown-role-title" className={`${styles.title} ${styles.titleWarning}`}>
-          Unassigned Institutional Role
+          {t.authScreens.unknownRoleTitle}
         </h1>
         <p className={styles.description}>
-          Your Google account is recognized, but no approved role (Student, Faculty HOD, Dean, or Administrator)
-          has been provisioned for your profile.
+          {t.authScreens.unknownRoleDesc}
         </p>
 
         {role && (
           <div className={styles.metaBox}>
-            <strong>Reported Role:</strong> {role}
+            <strong>{t.authScreens.reportedRole}:</strong> {role}
           </div>
         )}
 
         <p className={styles.description} style={{ fontSize: 'var(--font-size-xs)' }}>
-          Please contact the Institutional Administrator to provision your department and access clearance.
+          {t.authScreens.contactAdmin}
         </p>
 
         <div className={styles.actions}>
           {onLogout ? (
             <Button variant="outline" onClick={onLogout}>
-              Sign Out
+              {t.common.signOut}
             </Button>
           ) : (
             <Link to="/login" style={{ textDecoration: 'none' }}>
-              <Button variant="outline">Sign Out &amp; Return</Button>
+              <Button variant="outline">{t.authScreens.signOutAndReturn}</Button>
             </Link>
           )}
           <Link to="/" style={{ textDecoration: 'none' }}>
-            <Button variant="secondary">{en.common.backToHome}</Button>
+            <Button variant="secondary">{t.common.backToHome}</Button>
           </Link>
         </div>
       </div>

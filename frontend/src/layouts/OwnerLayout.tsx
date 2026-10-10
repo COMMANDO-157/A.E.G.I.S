@@ -8,22 +8,25 @@
 
 import { Link, NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import { useLocale } from '@/context/LocaleContext';
 import { Breadcrumbs } from '@/components/navigation/Breadcrumbs';
 import { MobileNav } from '@/components/navigation/MobileNav';
 import { Button } from '@/components/ui/Button';
+import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import styles from './OwnerLayout.module.css';
-
-const NAV_ITEMS = [
-  { to: '/admin', label: 'Overview', end: true, icon: '🏛️' },
-  { to: '/admin/users', label: 'User Management', icon: '👥' },
-  { to: '/admin/cases', label: 'All Cases', icon: '📊' },
-  { to: '/admin/audit', label: 'Audit Log', icon: '📜' },
-];
 
 export default function OwnerLayout() {
   const { user, logout } = useAuth();
+  const { t } = useLocale();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const navItems = [
+    { to: '/admin', label: t.admin.overviewTitle, end: true, icon: '🏛️' },
+    { to: '/admin/users', label: t.admin.usersBadge, icon: '👥' },
+    { to: '/admin/cases', label: t.admin.casesBadge, icon: '📊' },
+    { to: '/admin/audit', label: t.admin.auditBadge, icon: '📜' },
+  ];
 
   const handleLogout = async () => {
     await logout();
@@ -32,14 +35,14 @@ export default function OwnerLayout() {
 
   const getBreadcrumbs = () => {
     const crumbs: { label: string; to?: string | undefined }[] = [
-      { label: 'Admin Portal', to: '/admin' },
+      { label: `${t.admin.badge}`, to: '/admin' },
     ];
     if (location.pathname === '/admin/users') {
-      crumbs.push({ label: 'User Management' });
+      crumbs.push({ label: t.admin.usersBadge });
     } else if (location.pathname === '/admin/cases') {
-      crumbs.push({ label: 'All Cases' });
+      crumbs.push({ label: t.admin.casesBadge });
     } else if (location.pathname === '/admin/audit') {
-      crumbs.push({ label: 'Audit Log' });
+      crumbs.push({ label: t.admin.auditBadge });
     }
     return crumbs;
   };
@@ -56,14 +59,14 @@ export default function OwnerLayout() {
           <div className={styles.brandGroup}>
             <Link to="/admin" className={styles.brand} aria-label="A.E.G.I.S admin portal home">
               <span className={styles.brandMark} aria-hidden="true">🛡️</span>
-              <span className={styles.brandText}>A.E.G.I.S</span>
-              <span className={styles.brandPortal}>Owner Admin</span>
+              <span className={styles.brandText}>{t.app.name}</span>
+              <span className={styles.brandPortal}>{t.admin.badge}</span>
             </Link>
-            <span className={styles.motto}>Govern. Secure. Oversee.</span>
+            <span className={styles.motto}>{t.taglines.owner}</span>
           </div>
 
           <nav className={styles.nav} aria-label="Admin portal navigation">
-            {NAV_ITEMS.map((item) => (
+            {navItems.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
@@ -78,6 +81,7 @@ export default function OwnerLayout() {
           </nav>
 
           <div className={styles.userMenu}>
+            <LanguageSelector variant="dark" />
             <div className={styles.userBadge} aria-label="Logged in as admin">
               <span className={styles.userEmail}>{user?.email}</span>
               <span className={styles.adminBadge}>ADMIN</span>
@@ -88,15 +92,15 @@ export default function OwnerLayout() {
               onClick={handleLogout}
               style={{ color: 'var(--aegis-neutral-100)', borderColor: 'rgba(255,255,255,0.2)' }}
             >
-              Sign Out
+              {t.common.signOut}
             </Button>
             <MobileNav
-              items={NAV_ITEMS}
-              portalTitle="Admin Portal"
+              items={navItems}
+              portalTitle={`${t.admin.badge}`}
               portalBadge="Admin"
               footerContent={
                 <Button variant="outline" size="sm" fullWidth onClick={handleLogout}>
-                  Sign Out
+                  {t.common.signOut}
                 </Button>
               }
             />

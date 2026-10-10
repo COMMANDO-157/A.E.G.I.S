@@ -9,6 +9,7 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from '@/context/AuthContext';
+import { LocaleProvider } from '@/context/LocaleContext';
 import {
   StudentRoute,
   AuthorityRoute,
@@ -82,76 +83,78 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <LegacyHashRedirect />
-        <Routes>
-          {/* Public Website Routes */}
-          <Route element={<PublicLayout />}>
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/about" element={<AboutPage />} />
-            <Route path="/safety" element={<SafetyPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-          </Route>
-
-          {/* Account Status & Authorization Notices */}
-          <Route path="/suspended" element={<SuspendedPage />} />
-          <Route path="/unauthorized" element={<AccessDeniedScreen />} />
-
-          {/* Guest Only Routes (redirects authenticated users to their portal) */}
-          <Route element={<GuestRoute />}>
-            <Route path="/login" element={<LoginPage />} />
-          </Route>
-
-          {/* Protected Student Portal */}
-          <Route element={<StudentRoute />}>
-            <Route path="/student" element={<StudentLayout />}>
-              <Route index element={<StudentDashboardPage />} />
-              <Route path="dashboard" element={<Navigate to="/student" replace />} />
-              <Route path="report" element={<StudentReportPage />} />
-              <Route path="track" element={<StudentTrackPage />} />
-              <Route path="cases" element={<Navigate to="/student/track" replace />} />
-              <Route path="profile" element={<Navigate to="/student" replace />} />
+        <LocaleProvider>
+          <LegacyHashRedirect />
+          <Routes>
+            {/* Public Website Routes */}
+            <Route element={<PublicLayout />}>
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/safety" element={<SafetyPage />} />
+              <Route path="/register" element={<RegisterPage />} />
             </Route>
-          </Route>
 
-          {/* Protected Authority Portal */}
-          <Route element={<AuthorityRoute />}>
-            <Route path="/authority" element={<AuthorityLayout />}>
-              <Route index element={<AuthorityDashboardPage />} />
-              <Route path="dashboard" element={<Navigate to="/authority" replace />} />
-              <Route path="cases" element={<AuthorityCasesPage />} />
-              <Route path="review" element={<AuthorityReviewPage />} />
-              <Route path="reviews" element={<Navigate to="/authority/review" replace />} />
+            {/* Account Status & Authorization Notices */}
+            <Route path="/suspended" element={<SuspendedPage />} />
+            <Route path="/unauthorized" element={<AccessDeniedScreen />} />
+
+            {/* Guest Only Routes (redirects authenticated users to their portal) */}
+            <Route element={<GuestRoute />}>
+              <Route path="/login" element={<LoginPage />} />
             </Route>
-          </Route>
 
-          {/* Protected Owner / Admin Portal */}
-          <Route element={<AdminRoute />}>
-            <Route path="/admin" element={<OwnerLayout />}>
-              <Route index element={<AdminOverviewPage />} />
-              <Route path="users" element={<AdminUsersPage />} />
-              <Route path="cases" element={<AdminCasesPage />} />
-              <Route path="audit" element={<AdminAuditPage />} />
+            {/* Protected Student Portal */}
+            <Route element={<StudentRoute />}>
+              <Route path="/student" element={<StudentLayout />}>
+                <Route index element={<StudentDashboardPage />} />
+                <Route path="dashboard" element={<Navigate to="/student" replace />} />
+                <Route path="report" element={<StudentReportPage />} />
+                <Route path="track" element={<StudentTrackPage />} />
+                <Route path="cases" element={<Navigate to="/student/track" replace />} />
+                <Route path="profile" element={<Navigate to="/student" replace />} />
+              </Route>
             </Route>
-            {/* Protected /owner aliases — identical security boundary */}
-            <Route path="/owner" element={<OwnerLayout />}>
-              <Route index element={<AdminOverviewPage />} />
-              <Route path="dashboard" element={<Navigate to="/owner" replace />} />
-              <Route path="users" element={<AdminUsersPage />} />
-              <Route path="roles" element={<Navigate to="/owner/users" replace />} />
-              <Route path="cases" element={<AdminCasesPage />} />
-              <Route path="audit" element={<AdminAuditPage />} />
-              <Route path="settings" element={<Navigate to="/owner" replace />} />
+
+            {/* Protected Authority Portal */}
+            <Route element={<AuthorityRoute />}>
+              <Route path="/authority" element={<AuthorityLayout />}>
+                <Route index element={<AuthorityDashboardPage />} />
+                <Route path="dashboard" element={<Navigate to="/authority" replace />} />
+                <Route path="cases" element={<AuthorityCasesPage />} />
+                <Route path="review" element={<AuthorityReviewPage />} />
+                <Route path="reviews" element={<Navigate to="/authority/review" replace />} />
+              </Route>
             </Route>
-          </Route>
 
-          {/* Development-Only Design System Showcase (Isolated from Production) */}
-          {import.meta.env.DEV && (
-            <Route path="/design-system" element={<DesignSystemShowcasePage />} />
-          )}
+            {/* Protected Owner / Admin Portal */}
+            <Route element={<AdminRoute />}>
+              <Route path="/admin" element={<OwnerLayout />}>
+                <Route index element={<AdminOverviewPage />} />
+                <Route path="users" element={<AdminUsersPage />} />
+                <Route path="cases" element={<AdminCasesPage />} />
+                <Route path="audit" element={<AdminAuditPage />} />
+              </Route>
+              {/* Protected /owner aliases — identical security boundary */}
+              <Route path="/owner" element={<OwnerLayout />}>
+                <Route index element={<AdminOverviewPage />} />
+                <Route path="dashboard" element={<Navigate to="/owner" replace />} />
+                <Route path="users" element={<AdminUsersPage />} />
+                <Route path="roles" element={<Navigate to="/owner/users" replace />} />
+                <Route path="cases" element={<AdminCasesPage />} />
+                <Route path="audit" element={<AdminAuditPage />} />
+                <Route path="settings" element={<Navigate to="/owner" replace />} />
+              </Route>
+            </Route>
 
-          {/* 404 Catch-All */}
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
+            {/* Development-Only Design System Showcase (Isolated from Production) */}
+            {import.meta.env.DEV && (
+              <Route path="/design-system" element={<DesignSystemShowcasePage />} />
+            )}
+
+            {/* 404 Catch-All */}
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </LocaleProvider>
       </AuthProvider>
     </BrowserRouter>
   );

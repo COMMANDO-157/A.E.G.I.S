@@ -5,35 +5,36 @@
  */
 
 import { Link } from 'react-router-dom';
+import { useLocale } from '@/context/LocaleContext';
 
 export default function AuthorityCasesPage() {
+  const { t } = useLocale();
+
   return (
     <main style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-6)' }}>
       <header>
-        <span className="badge badge-navy">Case Management</span>
+        <span className="badge badge-navy">{t.authority.casesBadge}</span>
         <h1 style={{ fontSize: 'var(--font-size-2xl)', marginTop: 'var(--spacing-2)' }}>
-          Assigned Case Workspace
+          {t.authority.casesTitle}
         </h1>
         <p style={{ color: 'var(--color-text-secondary)' }}>
-          A dedicated workspace for cases assigned to your authorized jurisdiction.
+          {t.authority.casesSubtitle}
         </p>
       </header>
 
       <section className="card">
         <div className="alert alert-info" role="status">
           <div>
-            <strong>Case roster not connected</strong>
+            <strong>{t.authority.casesAlertTitle}</strong>
             <p>
-              Assigned case records, severity indicators, and escalation deadlines
-              are not being retrieved in this release. The absence of displayed
-              cases does not indicate that your queue is empty.
+              {t.authority.casesAlertDesc}
             </p>
           </div>
         </div>
       </section>
 
       <Link to="/authority" className="btn btn-secondary">
-        Back to Authority Dashboard
+        {t.authority.backToDashboard}
       </Link>
     </main>
   );

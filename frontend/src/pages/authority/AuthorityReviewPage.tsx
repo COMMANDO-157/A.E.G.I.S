@@ -5,38 +5,38 @@
  */
 
 import { Link } from 'react-router-dom';
+import { useLocale } from '@/context/LocaleContext';
 
 export default function AuthorityReviewPage() {
+  const { t } = useLocale();
+
   return (
     <main style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-6)' }}>
       <header>
         <span className="badge badge-warning">
-          Human Verification Protocol
+          {t.authority.reviewBadge}
         </span>
         <h1 style={{ fontSize: 'var(--font-size-2xl)', marginTop: 'var(--spacing-2)' }}>
-          Evidence &amp; Allegation Review
+          {t.authority.reviewTitle}
         </h1>
         <p style={{ color: 'var(--color-text-secondary)' }}>
-          This workspace is intended for authorized review of case evidence
-          and verification findings.
+          {t.authority.reviewSubtitle}
         </p>
       </header>
 
       <section className="card">
         <div className="alert alert-warning" role="status">
           <div>
-            <strong>Verification workspace not yet active</strong>
+            <strong>{t.authority.reviewAlertTitle}</strong>
             <p>
-              Pending reviews, evidence records, and verification findings
-              are not connected to this interface. No decisions can be
-              recorded here.
+              {t.authority.reviewAlertDesc}
             </p>
           </div>
         </div>
       </section>
 
       <Link to="/authority" className="btn btn-secondary">
-        Back to Authority Dashboard
+        {t.authority.backToDashboard}
       </Link>
     </main>
   );

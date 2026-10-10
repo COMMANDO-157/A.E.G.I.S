@@ -8,33 +8,32 @@
 
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-
-const governanceSections = [
-  {
-    title: 'User & Role Governance',
-    description:
-      'Review the planned account directory, staff verification, and authority role management workspace.',
-    path: '/admin/users',
-    action: 'View user workspace',
-  },
-  {
-    title: 'Case Oversight',
-    description:
-      'Explore the case oversight workspace. Live grievance records and escalation metrics are not connected.',
-    path: '/admin/cases',
-    action: 'View oversight workspace',
-  },
-  {
-    title: 'Security Audit',
-    description:
-      'Access the audit viewer placeholder. Live audit records are not displayed in this release.',
-    path: '/admin/audit',
-    action: 'View audit workspace',
-  },
-] as const;
+import { useLocale } from '@/context/LocaleContext';
 
 export default function AdminOverviewPage() {
   const { user } = useAuth();
+  const { t } = useLocale();
+
+  const governanceSections = [
+    {
+      title: t.admin.usersTitle,
+      description: t.admin.usersDesc,
+      path: '/admin/users',
+      action: t.admin.viewUsersAction,
+    },
+    {
+      title: t.admin.casesTitle,
+      description: t.admin.casesDesc,
+      path: '/admin/cases',
+      action: t.admin.viewCasesAction,
+    },
+    {
+      title: t.admin.auditTitle,
+      description: t.admin.auditDesc,
+      path: '/admin/audit',
+      action: t.admin.viewAuditAction,
+    },
+  ] as const;
 
   return (
     <main
@@ -52,7 +51,7 @@ export default function AdminOverviewPage() {
         }}
       >
         <span className="badge badge-warning">
-          Owner Administration
+          {t.admin.badge}
         </span>
 
         <h1
@@ -62,22 +61,19 @@ export default function AdminOverviewPage() {
             marginTop: 'var(--spacing-3)',
           }}
         >
-          Platform Governance
+          {t.admin.overviewTitle}
         </h1>
 
         <p style={{ color: 'var(--color-text-secondary)' }}>
-          Signed in as: {user?.email ?? 'Unavailable'}
+          {t.admin.signedInAs}: {user?.email ?? 'Unavailable'}
         </p>
       </header>
 
       <section className="alert alert-warning" role="status">
         <div>
-          <strong>Administrative controls not yet enabled</strong>
+          <strong>{t.admin.controlsNotEnabledTitle}</strong>
           <p>
-            This dashboard is a navigation shell. Staff approvals,
-            role changes, live case oversight, and audit queries
-            require verified backend integration and additional
-            owner security controls.
+            {t.admin.controlsNotEnabledDesc}
           </p>
         </div>
       </section>
@@ -90,7 +86,7 @@ export default function AdminOverviewPage() {
             marginBottom: 'var(--spacing-4)',
           }}
         >
-          Governance Workspaces
+          {t.admin.workspacesHeading}
         </h2>
 
         <div
@@ -133,14 +129,12 @@ export default function AdminOverviewPage() {
       </section>
 
       <section className="card" aria-labelledby="security-heading">
-        <h2 id="security-heading">Security Readiness</h2>
+        <h2 id="security-heading">{t.admin.securityHeading}</h2>
         <p style={{ color: 'var(--color-text-secondary)' }}>
-          Owner MFA, action PIN verification, and privileged
-          workflow approvals are pending implementation
-          and security testing.
+          {t.admin.securityDesc}
         </p>
         <span className="badge badge-warning">
-          Activation pending
+          {t.admin.activationPending}
         </span>
       </section>
     </main>

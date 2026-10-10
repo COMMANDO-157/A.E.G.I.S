@@ -8,9 +8,11 @@
 
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import { useLocale } from '@/context/LocaleContext';
 
 export default function AuthorityDashboardPage() {
   const { user } = useAuth();
+  const { t } = useLocale();
 
   return (
     <main
@@ -28,7 +30,7 @@ export default function AuthorityDashboardPage() {
         }}
       >
         <span className="badge badge-navy">
-          Authority: {user?.role ?? 'Unassigned'}
+          {t.authority.portalBadge}: {user?.role ?? t.authority.unassigned}
         </span>
 
         <h1
@@ -38,25 +40,23 @@ export default function AuthorityDashboardPage() {
             color: 'var(--aegis-navy)',
           }}
         >
-          Authority Dashboard
+          {t.authority.dashboardTitle}
         </h1>
 
         <p style={{ color: 'var(--color-text-secondary)' }}>
-          Officer: {user?.name ?? 'Unknown'}
+          {t.authority.officerLabel}: {user?.name ?? 'Unknown'}
         </p>
 
         <p style={{ color: 'var(--color-text-secondary)' }}>
-          Department: {user?.department ?? 'Not assigned'}
+          {t.authority.deptLabel}: {user?.department ?? t.authority.notAssigned}
         </p>
       </header>
 
       <section className="alert alert-info" role="status">
         <div>
-          <strong>Dashboard integration pending</strong>
+          <strong>{t.authority.pendingNoticeTitle}</strong>
           <p>
-            Live case assignments, verification queues, and
-            escalation metrics are not yet connected.
-            No case totals are displayed.
+            {t.authority.pendingNoticeDesc}
           </p>
         </div>
       </section>
@@ -69,7 +69,7 @@ export default function AuthorityDashboardPage() {
             marginBottom: 'var(--spacing-4)',
           }}
         >
-          Workspace
+          {t.authority.workspaceHeading}
         </h2>
 
         <div
@@ -81,41 +81,38 @@ export default function AuthorityDashboardPage() {
           }}
         >
           <article className="card">
-            <h3>Assigned Cases</h3>
+            <h3>{t.authority.assignedCasesTitle}</h3>
             <p style={{ color: 'var(--color-text-secondary)' }}>
-              Case information is unavailable until
-              secure backend integration is completed.
+              {t.authority.assignedCasesDesc}
             </p>
             <Link
               to="/authority/cases"
               className="btn btn-secondary btn-sm"
             >
-              View workspace
+              {t.authority.viewWorkspace}
             </Link>
           </article>
 
           <article className="card">
-            <h3>Verification Reviews</h3>
+            <h3>{t.authority.verificationReviewsTitle}</h3>
             <p style={{ color: 'var(--color-text-secondary)' }}>
-              Verification decisions and evidence review
-              are not available in this release.
+              {t.authority.verificationReviewsDesc}
             </p>
             <Link
               to="/authority/review"
               className="btn btn-secondary btn-sm"
             >
-              View review information
+              {t.authority.viewReviewInfo}
             </Link>
           </article>
 
           <article className="card">
-            <h3>Escalation Oversight</h3>
+            <h3>{t.authority.escalationOversightTitle}</h3>
             <p style={{ color: 'var(--color-text-secondary)' }}>
-              Escalation timelines and SLA statistics
-              will appear after verified integration.
+              {t.authority.escalationOversightDesc}
             </p>
             <span className="badge badge-warning">
-              Not connected
+              {t.authority.notConnected}
             </span>
           </article>
         </div>

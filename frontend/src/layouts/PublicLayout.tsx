@@ -7,19 +7,21 @@
  */
 
 import { Link, NavLink, Outlet } from 'react-router-dom';
-import { en } from '@/locales/en';
+import { useLocale } from '@/context/LocaleContext';
 import { MobileNav } from '@/components/navigation/MobileNav';
 import { Button } from '@/components/ui/Button';
+import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import styles from './PublicLayout.module.css';
 
-const PUBLIC_NAV_ITEMS = [
-  { to: '/', label: en.nav.home, end: true, icon: '🛡️' },
-  { to: '/about', label: en.nav.about, icon: '🏛️' },
-  { to: '/safety', label: en.nav.safety, icon: '🆘' },
-  { to: '/register', label: en.nav.register, icon: '📝' },
-];
-
 export default function PublicLayout() {
+  const { t } = useLocale();
+
+  const publicNavItems = [
+    { to: '/', label: t.nav.home, end: true, icon: '🛡️' },
+    { to: '/about', label: t.nav.about, icon: '🏛️' },
+    { to: '/safety', label: t.nav.safety, icon: '🆘' },
+    { to: '/register', label: t.nav.register, icon: '📝' },
+  ];
   return (
     <div className={styles.shell}>
       {/* Skip link for keyboard navigation */}
@@ -34,16 +36,16 @@ export default function PublicLayout() {
             ⚠️ <strong>Emergency?</strong> If you are in active physical danger, call emergency services immediately:
           </span>
           <span>
-            {en.emergency.police.label}:{' '}
-            <a href={`tel:${en.emergency.police.number}`} className={styles.emergencyPhone}>
-              {en.emergency.police.number}
+            {t.emergency.police.label}:{' '}
+            <a href={`tel:${t.emergency.police.number}`} className={styles.emergencyPhone}>
+              {t.emergency.police.number}
             </a>
           </span>
           <span aria-hidden="true">·</span>
           <span>
-            {en.emergency.antiRagging.label}:{' '}
-            <a href={`tel:${en.emergency.antiRagging.number}`} className={styles.emergencyPhone}>
-              {en.emergency.antiRagging.number}
+            {t.emergency.antiRagging.label}:{' '}
+            <a href={`tel:${t.emergency.antiRagging.number}`} className={styles.emergencyPhone}>
+              {t.emergency.antiRagging.number}
             </a>
           </span>
         </div>
@@ -56,7 +58,7 @@ export default function PublicLayout() {
           <Link to="/" className={styles.brand} aria-label="A.E.G.I.S Home">
             <span className={styles.brandShield} aria-hidden="true">🛡️</span>
             <div className={styles.brandTextGroup}>
-              <span className={styles.brandName}>{en.app.name}</span>
+              <span className={styles.brandName}>{t.app.name}</span>
               <span className={styles.brandTagline}>Campus Safety &amp; Grievance Shield</span>
             </div>
           </Link>
@@ -70,7 +72,7 @@ export default function PublicLayout() {
                 [styles.navLink, isActive ? styles.navActive : ''].filter(Boolean).join(' ')
               }
             >
-              {en.nav.home}
+              {t.nav.home}
             </NavLink>
             <NavLink
               to="/about"
@@ -78,7 +80,7 @@ export default function PublicLayout() {
                 [styles.navLink, isActive ? styles.navActive : ''].filter(Boolean).join(' ')
               }
             >
-              {en.nav.about}
+              {t.nav.about}
             </NavLink>
             <NavLink
               to="/safety"
@@ -86,32 +88,33 @@ export default function PublicLayout() {
                 [styles.navLink, isActive ? styles.navActive : ''].filter(Boolean).join(' ')
               }
             >
-              {en.nav.safety}
+              {t.nav.safety}
             </NavLink>
           </nav>
 
           {/* Actions & Mobile Nav */}
           <div className={styles.headerActions}>
+            <LanguageSelector variant="light" />
             <Link to="/login" style={{ textDecoration: 'none' }}>
               <Button variant="outline" size="sm">
-                {en.nav.login}
+                {t.nav.login}
               </Button>
             </Link>
             <Link to="/register" style={{ textDecoration: 'none' }}>
               <Button variant="primary" size="sm">
-                {en.nav.getStarted}
+                {t.nav.getStarted}
               </Button>
             </Link>
 
             <MobileNav
-              items={PUBLIC_NAV_ITEMS}
-              portalTitle={en.app.name}
+              items={publicNavItems}
+              portalTitle={t.app.name}
               portalBadge="Public"
               footerContent={
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-2)' }}>
                   <Link to="/login" style={{ textDecoration: 'none' }}>
                     <Button variant="primary" size="sm" fullWidth>
-                      {en.nav.login}
+                      {t.nav.login}
                     </Button>
                   </Link>
                 </div>
@@ -135,11 +138,11 @@ export default function PublicLayout() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-2)', marginBottom: 'var(--spacing-2)' }}>
                 <span style={{ fontSize: '1.5rem' }} aria-hidden="true">🛡️</span>
                 <span style={{ fontSize: 'var(--font-size-base)', fontWeight: 'var(--font-weight-bold)', color: 'var(--aegis-neutral-0)' }}>
-                  {en.app.name}
+                  {t.app.name}
                 </span>
               </div>
               <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--aegis-navy-200)', lineHeight: 'var(--line-height-relaxed)', maxWidth: 360 }}>
-                {en.app.fullName}. {en.app.motto} A structured, confidential grievance management and incident response shield.
+                {t.app.fullName}. {t.app.motto} A structured, confidential grievance management and incident response shield.
               </p>
             </div>
 
@@ -147,10 +150,10 @@ export default function PublicLayout() {
             <div>
               <div className={styles.footerColTitle}>Navigation</div>
               <ul className={styles.footerLinksList}>
-                <li><Link to="/" className={styles.footerLink}>{en.nav.home}</Link></li>
-                <li><Link to="/about" className={styles.footerLink}>{en.nav.about}</Link></li>
-                <li><Link to="/safety" className={styles.footerLink}>{en.nav.safety}</Link></li>
-                <li><Link to="/register" className={styles.footerLink}>{en.nav.register}</Link></li>
+                <li><Link to="/" className={styles.footerLink}>{t.nav.home}</Link></li>
+                <li><Link to="/about" className={styles.footerLink}>{t.nav.about}</Link></li>
+                <li><Link to="/safety" className={styles.footerLink}>{t.nav.safety}</Link></li>
+                <li><Link to="/register" className={styles.footerLink}>{t.nav.register}</Link></li>
               </ul>
             </div>
 
@@ -179,9 +182,9 @@ export default function PublicLayout() {
 
           {/* Legal / Policy Disclaimer */}
           <div className={styles.disclaimerBar}>
-            <div>{en.common.allRightsReserved}</div>
+            <div>{t.common.allRightsReserved}</div>
             <div style={{ maxWidth: 640 }}>
-              <em>Notice:</em> {en.emergency.disclaimer}
+              <em>Notice:</em> {t.emergency.disclaimer}
             </div>
           </div>
         </div>

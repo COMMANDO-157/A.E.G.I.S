@@ -1,0 +1,66 @@
+.container {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  position: relative;
+}
+
+.label {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.globeIcon {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.select {
+  appearance: auto;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast);
+}
+
+/* Light variant (for white/light headers and public layouts) */
+.light .select {
+  background-color: var(--color-bg-page);
+  color: var(--aegis-navy);
+  border: 1px solid var(--aegis-neutral-300);
+}
+
+.light .select:hover {
+  border-color: var(--aegis-teal);
+}
+
+.light .select:focus-visible {
+  outline: 2px solid var(--aegis-teal);
+  outline-offset: 2px;
+}
+
+/* Dark variant (for navy admin header or dark footers) */
+.dark .select {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.dark .select:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.dark .select:focus-visible {
+  outline: 2px solid #FFFFFF;
+  outline-offset: 2px;
+}
+
+.dark .select option {
+  background-color: var(--aegis-navy);
+  color: #FFFFFF;
+}

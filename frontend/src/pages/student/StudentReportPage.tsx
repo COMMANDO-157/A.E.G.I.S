@@ -7,9 +7,12 @@
  */
 
 import { Link } from 'react-router-dom';
+import { useLocale } from '@/context/LocaleContext';
 import { COMPLAINT_CATEGORIES } from '@/api/types';
 
 export default function StudentReportPage() {
+  const { t } = useLocale();
+
   return (
     <main
       className="container"
@@ -17,7 +20,7 @@ export default function StudentReportPage() {
     >
       <section className="card">
         <span className="badge badge-primary">
-          Student Reporting
+          {t.roles.student} Reporting
         </span>
 
         <h1
@@ -26,12 +29,11 @@ export default function StudentReportPage() {
             marginTop: 'var(--spacing-3)',
           }}
         >
-          Report an Incident
+          {t.student.reportingHeader}
         </h1>
 
         <p style={{ color: 'var(--color-text-secondary)' }}>
-          A.E.G.I.S is preparing a structured reporting
-          service for campus safety concerns and grievances.
+          {t.student.reportingDesc}
         </p>
 
         <div
@@ -40,13 +42,9 @@ export default function StudentReportPage() {
           style={{ marginTop: 'var(--spacing-6)' }}
         >
           <div>
-            <strong>Incident submission is disabled</strong>
+            <strong>{t.student.reportingDisabledAlertTitle}</strong>
             <p>
-              This page is informational only. No report
-              can be submitted, and no evidence can be
-              uploaded through this interface.
-              Reporting will be enabled only after
-              security and privacy verification.
+              {t.student.reportingDisabledAlertDesc}
             </p>
           </div>
         </div>
@@ -62,7 +60,7 @@ export default function StudentReportPage() {
               marginBottom: 'var(--spacing-3)',
             }}
           >
-            Planned Reporting Categories
+            {t.student.plannedCategories}
           </h2>
 
           <ul
@@ -80,7 +78,7 @@ export default function StudentReportPage() {
 
         <div style={{ marginTop: 'var(--spacing-6)' }}>
           <Link to="/student" className="btn btn-secondary">
-            Back to Student Dashboard
+            {t.student.backToDashboard}
           </Link>
         </div>
       </section>

@@ -8,13 +8,14 @@
 
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { en } from '@/locales/en';
+import { useLocale } from '@/context/LocaleContext';
 import { Button } from '@/components/ui/Button';
 import { PageContainer } from '@/components/ui/PageContainer';
 import styles from './LandingPage.module.css';
 
 export default function LandingPage() {
   const { isAuthenticated, user } = useAuth();
+  const { t } = useLocale();
 
   const getPortalTarget = () => {
     if (!isAuthenticated || !user) return '/login';
@@ -30,35 +31,35 @@ export default function LandingPage() {
         <div className={styles.heroInner}>
           <div className={styles.heroBadge}>
             <span aria-hidden="true">🛡️</span>
-            <span>{en.home.heroBadge}</span>
+            <span>{t.home.heroBadge}</span>
           </div>
 
           <h1 id="hero-title" className={styles.heroTitle}>
-            {en.home.heroTitle}
+            {t.home.heroTitle}
           </h1>
 
-          <p className={styles.heroTagline}>{en.home.heroTagline}</p>
+          <p className={styles.heroTagline}>{t.home.heroTagline}</p>
 
-          <p className={styles.heroSubtitle}>{en.home.heroSubtitle}</p>
+          <p className={styles.heroSubtitle}>{t.home.heroSubtitle}</p>
 
           <div className={styles.heroActions}>
             {isAuthenticated ? (
               <Link to={getPortalTarget()} style={{ textDecoration: 'none' }}>
                 <Button variant="primary" size="lg" rightIcon={<span aria-hidden="true">→</span>}>
-                  {en.nav.dashboard}
+                  {t.nav.dashboard}
                 </Button>
               </Link>
             ) : (
               <Link to="/login" style={{ textDecoration: 'none' }}>
                 <Button variant="primary" size="lg" rightIcon={<span aria-hidden="true">→</span>}>
-                  {en.home.getStartedCta}
+                  {t.home.getStartedCta}
                 </Button>
               </Link>
             )}
 
             <Link to="/about" style={{ textDecoration: 'none' }}>
               <Button variant="secondary" size="lg">
-                {en.home.learnMoreCta}
+                {t.home.learnMoreCta}
               </Button>
             </Link>
           </div>
@@ -70,48 +71,36 @@ export default function LandingPage() {
         <PageContainer>
           <div className={styles.sectionHeader}>
             <h2 id="capabilities-title" className={styles.sectionTitle}>
-              {en.home.capabilitiesTitle}
+              {t.home.capabilitiesTitle}
             </h2>
             <p className={styles.sectionSubtitle}>
-              {en.home.capabilitiesSubtitle}
+              {t.home.capabilitiesSubtitle}
             </p>
           </div>
 
           <div className={styles.gridCards}>
             <div className={styles.featureCard}>
               <div className={styles.featureIcon} aria-hidden="true">🔒</div>
-              <h3 className={styles.featureTitle}>Confidential Identity Modes</h3>
-              <p className={styles.featureText}>
-                Submit reports using standard, confidential, or anonymous identities.
-                Access controls prevent unauthorized peers or faculty from viewing sensitive reporter records.
-              </p>
+              <h3 className={styles.featureTitle}>{t.home.feature1Title}</h3>
+              <p className={styles.featureText}>{t.home.feature1Desc}</p>
             </div>
 
             <div className={styles.featureCard}>
               <div className={styles.featureIcon} aria-hidden="true">⏱️</div>
-              <h3 className={styles.featureTitle}>Automated Escalation Timers</h3>
-              <p className={styles.featureText}>
-                Every grievance carries an institutional SLA countdown. If a tier fails to act within the mandatory window,
-                the case escalates autonomously to higher administrative tiers.
-              </p>
+              <h3 className={styles.featureTitle}>{t.home.feature2Title}</h3>
+              <p className={styles.featureText}>{t.home.feature2Desc}</p>
             </div>
 
             <div className={styles.featureCard}>
               <div className={styles.featureIcon} aria-hidden="true">📜</div>
-              <h3 className={styles.featureTitle}>Immutable Audit Trails</h3>
-              <p className={styles.featureText}>
-                All case movements, tier escalations, and status transitions are recorded in permanent tamper-evident audit logs
-                to ensure total institutional accountability.
-              </p>
+              <h3 className={styles.featureTitle}>{t.home.feature3Title}</h3>
+              <p className={styles.featureText}>{t.home.feature3Desc}</p>
             </div>
 
             <div className={styles.featureCard}>
               <div className={styles.featureIcon} aria-hidden="true">⚖️</div>
-              <h3 className={styles.featureTitle}>Three-Tier Administrative Hierarchy</h3>
-              <p className={styles.featureText}>
-                Grievances are directed based on severity: Head of Department (Tier 1), Dean of Students (Tier 2),
-                and Senior Institutional Authorities (Tier 3).
-              </p>
+              <h3 className={styles.featureTitle}>{t.home.feature4Title}</h3>
+              <p className={styles.featureText}>{t.home.feature4Desc}</p>
             </div>
           </div>
         </PageContainer>
@@ -122,30 +111,30 @@ export default function LandingPage() {
         <PageContainer>
           <div className={styles.sectionHeader}>
             <h2 id="how-it-works-title" className={styles.sectionTitle}>
-              {en.home.howItWorksTitle}
+              {t.home.howItWorksTitle}
             </h2>
             <p className={styles.sectionSubtitle}>
-              {en.home.howItWorksSubtitle}
+              {t.home.howItWorksSubtitle}
             </p>
           </div>
 
           <div className={styles.workflowGrid}>
             <div className={styles.workflowStep}>
               <div className={styles.stepNumber} aria-hidden="true">1</div>
-              <h3 className={styles.featureTitle}>{en.home.step1Title}</h3>
-              <p className={styles.featureText}>{en.home.step1Desc}</p>
+              <h3 className={styles.featureTitle}>{t.home.step1Title}</h3>
+              <p className={styles.featureText}>{t.home.step1Desc}</p>
             </div>
 
             <div className={styles.workflowStep}>
               <div className={styles.stepNumber} aria-hidden="true">2</div>
-              <h3 className={styles.featureTitle}>{en.home.step2Title}</h3>
-              <p className={styles.featureText}>{en.home.step2Desc}</p>
+              <h3 className={styles.featureTitle}>{t.home.step2Title}</h3>
+              <p className={styles.featureText}>{t.home.step2Desc}</p>
             </div>
 
             <div className={styles.workflowStep}>
               <div className={styles.stepNumber} aria-hidden="true">3</div>
-              <h3 className={styles.featureTitle}>{en.home.step3Title}</h3>
-              <p className={styles.featureText}>{en.home.step3Desc}</p>
+              <h3 className={styles.featureTitle}>{t.home.step3Title}</h3>
+              <p className={styles.featureText}>{t.home.step3Desc}</p>
             </div>
           </div>
         </PageContainer>
@@ -157,15 +146,15 @@ export default function LandingPage() {
           <div className={styles.confidentialityCard}>
             <div className={styles.confidentialityText}>
               <h2 id="confidentiality-title" className={styles.sectionTitle} style={{ textAlign: 'left' }}>
-                {en.home.confidentialityTitle}
+                {t.home.confidentialityTitle}
               </h2>
               <p className={styles.sectionSubtitle} style={{ textAlign: 'left', marginBottom: 0 }}>
-                {en.home.confidentialityDesc}
+                {t.home.confidentialityDesc}
               </p>
             </div>
             <Link to="/about" style={{ textDecoration: 'none' }}>
               <Button variant="outline" size="md" rightIcon={<span aria-hidden="true">→</span>}>
-                Learn About Institutional Governance
+                {t.home.learnGovernanceCta}
               </Button>
             </Link>
           </div>
@@ -178,15 +167,15 @@ export default function LandingPage() {
           <div className={styles.safetyCallout}>
             <div>
               <h2 id="safety-callout-title" style={{ fontSize: 'var(--font-size-xl)', color: 'var(--color-danger-text)', margin: '0 0 var(--spacing-2)' }}>
-                🚨 {en.home.safetyBannerTitle}
+                🚨 {t.home.safetyBannerTitle}
               </h2>
               <p style={{ margin: 0, color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)', maxWidth: '640px' }}>
-                {en.home.safetyBannerDesc}
+                {t.home.safetyBannerDesc}
               </p>
             </div>
             <Link to="/safety" style={{ textDecoration: 'none' }}>
               <Button variant="destructive" size="md" rightIcon={<span aria-hidden="true">→</span>}>
-                {en.home.safetyBannerCta}
+                {t.home.safetyBannerCta}
               </Button>
             </Link>
           </div>

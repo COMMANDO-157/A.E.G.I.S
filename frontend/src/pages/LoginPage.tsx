@@ -10,12 +10,13 @@
 import { useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import { useLocale } from '@/context/LocaleContext';
 import { sanitizeReturnUrl } from '@/utils/url';
-import { en } from '@/locales/en';
 import styles from './LoginPage.module.css';
 
 export default function LoginPage() {
   const { isAuthenticated, loading, user } = useAuth();
+  const { t } = useLocale();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -68,19 +69,19 @@ export default function LoginPage() {
         {/* Institutional Branding */}
         <header className={styles.header}>
           <div className={styles.shield} aria-hidden="true">🛡️</div>
-          <h1 className={styles.title}>{en.app.name}</h1>
-          <p className={styles.subtitle}>{en.login.title} — {en.app.fullName}</p>
+          <h1 className={styles.title}>{t.app.name}</h1>
+          <p className={styles.subtitle}>{t.login.title} — {t.app.fullName}</p>
         </header>
 
         {/* Security & Confidentiality Advisory */}
         <aside className={styles.securityBanner} aria-label="Privacy Advisory">
           <span aria-hidden="true">🔒</span>
-          <span>{en.login.privacyNote}</span>
+          <span>{t.login.privacyNote}</span>
         </aside>
 
         {/* Sign-In Area */}
         <section className={styles.signIn} aria-label="Google Authentication">
-          <p className={styles.signInLabel}>{en.login.subtitle}</p>
+          <p className={styles.signInLabel}>{t.login.subtitle}</p>
 
           <button
             type="button"
@@ -114,27 +115,27 @@ export default function LoginPage() {
                 d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
               />
             </svg>
-            <span>{en.login.googleBtnLabel}</span>
+            <span>{t.login.googleBtnLabel}</span>
           </button>
 
           <p className={styles.stageNotice}>
-            {en.login.devNotice}
+            {t.login.devNotice}
           </p>
         </section>
 
         {/* Student Registration Prompt */}
         <div className={styles.registerPrompt}>
-          <span>{en.login.noAccountPrompt}</span>
+          <span>{t.login.noAccountPrompt}</span>
           <Link to="/register" className={styles.registerLink}>
-            {en.login.registerLink} →
+            {t.login.registerLink} →
           </Link>
         </div>
 
         {/* Confidentiality Footer */}
         <footer className={styles.footer}>
           <p>
-            Emergency crisis helpline: <a href={`tel:${en.emergency.police.number}`}>Police: {en.emergency.police.number}</a> ·{' '}
-            <a href={`tel:${en.emergency.antiRagging.number}`}>Anti-Ragging: {en.emergency.antiRagging.number}</a>
+            Emergency crisis helpline: <a href={`tel:${t.emergency.police.number}`}>Police: {t.emergency.police.number}</a> ·{' '}
+            <a href={`tel:${t.emergency.antiRagging.number}`}>Anti-Ragging: {t.emergency.antiRagging.number}</a>
           </p>
         </footer>
       </div>
