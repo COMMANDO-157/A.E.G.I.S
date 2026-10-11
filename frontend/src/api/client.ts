@@ -203,6 +203,18 @@ export async function requestAuthChallenge(
 }
 
 /**
+ * Authenticate with backend using verified Google credential and active challenge nonce cookie.
+ */
+export async function loginWithGoogle(
+  credential: string,
+  signal?: AbortSignal,
+): Promise<{ user: ApiUser }> {
+  const opts: RequestOptions = { method: 'POST', body: { credential } };
+  if (signal !== undefined) opts.signal = signal;
+  return request<{ user: ApiUser }>('auth/google', opts);
+}
+
+/**
  * Sign out the current user session server-side.
  * Rejects if server-side revocation fails or network is disconnected.
  */
@@ -327,6 +339,7 @@ export interface RoleAssignmentPayload {
   role: string;
   department: string;
   account_status: string;
+  stepUpToken: string;
 }
 
 export async function assignRole(
@@ -336,4 +349,63 @@ export async function assignRole(
   const opts: RequestOptions = { method: 'PATCH', body: payload };
   if (signal !== undefined) opts.signal = signal;
   await request<{ ok: boolean }>('admin/roles', opts);
+}
+
+// ─── Stage 4.2: MFA & Step-Up Administration ──────────────────────────────────
+
+export async function setupMfa(signal?: AbortSignal): Promise<import('./types').MfaSetupResponse> {
+  const opts: RequestOptions = { method: 'POST' };
+  if (signal !== undefined) opts.signal = signal;
+  return request<import('./types').MfaSetupResponse>('admin/mfa/setup', opts);
+}
+
+export async function verifyMfa(
+  payload: { code?: string; recoveryCode?: string },
+  signal?: AbortSignal,
+): Promise<import('./types').StepUpResponse> {
+  const opts: RequestOptions = { method: 'POST', body: payload };
+  if (signal !== undefined) opts.signal = signal;
+  return request<import('./types').StepUpResponse>('admin/mfa/verify', opts);
+}
+
+export async function setupActionPin(pin: string, signal?: AbortSignal): Promise<void> {
+  const opts: RequestOptions = { method: 'POST', body: { pin } };
+  if (signal !== undefined) opts.signal = signal;
+  await request<{ ok: boolean }>('admin/pin/setup', opts);
+}
+
+export async function verifyActionPin(
+  pin: string,
+  signal?: AbortSignal,
+): Promise<import('./types').StepUpResponse> {
+  const opts: RequestOptions = { method: 'POST', body: { pin } };
+  if (signal !== undefined) opts.signal = signal;
+  return request<import('./types').StepUpResponse>('admin/pin/verify', opts);
+}
+
+export async function performStepUp(
+  payload: { type: 'mfa' | 'pin'; code?: string; pin?: string },
+  signal?: AbortSignal,
+): Promise<import('./types').StepUpResponse> {
+  const opts: RequestOptions = { method: 'POST', body: payload };
+  if (signal !== undefined) opts.signal = signal;
+  return request<import('./types').StepUpResponse>('admin/step-up', opts);
+}
+
+export async function updateAdminPermissions(
+  payload: { userId: string; permissions: string[]; stepUpToken: string },
+  signal?: AbortSignal,
+): Promise<void> {
+  const opts: RequestOptions = { method: 'PATCH', body: payload };
+  if (signal !== undefined) opts.signal = signal;
+  await request<{ ok: boolean }>('admin/permissions', opts);
+}
+
+export async function createAdminInvitation(
+  payload: { email: string; permissions: string[]; stepUpToken: string },
+  signal?: AbortSignal,
+): Promise<import('./types').AdminInvitationResponse> {
+  const opts: RequestOptions = { method: 'POST', body: payload };
+  if (signal !== undefined) opts.signal = signal;
+  return request<import('./types').AdminInvitationResponse>('admin/invitations', opts);
 }

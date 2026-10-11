@@ -4,8 +4,20 @@ import {authorizeMaintenance,cleanupExpired} from './maintenance.js';
 import {cookie} from './auth.js';
 import {intakeEnabled} from './config.js';
 import {database,transaction} from './db.js';
-import {challenge,login,sessionUser,logout,checkOrigin,configured} from './auth.js';
-import {fail,canRead,canAct,requireAdmin,reviewDecision,safeComplaint,fieldsOnly,STAFF} from './policy.js';
+import {challenge,login,sessionUser,logout,checkOrigin,configured,issueStepUpToken,verifyStepUpToken} from './auth.js';
+import {fail,canRead,canAct,requireAdmin,requireAdminPermission,requirePrimaryOwner,reviewDecision,safeComplaint,fieldsOnly,STAFF,DELEGATED_PERMISSIONS} from './policy.js';
+import {
+  encryptSecret,
+  decryptSecret,
+  validatePinFormat,
+  hashActionPin,
+  verifyActionPin,
+  generateTotpSecret,
+  getTotpUri,
+  verifyTotp,
+  generateRecoveryCodes,
+  hashRecoveryCode
+} from './crypto.js';
 import {evaluateCaseEscalation,validateManualOverride,validateStatusTransition} from '../js/escalation.js';
 const audit=(db,user,id,action,details={})=>db.query('INSERT INTO audit_logs(actor_id,complaint_id,action,details) VALUES($1,$2,$3,$4)',[user.id,id,action,JSON.stringify(details)]);
 async function body(req) {
@@ -16,7 +28,21 @@ async function body(req) {
  let raw=''; for await(const chunk of req) { raw+=chunk; if(Buffer.byteLength(raw)>65536) fail(413,'Request too large.'); }
  try{return JSON.parse(raw||'{}');}catch{fail(400,'Invalid JSON.');}
 }
-function userView(u) { return {id:u.id,email:u.email,name:u.name,department:u.department,role:u.role,account_status:u.account_status,staff_requested:u.staff_requested}; }
+function userView(u) {
+ return {
+  id:u.id,
+  email:u.email,
+  name:u.name,
+  department:u.department,
+  role:u.role,
+  account_status:u.account_status,
+  staff_requested:u.staff_requested,
+  is_primary_owner:Boolean(u.is_primary_owner),
+  mfa_enrolled:Boolean(u.mfa_enrolled),
+  action_pin_set:Boolean(u.action_pin_hash),
+  permissions:Array.isArray(u.permissions)?u.permissions:[]
+ };
+}
 export function createHandler(auth={sessionUser,logout},store={database,transaction},security={consumeRateLimit}) {
  const {database,transaction}=store;
  return async function handler(req,res) {
@@ -150,17 +176,310 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
   }
   if(path.startsWith('/api/admin')) {
    requireAdmin(user);
-   if(path==='/api/admin/users'&&method==='GET') return send(200,{users:(await database().query('SELECT id,email,name,department,role,account_status,staff_requested FROM users ORDER BY created_at DESC LIMIT 100')).rows});
-   if(path==='/api/admin/audit'&&method==='GET') return send(200,{logs:(await database().query('SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 100')).rows});
+
+   // ─── MFA Endpoints ────────────────────────────────────────────────────────
+   if(path==='/api/admin/mfa/setup'&&method==='POST') {
+    await limit('admin:mfa:setup:'+user.id, 10);
+    // Generate TOTP secret and return otpauth URL (and plaintext secret for setup only)
+    const secret = generateTotpSecret();
+    const uri = getTotpUri(secret, user.email, 'A.E.G.I.S');
+    const encrypted = encryptSecret(secret);
+    const {plaintextCodes, hashedCodes} = generateRecoveryCodes(8);
+
+    await transaction(async db=>{
+     // Store encrypted secret in staging or directly with mfa_enrolled=false
+     await db.query('UPDATE users SET mfa_secret_encrypted=$1,mfa_enrolled=false WHERE id=$2',[encrypted, user.id]);
+     await db.query('DELETE FROM mfa_recovery_codes WHERE user_id=$1',[user.id]);
+     for(const h of hashedCodes) {
+      await db.query('INSERT INTO mfa_recovery_codes(user_id,code_hash) VALUES($1,$2)',[user.id, h]);
+     }
+    });
+
+    return send(200, {
+     secret,
+     uri,
+     recoveryCodes: plaintextCodes
+    });
+   }
+
+   if(path==='/api/admin/mfa/verify'&&method==='POST') {
+    await limit('admin:mfa:verify:'+user.id, 15);
+    const input=await body(req);
+    fieldsOnly(input, ['code', 'recoveryCode']);
+
+    const dbUser=(await database().query('SELECT * FROM users WHERE id=$1',[user.id])).rows[0];
+    if(!dbUser?.mfa_secret_encrypted) fail(400, 'MFA setup has not been initiated.');
+
+    let verified = false;
+    if(input.code) {
+     const secret = decryptSecret(dbUser.mfa_secret_encrypted);
+     verified = verifyTotp(input.code, secret);
+    } else if(input.recoveryCode) {
+     const h = hashRecoveryCode(input.recoveryCode);
+     const recResult = await database().query(
+      'UPDATE mfa_recovery_codes SET used=true,used_at=now() WHERE user_id=$1 AND code_hash=$2 AND used=false RETURNING id',
+      [user.id, h]
+     );
+     verified = Boolean(recResult.rowCount);
+    } else {
+     fail(422, 'Provide either a TOTP 6-digit code or a recovery code.');
+    }
+
+    if(!verified) fail(401, 'Invalid MFA code or recovery code.');
+
+    await transaction(async db=>{
+     await db.query('UPDATE users SET mfa_enrolled=true,mfa_enrolled_at=COALESCE(mfa_enrolled_at, now()) WHERE id=$1',[user.id]);
+     await audit(db, user, null, 'MFA_VERIFIED');
+    });
+
+    // Issue step-up token for MFA
+    const stepUpToken = await issueStepUpToken(user.id, 'mfa_step_up', database(), user.session_hash);
+    return send(200, { verified: true, stepUpToken });
+   }
+
+   // ─── Action PIN Endpoints ──────────────────────────────────────────────────
+   if(path==='/api/admin/pin/setup'&&method==='POST') {
+    await limit('admin:pin:setup:'+user.id, 10);
+    const input=await body(req);
+    fieldsOnly(input, ['pin']);
+    validatePinFormat(input.pin);
+
+    const {pinHash, pinSalt} = hashActionPin(input.pin);
+    await transaction(async db=>{
+     await db.query(
+      'UPDATE users SET action_pin_hash=$1,action_pin_salt=$2,action_pin_failed_attempts=0,action_pin_locked_until=NULL,action_pin_set_at=now() WHERE id=$3',
+      [pinHash, pinSalt, user.id]
+     );
+     await audit(db, user, null, 'ACTION_PIN_SET');
+    });
+
+    return send(200, { ok: true });
+   }
+
+   if(path==='/api/admin/pin/verify'&&method==='POST') {
+    await limit('admin:pin:verify:'+user.id, 15);
+    const input=await body(req);
+    fieldsOnly(input, ['pin']);
+    validatePinFormat(input.pin);
+
+    const dbUser=(await database().query('SELECT * FROM users WHERE id=$1',[user.id])).rows[0];
+    if(!dbUser?.action_pin_hash || !dbUser?.action_pin_salt) fail(400, 'Action PIN has not been set.');
+
+    // Check lockout
+    if(dbUser.action_pin_locked_until && new Date(dbUser.action_pin_locked_until).getTime() > Date.now()) {
+     fail(429, 'Action PIN is temporarily locked due to multiple failed attempts. Try again later.');
+    }
+
+    const valid = verifyActionPin(input.pin, dbUser.action_pin_hash, dbUser.action_pin_salt);
+    if(!valid) {
+     const attempts = (dbUser.action_pin_failed_attempts || 0) + 1;
+     let lockUntil = null;
+     if(attempts >= 5) {
+      lockUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 min lock
+     }
+     await database().query(
+      'UPDATE users SET action_pin_failed_attempts=$1,action_pin_locked_until=$2 WHERE id=$3',
+      [attempts, lockUntil, user.id]
+     );
+     if(lockUntil) {
+      fail(429, 'Action PIN locked for 15 minutes after 5 failed attempts.');
+     }
+     fail(401, `Invalid Action PIN. ${5 - attempts} attempt(s) remaining.`);
+    }
+
+    // Reset attempts on successful verification
+    await database().query(
+     'UPDATE users SET action_pin_failed_attempts=0,action_pin_locked_until=NULL WHERE id=$1',
+     [user.id]
+    );
+
+    const stepUpToken = await issueStepUpToken(user.id, 'pin_step_up', database(), user.session_hash);
+    return send(200, { verified: true, stepUpToken });
+   }
+
+   // ─── General Admin Step-Up Endpoint ─────────────────────────────────────────
+   // Verifies either TOTP code or Action PIN and issues an 'admin_step_up' token.
+   // Prerequisites: Administrator must have enrolled in TOTP MFA and set 5-digit Action PIN.
+   if(path==='/api/admin/step-up'&&method==='POST') {
+    requireAdmin(user);
+    await limit('admin:stepup:'+user.id, 15);
+    const input=await body(req);
+    fieldsOnly(input, ['type', 'code', 'pin']);
+    const dbUser=(await database().query('SELECT * FROM users WHERE id=$1',[user.id])).rows[0];
+
+    // Enforce dual prerequisites for privileged step-up authorization
+    if(!dbUser.mfa_enrolled || !dbUser.mfa_secret_encrypted) {
+     fail(403, 'MFA enrollment is a required prerequisite before issuing privileged step-up tokens.');
+    }
+    if(!dbUser.action_pin_hash || !dbUser.action_pin_salt) {
+     fail(403, 'Action PIN setup is a required prerequisite before issuing privileged step-up tokens.');
+    }
+
+    if(input.type==='mfa') {
+     const secret = decryptSecret(dbUser.mfa_secret_encrypted);
+     if(!verifyTotp(input.code, secret)) fail(401, 'Invalid MFA code.');
+    } else if(input.type==='pin') {
+     if(dbUser.action_pin_locked_until && new Date(dbUser.action_pin_locked_until).getTime() > Date.now()) {
+      fail(429, 'Action PIN is locked.');
+     }
+     if(!verifyActionPin(input.pin, dbUser.action_pin_hash, dbUser.action_pin_salt)) {
+      const attempts = (dbUser.action_pin_failed_attempts || 0) + 1;
+      const lockUntil = attempts >= 5 ? new Date(Date.now() + 15 * 60 * 1000).toISOString() : null;
+      await database().query(
+       'UPDATE users SET action_pin_failed_attempts=$1,action_pin_locked_until=$2 WHERE id=$3',
+       [attempts, lockUntil, user.id]
+      );
+      if(lockUntil) {
+       fail(429, 'Action PIN locked for 15 minutes after 5 failed attempts.');
+      }
+      fail(401, `Invalid Action PIN. ${5 - attempts} attempt(s) remaining.`);
+     }
+     await database().query('UPDATE users SET action_pin_failed_attempts=0,action_pin_locked_until=NULL WHERE id=$1',[user.id]);
+    } else {
+     fail(422, 'Step-up type must be "mfa" or "pin".');
+    }
+
+    const stepUpToken = await issueStepUpToken(user.id, 'admin_step_up', database(), user.session_hash);
+    return send(200, { verified: true, stepUpToken });
+   }
+
+   // ─── Users & Audit Listing ────────────────────────────────────────────────
+   if(path==='/api/admin/users'&&method==='GET') {
+    requireAdminPermission(user, 'users.read');
+    const users=(await database().query(
+     'SELECT id,email,name,department,role,account_status,staff_requested,is_primary_owner,mfa_enrolled,action_pin_hash IS NOT NULL AS action_pin_set,created_at FROM users ORDER BY created_at DESC LIMIT 100'
+    )).rows;
+    // Enrich admin users with permissions
+    for(const u of users) {
+     if(u.role==='admin') {
+      const permsResult=await database().query('SELECT permission FROM admin_permissions WHERE user_id=$1',[u.id]);
+      u.permissions=permsResult.rows.map(r=>r.permission);
+     } else {
+      u.permissions=[];
+     }
+    }
+    return send(200, { users });
+   }
+
+   if(path==='/api/admin/audit'&&method==='GET') {
+    requireAdminPermission(user, 'audit.read');
+    return send(200, { logs: (await database().query('SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 100')).rows });
+   }
+
+   // ─── Delegated Permissions Management (Primary Owner Only) ───────────────
+   if(path==='/api/admin/permissions'&&method==='GET') {
+    requireAdmin(user);
+    const targetUserId = url.searchParams.get('userId');
+    if(!targetUserId) fail(422, 'Target userId query parameter required.');
+    const perms = (await database().query('SELECT permission, granted_at FROM admin_permissions WHERE user_id=$1', [targetUserId])).rows;
+    return send(200, { permissions: perms });
+   }
+
+   if(path==='/api/admin/permissions'&&method==='PATCH') {
+    // Only Primary Owner can grant or revoke admin permissions
+    requirePrimaryOwner(user);
+    const input=await body(req);
+    fieldsOnly(input, ['userId', 'permissions', 'stepUpToken']);
+    if(!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(input.userId||'')) fail(422, 'Invalid target userId.');
+    if(!Array.isArray(input.permissions)) fail(422, 'Permissions must be an array.');
+    for(const p of input.permissions) {
+     if(!DELEGATED_PERMISSIONS.includes(p)) fail(422, `Unknown permission: ${p}`);
+    }
+
+    // Require step-up token for permission assignment (mandatory)
+    if(!input.stepUpToken) fail(403, 'Step-up authorization token is required for permissions management.');
+    const validStepUp = await verifyStepUpToken(user.id, 'admin_step_up', input.stepUpToken, database(), user.session_hash);
+    if(!validStepUp) fail(403, 'Invalid, wrong-session, or expired step-up authorization token.');
+
+    const targetUser = (await database().query('SELECT * FROM users WHERE id=$1', [input.userId])).rows[0];
+    if(!targetUser) fail(404, 'Target user not found.');
+    if(targetUser.role!=='admin') fail(422, 'Permissions can only be assigned to administrator accounts.');
+    if(targetUser.is_primary_owner) fail(403, 'Primary Owner permissions cannot be modified.');
+
+    await transaction(async db=>{
+     await db.query('DELETE FROM admin_permissions WHERE user_id=$1', [input.userId]);
+     for(const p of input.permissions) {
+      await db.query(
+       'INSERT INTO admin_permissions(user_id, permission, granted_by) VALUES($1, $2, $3)',
+       [input.userId, p, user.id]
+      );
+     }
+     // Invalidate sessions so permission changes take immediate effect
+     await db.query('DELETE FROM sessions WHERE user_id=$1', [input.userId]);
+     await audit(db, user, null, 'ADMIN_PERMISSIONS_UPDATE', { targetUserId: input.userId, permissions: input.permissions });
+    });
+
+    return send(200, { ok: true, permissions: input.permissions });
+   }
+
+   // ─── Invitations Management ────────────────────────────────────────────────
+   if(path==='/api/admin/invitations'&&method==='POST') {
+    requirePrimaryOwner(user);
+    const input=await body(req);
+    fieldsOnly(input, ['email', 'permissions', 'stepUpToken']);
+    if(typeof input.email!=='string'||!input.email.includes('@')) fail(422, 'Valid email required.');
+    if(!Array.isArray(input.permissions)) fail(422, 'Permissions must be an array.');
+    for(const p of input.permissions) {
+     if(!DELEGATED_PERMISSIONS.includes(p)) fail(422, `Unknown permission: ${p}`);
+    }
+
+    // Require step-up token for administrator invitation (mandatory)
+    if(!input.stepUpToken) fail(403, 'Step-up authorization token is required for administrator invitations.');
+    const validInviteStepUp = await verifyStepUpToken(user.id, 'admin_step_up', input.stepUpToken, database(), user.session_hash);
+    if(!validInviteStepUp) fail(403, 'Invalid, wrong-session, or expired step-up authorization token.');
+
+    const inviteToken = randomBytes(32).toString('base64url');
+    const tokenHash = createHash('sha256').update(inviteToken).digest('hex');
+
+    await database().query(
+     "INSERT INTO admin_invitations(token_hash, email, permissions, invited_by, expires_at) VALUES($1,$2,$3,$4,now()+interval '48 hours')",
+     [tokenHash, input.email.trim().toLowerCase(), JSON.stringify(input.permissions), user.id]
+    );
+
+    return send(201, {
+     email: input.email,
+     inviteToken, // Returned to operator to deliver securely
+     expiresInHours: 48
+    });
+   }
+
+   // ─── Role Assignment ──────────────────────────────────────────────────────
    if(path==='/api/admin/roles'&&method==='PATCH') {
-    const input=await body(req);fieldsOnly(input,['userId','role','department','account_status']);
-    if(!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(input.userId||'')||input.department?.length>120||input.userId===user.id||!['student',...STAFF].includes(input.role)||!['active','suspended'].includes(input.account_status)||typeof input.department!=='string'||!input.department.trim()) fail(422,'Invalid role assignment. Admin grants require trusted bootstrap.');
+    const input=await body(req);
+    fieldsOnly(input,['userId','role','department','account_status','stepUpToken']);
+    if(!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(input.userId||'')||input.department?.length>120||input.userId===user.id||!['student',...STAFF].includes(input.role)||!['active','suspended'].includes(input.account_status)||typeof input.department!=='string'||!input.department.trim()) {
+     fail(422,'Invalid role assignment. Admin grants require trusted bootstrap.');
+    }
+
+    // Role assignment requires users.roles.assign permission
+    requireAdminPermission(user, 'users.roles.assign');
+
+    // Suspending accounts requires users.suspend permission
+    if(input.account_status==='suspended') {
+     requireAdminPermission(user, 'users.suspend');
+    }
+
+    // Mandatory step-up token for sensitive role assignment
+    if(!input.stepUpToken) fail(403, 'Step-up authorization token is required for role assignment.');
+    const validStepUp = await verifyStepUpToken(user.id, 'admin_step_up', input.stepUpToken, database(), user.session_hash);
+    if(!validStepUp) fail(403, 'Invalid, wrong-session, or expired step-up authorization token.');
+
     const result=await transaction(async db=>{
-     const result=await db.query('UPDATE users SET role=$1,department=$2,account_status=$3,staff_requested=false WHERE id=$4 AND role<>$5 RETURNING id',[input.role,input.department.trim(),input.account_status,input.userId,'admin']);
-     if(!result.rowCount) fail(404,'Eligible account not found.');
+     const target=(await db.query('SELECT * FROM users WHERE id=$1',[input.userId])).rows[0];
+     if(!target) fail(404, 'User not found.');
+     if(target.is_primary_owner) fail(403, 'Primary Owner cannot be altered.');
+     if(target.role==='admin') fail(403, 'Administrator accounts cannot be altered via role endpoint.');
+
+     const res=await db.query(
+      'UPDATE users SET role=$1,department=$2,account_status=$3,staff_requested=false WHERE id=$4 AND role<>$5 RETURNING id',
+      [input.role,input.department.trim(),input.account_status,input.userId,'admin']
+     );
+     if(!res.rowCount) fail(404,'Eligible account not found.');
      await db.query('DELETE FROM sessions WHERE user_id=$1',[input.userId]);
-     await audit(db,user,null,'ADMIN_ROLE_ASSIGNMENT',{userId:input.userId,role:input.role,status:input.account_status});return result;
-    });return send(200,{ok:Boolean(result.rowCount)});
+     await audit(db,user,null,'ADMIN_ROLE_ASSIGNMENT',{userId:input.userId,role:input.role,status:input.account_status});
+     return res;
+    });
+    return send(200,{ok:Boolean(result.rowCount)});
    }
   }
   fail(404,'Endpoint not found.');

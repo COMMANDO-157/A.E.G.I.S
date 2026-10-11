@@ -1,19 +1,62 @@
 export const STAFF=['HOD','Dean','Higher Authority'];
+export const DELEGATED_PERMISSIONS=[
+  'users.read',
+  'users.verify',
+  'users.roles.assign',
+  'users.suspend',
+  'departments.manage',
+  'audit.read',
+  'authorities.assign'
+];
+
 export function fail(status,message) { throw Object.assign(new Error(message),{status}); }
 export function active(user) { if (!user || user.account_status!=='active') fail(401,'Sign in with an active account.'); }
+
 export function canRead(user,complaint) {
  if (!user || user.account_status!=='active') return false;
  if(user.role==='student') return complaint.owner_user_id===user.id;
  if(user.role==='admin'||user.role==='Higher Authority') return true;
  return STAFF.includes(user.role) && complaint.assigned_authority===user.role && complaint.department===user.department;
 }
+
 export function canAct(user,complaint) { return STAFF.includes(user?.role) && canRead(user,complaint); }
-export function requireAdmin(user) { active(user); if(user.role!=='admin') fail(403,'Administrator access required.'); }
+
+export function requireAdmin(user) {
+ active(user);
+ if(user.role!=='admin') fail(403,'Administrator access required.');
+}
+
+/**
+ * Checks whether user has a specific delegated permission OR is Primary Owner.
+ * Primary Owner has all permissions by default.
+ * Delegated admins have only explicitly granted permissions in user.permissions.
+ */
+export function hasAdminPermission(user, permission) {
+ active(user);
+ if(user.role!=='admin') return false;
+ if(user.is_primary_owner) return true;
+ const perms = Array.isArray(user.permissions) ? user.permissions : [];
+ return perms.includes(permission);
+}
+
+export function requireAdminPermission(user, permission) {
+ requireAdmin(user);
+ if(!hasAdminPermission(user, permission)) {
+  fail(403, `Missing required administrative permission: ${permission}`);
+ }
+}
+
+export function requirePrimaryOwner(user) {
+ requireAdmin(user);
+ if(!user.is_primary_owner) fail(403,'Primary Owner clearance required.');
+}
+
 export const REVIEW_TRANSITIONS={
  Submitted:['Identity Verified'], 'Identity Verified':['Evidence Pending','Under Review'],
  'Evidence Pending':['Under Review'], 'Under Review':['Additional Information Requested','Findings Recorded'],
  'Additional Information Requested':['Under Review'], 'Findings Recorded':['Resolved'], Resolved:[]
 };
+
 export function reviewDecision(user,complaint,input) {
  fieldsOnly(input,['verification_status','notes','evidence_status','allegation_status']);
  if(!canAct(user,complaint)) fail(403,'Approved assigned authority required.');
@@ -24,10 +67,12 @@ export function reviewDecision(user,complaint,input) {
  if(input.allegation_status && input.verification_status!=='Findings Recorded') fail(422,'Allegation findings require the Findings Recorded step.');
  if(input.verification_status==='Findings Recorded' && (!input.allegation_status || input.allegation_status==='Unreviewed')) fail(422,'Record a human finding, including Inconclusive where appropriate.');
 }
+
 export function safeComplaint(c) {
  const keys=['id','reference_id','case_id','category','description','severity','urgency','assigned_authority','status','verification_status','identity_status','evidence_status','allegation_status','identity_mode','created_at','updated_at'];
  return Object.fromEntries(keys.map(key=>[key,c[key]]));
 }
+
 export function fieldsOnly(body,allowed) {
  if(!body||typeof body!=='object'||Array.isArray(body)||Object.keys(body).some(key=>!allowed.includes(key))) fail(422,'Unexpected request fields.');
 }

@@ -4,7 +4,7 @@ import {randomUUID,randomBytes,createHash} from 'node:crypto';
 import pg from 'pg';
 import {databaseOptions} from './server/config.js';
 import {createHandler} from './server/handler.js';
-import {sessionUser,logout,digest} from './server/auth.js';
+import {sessionUser,logout,digest,issueStepUpToken} from './server/auth.js';
 import {consumeRateLimit} from './server/rate-limit.js';
 import {cleanupExpired,authorizeMaintenance} from './server/maintenance.js';
 if(!process.env.MIGRATION_DATABASE_URL||!process.env.DATABASE_URL)throw Error('Dedicated migration and runtime connections required.');
@@ -20,7 +20,7 @@ try{
  const users={};const tokens={};
  for(const [key,role,department]of [['a','student',dept],['b','student',dept],['hod','HOD',dept],['dean','Dean',dept],['higher','Higher Authority',dept],['admin','admin',dept],['other','HOD',otherDept]]){
   const id=randomUUID();users[key]=id;tokens[key]=randomBytes(32).toString('base64url');
-  await client.query('INSERT INTO users(id,google_subject_id,email,name,department,role) VALUES($1,$2,$3,$4,$5,$6)',[id,'synthetic:'+id,key+'@example.test','FICTIONAL INTEGRATION '+key,department,role]);
+  await client.query('INSERT INTO users(id,google_subject_id,email,name,department,role,is_primary_owner) VALUES($1,$2,$3,$4,$5,$6,$7)',[id,'synthetic:'+id,key+'@example.test','FICTIONAL INTEGRATION '+key,department,role,key==='admin']);
   await client.query("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '1 hour')",[digest(tokens[key]),id]);
  }
  const expired=randomBytes(32).toString('base64url');
@@ -71,7 +71,7 @@ try{
  await run('Expired-session logout revokes row and clears cookie',async()=>{const r=await request('a','auth/logout','POST',{}, {Cookie:'aegis_session='+expired});assert.equal(r.status,200);assert.match(r.headers.get('set-cookie'),/Max-Age=0/);assert.equal((await client.query('SELECT 1 FROM sessions WHERE token_hash=$1',[digest(expired)])).rowCount,0);});
  await run('Logout invalidates a previously valid session',async()=>{assert.equal((await request('b','auth/logout','POST',{})).status,200);assert.equal((await request('b','me')).status,401);});
  await run('CSRF rejected before authenticated state changes',async()=>assert.equal((await request('a','me','PATCH',{department:dept},{Origin:'https://attacker.invalid'})).status,403));
- await run('Admin suspension revokes all target sessions',async()=>{const r=await request('admin','admin/roles','PATCH',{userId:users.hod,role:'HOD',department:dept,account_status:'suspended'});assert.equal(r.status,200);assert.equal((await request('hod','me')).status,401);});
+ await run('Admin suspension revokes all target sessions',async()=>{const stepUpToken=await issueStepUpToken(users.admin,'admin_step_up',client,digest(tokens.admin));const r=await request('admin','admin/roles','PATCH',{userId:users.hod,role:'HOD',department:dept,account_status:'suspended',stepUpToken});assert.equal(r.status,200);assert.equal((await request('hod','me')).status,401);});
  await run('Cleanup removes expired challenges but retains active challenges',async()=>{
   const old=digest(randomUUID()),fresh=digest(randomUUID());
   await client.query("INSERT INTO auth_challenges VALUES($1,now()-interval '1 minute'),($2,now()+interval '1 minute')",[old,fresh]);

@@ -36,6 +36,7 @@ export async function login(req,res,credential) {
  const user=await transaction(async db=>{
   const consumed=await db.query('DELETE FROM auth_challenges WHERE token_hash=$1 AND expires_at>now() RETURNING token_hash',[digest(nonce)]);
   if(!consumed.rowCount) fail(401,'Login challenge expired or already used.');
+  // Safe update: does NOT modify role or primary owner status upon regular login
   const result=await db.query("INSERT INTO users(google_subject_id,email,name) VALUES($1,$2,$3) ON CONFLICT(google_subject_id) DO UPDATE SET email=excluded.email,name=excluded.name RETURNING *",[payload.sub,payload.email,payload.name||'Student']);
   const user=result.rows[0]; active(user);
   await db.query("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '8 hours')",[digest(token),user.id]);
@@ -48,13 +49,57 @@ export async function login(req,res,credential) {
 export async function sessionUser(req,db) {
  const token=cookies(req).aegis_session;
  if(!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) fail(401,'Sign in required.');
- const result=await (db||database()).query('SELECT u.*,s.expires_at AS session_expires_at FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now()',[digest(token)]);
+ const dbClient=db||database();
+ const result=await dbClient.query('SELECT u.*,s.expires_at AS session_expires_at FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now()',[digest(token)]);
  const user=result.rows[0]; active(user);
  if(!user.session_expires_at||!Number.isFinite(new Date(user.session_expires_at).getTime())||new Date(user.session_expires_at).getTime()<=Date.now()) fail(401,'Session expired.');
+ user.session_hash = digest(token);
+
+ // If user is admin, query their assigned permissions in admin_permissions
+ if(user.role==='admin') {
+  try {
+   const permsResult=await dbClient.query('SELECT permission FROM admin_permissions WHERE user_id=$1',[user.id]);
+   user.permissions=permsResult.rows.map(r=>r.permission);
+  } catch {
+   user.permissions=[];
+  }
+ } else {
+  user.permissions=[];
+ }
+
  return user;
 }
 export async function logout(req,res,db) {
  const token=cookies(req).aegis_session;
  res.setHeader('Set-Cookie',[cookie('aegis_session','',0),cookie('aegis_challenge','',0)]);
  if(token && /^[A-Za-z0-9_-]{43}$/.test(token)) await (db||database()).query('DELETE FROM sessions WHERE token_hash=$1',[digest(token)]);
+}
+
+/**
+ * Step-up token generation and validation (time-limited 10-minute token)
+ * Strictly bound to user_id, purpose, current session (session_hash), and expiry.
+ * Consumed atomically on verification (exactly once).
+ */
+export async function issueStepUpToken(userId, purpose, db, sessionHash=null) {
+ const token=randomBytes(32).toString('base64url');
+ const dbClient=db||database();
+ await dbClient.query(
+  "INSERT INTO step_up_tokens(token_hash,user_id,purpose,session_hash,expires_at) VALUES($1,$2,$3,$4,now()+interval '10 minutes')",
+  [digest(token),userId,purpose,sessionHash]
+ );
+ return token;
+}
+
+export async function verifyStepUpToken(userId, purpose, token, db, sessionHash=null) {
+ if(!token || typeof token!=='string') return false;
+ const dbClient=db||database();
+ let sql = 'DELETE FROM step_up_tokens WHERE token_hash=$1 AND user_id=$2 AND purpose=$3 AND expires_at>now()';
+ const params = [digest(token), userId, purpose];
+ if(sessionHash) {
+  sql += ' AND (session_hash=$4 OR session_hash IS NULL)';
+  params.push(sessionHash);
+ }
+ sql += ' RETURNING token_hash';
+ const result = await dbClient.query(sql, params);
+ return Boolean(result.rowCount);
 }

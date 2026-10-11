@@ -23,6 +23,15 @@ export type UserRole =
 
 export type AccountStatus = 'active' | 'suspended';
 
+export type DelegatedPermission =
+  | 'users.read'
+  | 'users.verify'
+  | 'users.roles.assign'
+  | 'users.suspend'
+  | 'departments.manage'
+  | 'audit.read'
+  | 'authorities.assign';
+
 /** Shape returned by /api/me and /api/auth/google (server/handler.js userView()) */
 export interface ApiUser {
   readonly id: string;
@@ -32,6 +41,10 @@ export interface ApiUser {
   readonly role: UserRole;
   readonly account_status: AccountStatus;
   readonly staff_requested: boolean;
+  readonly is_primary_owner?: boolean;
+  readonly mfa_enrolled?: boolean;
+  readonly action_pin_set?: boolean;
+  readonly permissions?: DelegatedPermission[];
 }
 
 // ─── Complaint & Cases ───────────────────────────────────────────────────────
@@ -163,6 +176,27 @@ export interface AdminUser {
   readonly role: UserRole;
   readonly account_status: AccountStatus;
   readonly staff_requested: boolean;
+  readonly is_primary_owner?: boolean;
+  readonly mfa_enrolled?: boolean;
+  readonly action_pin_set?: boolean;
+  readonly permissions?: DelegatedPermission[];
+}
+
+export interface MfaSetupResponse {
+  readonly secret: string;
+  readonly uri: string;
+  readonly recoveryCodes: string[];
+}
+
+export interface StepUpResponse {
+  readonly verified: boolean;
+  readonly stepUpToken: string;
+}
+
+export interface AdminInvitationResponse {
+  readonly email: string;
+  readonly inviteToken: string;
+  readonly expiresInHours: number;
 }
 
 /** Audit log entry from GET /api/admin/audit */

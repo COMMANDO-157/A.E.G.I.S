@@ -126,3 +126,616 @@ test('Actual complaint endpoints enforce ownership, department scope and payload
   currentUser=student;assert.equal((await fetch(origin+'/api/admin/users')).status,403);
  }finally{await new Promise(resolve=>server.close(resolve));for(const [k,v] of Object.entries(saved)){if(v===undefined)delete process.env[k];else process.env[k]=v;}}
 });
+
+// ─── Stage 4.2: Model A, MFA, Action PIN & Step-Up Tests ─────────────────────
+
+import {
+  encryptSecret,
+  decryptSecret,
+  hashActionPin,
+  verifyActionPin,
+  generateTotpSecret,
+  computeTotp,
+  verifyTotp,
+  generateRecoveryCodes,
+  hashRecoveryCode,
+  validatePinFormat
+} from './server/crypto.js';
+import {
+  hasAdminPermission,
+  requireAdminPermission,
+  requirePrimaryOwner,
+  DELEGATED_PERMISSIONS
+} from './server/policy.js';
+
+test('Cryptographic Invariant: TOTP secrets authenticated encryption roundtrip', () => {
+  const secret = generateTotpSecret();
+  const encrypted = encryptSecret(secret);
+  assert.notEqual(secret, encrypted);
+  assert.equal(encrypted.split(':').length, 3);
+  const decrypted = decryptSecret(encrypted);
+  assert.equal(decrypted, secret);
+});
+
+test('Cryptographic Invariant: Tampered ciphertext or wrong tag fails decryption', () => {
+  const secret = generateTotpSecret();
+  const encrypted = encryptSecret(secret);
+  const [iv, tag, cipher] = encrypted.split(':');
+  const tamperedCipher = cipher.slice(0, -2) + (cipher.slice(-2) === 'aa' ? 'bb' : 'aa');
+  assert.throws(() => decryptSecret(`${iv}:${tag}:${tamperedCipher}`), { status: 500 });
+});
+
+test('Cryptographic Invariant: 5-digit Action PIN format, hashing and verification', () => {
+  assert.throws(() => validatePinFormat('1234'), { status: 422 });
+  assert.throws(() => validatePinFormat('123456'), { status: 422 });
+  assert.throws(() => validatePinFormat('1234a'), { status: 422 });
+  assert.throws(() => validatePinFormat(''), { status: 422 });
+  assert.doesNotThrow(() => validatePinFormat('94821'));
+
+  const { pinHash, pinSalt } = hashActionPin('94821');
+  assert.equal(verifyActionPin('94821', pinHash, pinSalt), true);
+  assert.equal(verifyActionPin('94820', pinHash, pinSalt), false);
+  assert.equal(verifyActionPin('00000', pinHash, pinSalt), false);
+});
+
+test('Cryptographic Invariant: RFC 6238 TOTP computation and drift tolerance', () => {
+  const secret = generateTotpSecret();
+  const currentCode = computeTotp(secret, 0);
+  assert.equal(verifyTotp(currentCode, secret), true);
+  // Drift: previous step (-1) and next step (+1) should verify
+  const prevCode = computeTotp(secret, -1);
+  const nextCode = computeTotp(secret, 1);
+  assert.equal(verifyTotp(prevCode, secret), true);
+  assert.equal(verifyTotp(nextCode, secret), true);
+  // Outside window (+2) must fail
+  const distantCode = computeTotp(secret, 2);
+  assert.equal(verifyTotp('000000', secret), false);
+  assert.equal(verifyTotp('bad', secret), false);
+});
+
+test('Cryptographic Invariant: Recovery codes generated and verified via SHA-256', () => {
+  const { plaintextCodes, hashedCodes } = generateRecoveryCodes(8);
+  assert.equal(plaintextCodes.length, 8);
+  assert.equal(hashedCodes.length, 8);
+  assert.equal(hashRecoveryCode(plaintextCodes[0]), hashedCodes[0]);
+  assert.notEqual(hashRecoveryCode('WRONG-CODE'), hashedCodes[0]);
+});
+
+test('Model A Permissions: Primary Owner has universal admin permissions', () => {
+  const primaryOwner = { id: 'owner-1', role: 'admin', is_primary_owner: true, account_status: 'active' };
+  for (const perm of DELEGATED_PERMISSIONS) {
+    assert.equal(hasAdminPermission(primaryOwner, perm), true);
+    assert.doesNotThrow(() => requireAdminPermission(primaryOwner, perm));
+  }
+  assert.doesNotThrow(() => requirePrimaryOwner(primaryOwner));
+});
+
+test('Model A Permissions: Delegated administrator has only assigned permissions', () => {
+  const delegatedAdmin = {
+    id: 'admin-2',
+    role: 'admin',
+    is_primary_owner: false,
+    account_status: 'active',
+    permissions: ['users.read', 'audit.read']
+  };
+  assert.equal(hasAdminPermission(delegatedAdmin, 'users.read'), true);
+  assert.equal(hasAdminPermission(delegatedAdmin, 'audit.read'), true);
+  assert.equal(hasAdminPermission(delegatedAdmin, 'users.roles.assign'), false);
+  assert.equal(hasAdminPermission(delegatedAdmin, 'users.suspend'), false);
+
+  assert.doesNotThrow(() => requireAdminPermission(delegatedAdmin, 'users.read'));
+  assert.throws(() => requireAdminPermission(delegatedAdmin, 'users.roles.assign'), { status: 403 });
+  assert.throws(() => requirePrimaryOwner(delegatedAdmin), { status: 403 });
+});
+
+test('Model A Permissions: Non-admin users have zero permissions', () => {
+  const regularStudent = { id: 'student-1', role: 'student', account_status: 'active', permissions: ['users.read'] };
+  assert.equal(hasAdminPermission(regularStudent, 'users.read'), false);
+  assert.throws(() => requireAdminPermission(regularStudent, 'users.read'), { status: 403 });
+});
+
+test('Negative Security: Delegated admin cannot invoke Primary Owner endpoints', async () => {
+  const keys = ['APP_ORIGIN', 'DATABASE_URL', 'GOOGLE_CLIENT_ID', 'NODE_ENV'];
+  const saved = Object.fromEntries(keys.map(k => [k, process.env[k]]));
+  process.env.NODE_ENV = 'test';
+  process.env.DATABASE_URL = 'postgres://localhost/fictional';
+
+  const delegatedAdminUser = {
+    id: 'admin-del-1',
+    email: 'admin.del@campus.test',
+    role: 'admin',
+    is_primary_owner: false,
+    account_status: 'active',
+    permissions: ['users.read']
+  };
+
+  const db = {
+    query: async (sql, values) => {
+      if (sql.includes('FROM users WHERE id=')) return { rows: [delegatedAdminUser], rowCount: 1 };
+      return { rows: [], rowCount: 0 };
+    }
+  };
+
+  const server = http.createServer(
+    createHandler(
+      { sessionUser: async () => delegatedAdminUser, logout: async () => {} },
+      { database: () => db, transaction: fn => fn(db) },
+      { consumeRateLimit: async () => ({ remaining: 100 }) }
+    )
+  );
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const origin = 'http://127.0.0.1:' + server.address().port;
+  process.env.APP_ORIGIN = origin;
+
+  try {
+    // 1. Delegated admin attempting to grant permissions (Primary Owner only)
+    const permRes = await fetch(origin + '/api/admin/permissions', {
+      method: 'PATCH',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: '00000000-0000-0000-0000-000000000002', permissions: ['users.read'] })
+    });
+    assert.equal(permRes.status, 403);
+
+    // 2. Delegated admin attempting to send administrator invitation (Primary Owner only)
+    const inviteRes = await fetch(origin + '/api/admin/invitations', {
+      method: 'POST',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'newadmin@campus.test', permissions: ['users.read'] })
+    });
+    assert.equal(inviteRes.status, 403);
+
+    // 3. Delegated admin lacking 'users.roles.assign' attempting to assign a role
+    const roleRes = await fetch(origin + '/api/admin/roles', {
+      method: 'PATCH',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: '00000000-0000-0000-0000-000000000002',
+        role: 'HOD',
+        department: 'CS',
+        account_status: 'active'
+      })
+    });
+    assert.equal(roleRes.status, 403);
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+});
+
+test('Negative Security: 5 failed Action PIN attempts trigger lockout and reject requests', async () => {
+  const keys = ['APP_ORIGIN', 'DATABASE_URL', 'GOOGLE_CLIENT_ID', 'NODE_ENV'];
+  const saved = Object.fromEntries(keys.map(k => [k, process.env[k]]));
+  process.env.NODE_ENV = 'test';
+  process.env.DATABASE_URL = 'postgres://localhost/fictional';
+
+  const { pinHash, pinSalt } = hashActionPin('54321');
+  let userRow = {
+    id: '00000000-0000-0000-0000-000000000001',
+    email: 'admin.pin@campus.test',
+    role: 'admin',
+    is_primary_owner: true,
+    account_status: 'active',
+    action_pin_hash: pinHash,
+    action_pin_salt: pinSalt,
+    action_pin_failed_attempts: 0,
+    action_pin_locked_until: null
+  };
+
+  const db = {
+    query: async (sql, values) => {
+      if (sql.includes('SELECT * FROM users WHERE id=')) {
+        return { rows: [userRow], rowCount: 1 };
+      }
+      if (sql.includes('UPDATE users SET action_pin_failed_attempts=')) {
+        userRow.action_pin_failed_attempts = values[0];
+        userRow.action_pin_locked_until = values[1];
+        return { rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    }
+  };
+
+  const server = http.createServer(
+    createHandler(
+      { sessionUser: async () => userRow, logout: async () => {} },
+      { database: () => db, transaction: fn => fn(db) },
+      { consumeRateLimit: async () => ({ remaining: 100 }) }
+    )
+  );
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const origin = 'http://127.0.0.1:' + server.address().port;
+  process.env.APP_ORIGIN = origin;
+
+  try {
+    // 4 failed attempts should return 401
+    for (let i = 1; i <= 4; i++) {
+      const res = await fetch(origin + '/api/admin/pin/verify', {
+        method: 'POST',
+        headers: { Origin: origin, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: '00000' })
+      });
+      assert.equal(res.status, 401);
+    }
+    // 5th failed attempt should trigger 429 lockout
+    const fifthRes = await fetch(origin + '/api/admin/pin/verify', {
+      method: 'POST',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: '00000' })
+    });
+    assert.equal(fifthRes.status, 429);
+    assert.ok(userRow.action_pin_locked_until !== null);
+
+    // Subsequent attempt even with CORRECT pin must be rejected while locked
+    const lockedRes = await fetch(origin + '/api/admin/pin/verify', {
+      method: 'POST',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: '54321' })
+    });
+    assert.equal(lockedRes.status, 429);
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+});
+
+import { issueStepUpToken, verifyStepUpToken } from './server/auth.js';
+test('Security Invariant: Step-up tokens bound to session_hash, purpose, user, and single-use expiry', async () => {
+  const tokens = [];
+  const fakeDb = {
+    query: async (sql, values) => {
+      if (sql.includes('INSERT INTO step_up_tokens')) {
+        tokens.push({
+          token_hash: values[0],
+          user_id: values[1],
+          purpose: values[2],
+          session_hash: values[3],
+          expires_at: new Date(Date.now() + 10 * 60 * 1000)
+        });
+        return { rowCount: 1 };
+      }
+      if (sql.includes('DELETE FROM step_up_tokens')) {
+        const hash = values[0];
+        const uid = values[1];
+        const purp = values[2];
+        const sess = values[3];
+        const idx = tokens.findIndex(t => {
+          if (t.token_hash !== hash || t.user_id !== uid || t.purpose !== purp) return false;
+          if (t.expires_at <= new Date()) return false;
+          if (sess) {
+            return t.session_hash === sess || t.session_hash === null;
+          }
+          return true;
+        });
+        if (idx !== -1) {
+          const removed = tokens.splice(idx, 1);
+          return { rowCount: 1, rows: removed };
+        }
+        return { rowCount: 0, rows: [] };
+      }
+      return { rowCount: 0, rows: [] };
+    }
+  };
+
+  const userId = '00000000-0000-0000-0000-000000000001';
+  const sessionA = 'session_hash_user1_a';
+  const sessionB = 'session_hash_user1_b';
+
+  // 1. Issue token bound to session A
+  const token = await issueStepUpToken(userId, 'admin_step_up', fakeDb, sessionA);
+  assert.equal(typeof token, 'string');
+  assert.ok(token.length >= 32);
+
+  // 2. Negative test: Verification with wrong session must fail
+  const wrongSession = await verifyStepUpToken(userId, 'admin_step_up', token, fakeDb, sessionB);
+  assert.equal(wrongSession, false, 'Token used in different session must be rejected');
+
+  // 3. Negative test: Verification with wrong purpose must fail
+  const wrongPurpose = await verifyStepUpToken(userId, 'other_purpose', token, fakeDb, sessionA);
+  assert.equal(wrongPurpose, false, 'Token used with wrong purpose must be rejected');
+
+  // 4. Negative test: Verification with wrong user must fail
+  const wrongUser = await verifyStepUpToken('00000000-0000-0000-0000-000000000002', 'admin_step_up', token, fakeDb, sessionA);
+  assert.equal(wrongUser, false, 'Token used with wrong user must be rejected');
+
+  // 5. Successful verification in correct session consumes the token atomically
+  const correctUse = await verifyStepUpToken(userId, 'admin_step_up', token, fakeDb, sessionA);
+  assert.equal(correctUse, true, 'Token must verify with matching user, purpose, and session');
+
+  // 6. Negative test: Replay / reuse attempt of consumed token must fail
+  const replayed = await verifyStepUpToken(userId, 'admin_step_up', token, fakeDb, sessionA);
+  assert.equal(replayed, false, 'Consumed token must not be reusable');
+
+  // 7. Negative test: Expired token must be rejected
+  const expToken = await issueStepUpToken(userId, 'admin_step_up', fakeDb, sessionA);
+  const found = tokens.find(t => t.user_id === userId);
+  if (found) found.expires_at = new Date(Date.now() - 1000); // simulate expiry
+  const expiredAttempt = await verifyStepUpToken(userId, 'admin_step_up', expToken, fakeDb, sessionA);
+  assert.equal(expiredAttempt, false, 'Expired step-up token must be rejected');
+});
+
+test('Negative Security: Privileged endpoints require valid step-up token and reject missing/reused/wrong tokens with 403', async () => {
+  const keys = ['APP_ORIGIN', 'DATABASE_URL', 'GOOGLE_CLIENT_ID', 'NODE_ENV'];
+  const saved = Object.fromEntries(keys.map(k => [k, process.env[k]]));
+  process.env.NODE_ENV = 'test';
+  process.env.DATABASE_URL = 'postgres://localhost/fictional';
+
+  const adminSessionHash = 'admin_session_hash_123';
+  const ownerUser = {
+    id: '00000000-0000-0000-0000-000000000001',
+    email: 'owner@campus.test',
+    role: 'admin',
+    is_primary_owner: true,
+    account_status: 'active',
+    session_hash: adminSessionHash,
+    mfa_enrolled: true,
+    mfa_secret_encrypted: 'mock_encrypted_secret',
+    action_pin_hash: 'mock_pin_hash',
+    action_pin_salt: 'mock_pin_salt'
+  };
+
+  const stepUpTokens = [];
+  const db = {
+    query: async (sql, values) => {
+      if (sql.includes('SELECT * FROM users WHERE id=')) {
+        if (values[0] === ownerUser.id) return { rows: [ownerUser], rowCount: 1 };
+        return {
+          rows: [{
+            id: values[0],
+            email: 'target@campus.test',
+            role: 'student',
+            is_primary_owner: false,
+            account_status: 'active'
+          }],
+          rowCount: 1
+        };
+      }
+      if (sql.includes('INSERT INTO step_up_tokens')) {
+        stepUpTokens.push({
+          token_hash: values[0],
+          user_id: values[1],
+          purpose: values[2],
+          session_hash: values[3],
+          expires_at: new Date(Date.now() + 600000)
+        });
+        return { rowCount: 1 };
+      }
+      if (sql.includes('DELETE FROM step_up_tokens')) {
+        const hash = values[0];
+        const uid = values[1];
+        const purp = values[2];
+        const sess = values[3];
+        const idx = stepUpTokens.findIndex(t => {
+          if (t.token_hash !== hash || t.user_id !== uid || t.purpose !== purp) return false;
+          if (t.expires_at <= new Date()) return false;
+          if (sess) return t.session_hash === sess || t.session_hash === null;
+          return true;
+        });
+        if (idx !== -1) {
+          const removed = stepUpTokens.splice(idx, 1);
+          return { rowCount: 1, rows: removed };
+        }
+        return { rowCount: 0, rows: [] };
+      }
+      if (sql.includes('UPDATE users SET role=')) {
+        return { rowCount: 1, rows: [{ id: values[3] }] };
+      }
+      if (sql.includes('INSERT INTO admin_invitations')) {
+        return { rowCount: 1 };
+      }
+      if (sql.includes('INSERT INTO admin_permissions')) {
+        return { rowCount: 1 };
+      }
+      if (sql.includes('DELETE FROM sessions')) {
+        return { rowCount: 1 };
+      }
+      if (sql.includes('DELETE FROM admin_permissions')) {
+        return { rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    }
+  };
+
+  const server = http.createServer(
+    createHandler(
+      { sessionUser: async () => ownerUser, logout: async () => {} },
+      { database: () => db, transaction: fn => fn(db) },
+      { consumeRateLimit: async () => ({ remaining: 100 }) }
+    )
+  );
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const origin = 'http://127.0.0.1:' + server.address().port;
+  process.env.APP_ORIGIN = origin;
+
+  try {
+    const targetId = '00000000-0000-0000-0000-000000000002';
+
+    // 1. Roles endpoint: Missing stepUpToken must return 403
+    const roleMissing = await fetch(origin + '/api/admin/roles', {
+      method: 'PATCH',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: targetId,
+        role: 'HOD',
+        department: 'CS',
+        account_status: 'active'
+      })
+    });
+    assert.equal(roleMissing.status, 403, 'Roles PATCH missing stepUpToken must return 403');
+
+    // 2. Roles endpoint: Invalid / wrong stepUpToken must return 403
+    const roleInvalid = await fetch(origin + '/api/admin/roles', {
+      method: 'PATCH',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: targetId,
+        role: 'HOD',
+        department: 'CS',
+        account_status: 'active',
+        stepUpToken: 'invalid_token_xyz'
+      })
+    });
+    assert.equal(roleInvalid.status, 403, 'Roles PATCH invalid stepUpToken must return 403');
+
+    // 3. Permissions endpoint: Missing stepUpToken must return 403
+    const permMissing = await fetch(origin + '/api/admin/permissions', {
+      method: 'PATCH',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: targetId,
+        permissions: ['users.read']
+      })
+    });
+    assert.equal(permMissing.status, 403, 'Permissions PATCH missing stepUpToken must return 403');
+
+    // 4. Invitations endpoint: Missing stepUpToken must return 403
+    const inviteMissing = await fetch(origin + '/api/admin/invitations', {
+      method: 'POST',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'invited@campus.test',
+        permissions: ['users.read']
+      })
+    });
+    assert.equal(inviteMissing.status, 403, 'Invitations POST missing stepUpToken must return 403');
+
+    // 5. Valid step-up token succeeds, but reuse immediately fails with 403
+    const validToken = await issueStepUpToken(ownerUser.id, 'admin_step_up', db, adminSessionHash);
+    const roleSuccess = await fetch(origin + '/api/admin/roles', {
+      method: 'PATCH',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: targetId,
+        role: 'HOD',
+        department: 'CS',
+        account_status: 'active',
+        stepUpToken: validToken
+      })
+    });
+    assert.equal(roleSuccess.status, 200, 'Roles PATCH with valid stepUpToken must succeed');
+
+    // Replay attempt with same token must fail with 403
+    const roleReplay = await fetch(origin + '/api/admin/roles', {
+      method: 'PATCH',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: targetId,
+        role: 'HOD',
+        department: 'CS',
+        account_status: 'active',
+        stepUpToken: validToken
+      })
+    });
+    assert.equal(roleReplay.status, 403, 'Roles PATCH replaying stepUpToken must return 403');
+
+    // 6. Token issued for wrong session must return 403
+    const wrongSessionToken = await issueStepUpToken(ownerUser.id, 'admin_step_up', db, 'different_session_hash');
+    const roleWrongSession = await fetch(origin + '/api/admin/roles', {
+      method: 'PATCH',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: targetId,
+        role: 'HOD',
+        department: 'CS',
+        account_status: 'active',
+        stepUpToken: wrongSessionToken
+      })
+    });
+    assert.equal(roleWrongSession.status, 403, 'Roles PATCH with wrong-session stepUpToken must return 403');
+
+    // 7. Token issued for wrong purpose must return 403
+    const wrongPurposeToken = await issueStepUpToken(ownerUser.id, 'mfa_step_up', db, adminSessionHash);
+    const roleWrongPurpose = await fetch(origin + '/api/admin/roles', {
+      method: 'PATCH',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: targetId,
+        role: 'HOD',
+        department: 'CS',
+        account_status: 'active',
+        stepUpToken: wrongPurposeToken
+      })
+    });
+    assert.equal(roleWrongPurpose.status, 403, 'Roles PATCH with wrong-purpose stepUpToken must return 403');
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+});
+
+test('Negative Security: /api/admin/step-up enforces dual MFA and PIN prerequisites', async () => {
+  const keys = ['APP_ORIGIN', 'DATABASE_URL', 'GOOGLE_CLIENT_ID', 'NODE_ENV'];
+  const saved = Object.fromEntries(keys.map(k => [k, process.env[k]]));
+  process.env.NODE_ENV = 'test';
+  process.env.DATABASE_URL = 'postgres://localhost/fictional';
+
+  // Admin without MFA enrolled
+  let currentAdmin = {
+    id: '00000000-0000-0000-0000-000000000001',
+    email: 'admin.nopreq@campus.test',
+    role: 'admin',
+    is_primary_owner: false,
+    account_status: 'active',
+    mfa_enrolled: false,
+    mfa_secret_encrypted: null,
+    action_pin_hash: 'hash',
+    action_pin_salt: 'salt'
+  };
+
+  const db = {
+    query: async (sql, values) => {
+      if (sql.includes('SELECT * FROM users WHERE id=')) {
+        return { rows: [currentAdmin], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    }
+  };
+
+  const server = http.createServer(
+    createHandler(
+      { sessionUser: async () => currentAdmin, logout: async () => {} },
+      { database: () => db, transaction: fn => fn(db) },
+      { consumeRateLimit: async () => ({ remaining: 100 }) }
+    )
+  );
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const origin = 'http://127.0.0.1:' + server.address().port;
+  process.env.APP_ORIGIN = origin;
+
+  try {
+    // Attempt step-up when MFA is missing -> must return 403
+    const noMfaRes = await fetch(origin + '/api/admin/step-up', {
+      method: 'POST',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'pin', pin: '12345' })
+    });
+    assert.equal(noMfaRes.status, 403, 'Missing MFA prerequisite must reject step-up with 403');
+
+    // Admin has MFA but no Action PIN set
+    currentAdmin.mfa_enrolled = true;
+    currentAdmin.mfa_secret_encrypted = 'secret';
+    currentAdmin.action_pin_hash = null;
+    currentAdmin.action_pin_salt = null;
+
+    const noPinRes = await fetch(origin + '/api/admin/step-up', {
+      method: 'POST',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'mfa', code: '123456' })
+    });
+    assert.equal(noPinRes.status, 403, 'Missing Action PIN prerequisite must reject step-up with 403');
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+});
