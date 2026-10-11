@@ -27,6 +27,13 @@ import { fail } from './policy.js';
 
 function getMfaEncryptionKey() {
   const envKey = process.env.MFA_ENCRYPTION_KEY;
+  const isProd = process.env.NODE_ENV === 'production' || Boolean(process.env.VERCEL);
+  if (isProd) {
+    if (!envKey || envKey.length !== 64 || !/^[0-9a-fA-F]{64}$/.test(envKey)) {
+      fail(503, 'MFA_ENCRYPTION_KEY must be a 64-character (32-byte) hex string in production.');
+    }
+    return Buffer.from(envKey, 'hex');
+  }
   if (envKey) {
     if (envKey.length === 64 && /^[0-9a-fA-F]+$/.test(envKey)) {
       return Buffer.from(envKey, 'hex');

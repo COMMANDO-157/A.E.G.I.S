@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import {consumeRateLimit} from './rate-limit.js';
 import {authorizeMaintenance,cleanupExpired} from './maintenance.js';
+import {runEscalationCycle} from './escalation-worker.js';
 import {cookie} from './auth.js';
 import {intakeEnabled} from './config.js';
 import {database,transaction} from './db.js';
@@ -54,7 +55,13 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
   const method=req.method;
   if(path==='/api/not-found')fail(404,'Endpoint not found.');
   const limit=(bucket,max)=>security.consumeRateLimit(database(),bucket,max);
-  if(path==='/api/maintenance'&&method==='GET'){authorizeMaintenance(req);return send(200,{removed:await cleanupExpired(database())});}
+  if(path==='/api/maintenance'&&method==='GET'){
+   authorizeMaintenance(req);
+   const dryRun = url.searchParams.get('dryRun') === 'true';
+   const removed = await cleanupExpired(database());
+   const escalation = await runEscalationCycle({ dryRun, db: database() });
+   return send(200, { removed, escalation });
+  }
   if(path==='/api/health'&&method==='GET'){await limit('health:global',120);await database().query('SELECT 1');return send(200,{status:'ok',intakeEnabled:intakeEnabled()});}
   if(method==='GET'&&path==='/api/config') return send(200,{ready:configured(),configured:configured(),googleClientId:configured()?process.env.GOOGLE_CLIENT_ID:null,intakeEnabled:intakeEnabled()});
   if(!['GET','HEAD'].includes(method)) {
