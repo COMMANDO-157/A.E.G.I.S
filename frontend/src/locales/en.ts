@@ -148,7 +148,7 @@ export const en = {
     cardHeading: 'Access Campus Shield',
     googleBtnLabel: 'Continue with Google',
     devNotice:
-      'Google Single Sign-On verification completes in Stage 4.2. For development inspection, access the portal via authorized sessions.',
+      'Google Single Sign-On is initializing. In local development, ensure the backend server and Google OAuth origins are configured.',
     privacyNote:
       'By signing in, you access the A.E.G.I.S secure perimeter. All interactions are protected under institutional data privacy charters.',
     noAccountPrompt: 'New student on campus?',

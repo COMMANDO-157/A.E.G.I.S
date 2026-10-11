@@ -1,5 +1,5 @@
 import {fail} from './policy.js';
-export const production=env=>env.NODE_ENV==='production'||Boolean(env.VERCEL);
+export const production=(env=process.env)=>Boolean(env?.NODE_ENV==='production'||env?.VERCEL);
 const local=host=>['localhost','127.0.0.1','[::1]'].includes(host);
 export function appOrigin(env=process.env) {
  let url;try{url=new URL(env.APP_ORIGIN);}catch{fail(503,'APP_ORIGIN must be a valid origin.');}

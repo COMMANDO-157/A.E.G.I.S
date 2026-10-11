@@ -141,6 +141,31 @@
   margin: 0;
 }
 
+.retryBtn {
+  align-self: center;
+  background: var(--color-bg-subtle);
+  color: var(--aegis-teal-700);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-2) var(--spacing-4);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  margin-top: var(--spacing-1);
+}
+
+.retryBtn:hover {
+  background: var(--aegis-teal-50);
+  border-color: var(--aegis-teal-300);
+  color: var(--aegis-teal-900);
+}
+
+.retryBtn:focus-visible {
+  outline: 2px solid var(--aegis-teal-500);
+  outline-offset: 2px;
+}
+
 /* ─── Registration & Links ─────────────────────────────────── */
 .registerPrompt {
   text-align: center;

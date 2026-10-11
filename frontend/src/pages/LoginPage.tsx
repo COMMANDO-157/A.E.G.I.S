@@ -55,8 +55,8 @@ export default function LoginPage() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [gisLoading, setGisLoading] = useState<boolean>(false);
   const [googleClientReady, setGoogleClientReady] = useState<boolean>(false);
+  const [retryCount, setRetryCount] = useState<number>(0);
   const googleBtnContainerRef = useRef<HTMLDivElement>(null);
-  const initTriggeredRef = useRef<boolean>(false);
 
   // Redirect already-authenticated sessions to role-authorized destination
   useEffect(() => {
@@ -97,51 +97,81 @@ export default function LoginPage() {
         await refreshUser();
       } catch (err: unknown) {
         setGisLoading(false);
-        const message = err instanceof Error ? err.message : 'Google authentication failed.';
-        setAuthError(message);
+        const rawMessage = err instanceof Error ? err.message : 'Google authentication failed.';
+        let userMessage = rawMessage;
+        if (rawMessage.toLowerCase().includes('challenge') || rawMessage.toLowerCase().includes('nonce')) {
+          userMessage = 'Authentication challenge expired or invalid. Please click Retry below to begin a fresh sign-in session.';
+          // Reset initialized state to enable fresh challenge acquisition
+          initializedRef.current = false;
+          setGoogleClientReady(false);
+        }
+        setAuthError(userMessage);
       }
     },
     [refreshUser],
   );
 
+  // Helper function to reliably load the Google Identity Services SDK
+  const loadGoogleSdk = useCallback(async (): Promise<void> => {
+    if (window.google?.accounts?.id) return;
+
+    return new Promise<void>((resolve, reject) => {
+      const existingScript = document.getElementById('google-gis-sdk') as HTMLScriptElement | null;
+      if (existingScript) {
+        if (window.google?.accounts?.id) {
+          resolve();
+          return;
+        }
+        existingScript.addEventListener('load', () => resolve(), { once: true });
+        existingScript.addEventListener('error', () => reject(new Error('Google Identity Services SDK failed to load. Check network or content blocker.')), { once: true });
+        // Set a timeout in case script is already stalled
+        setTimeout(() => {
+          if (window.google?.accounts?.id) resolve();
+          else reject(new Error('Google Identity Services SDK timed out while loading.'));
+        }, 8000);
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.id = 'google-gis-sdk';
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('Google Identity Services SDK failed to load. Check network or content blocker.'));
+      document.head.appendChild(script);
+
+      setTimeout(() => {
+        if (window.google?.accounts?.id) resolve();
+        else reject(new Error('Google Identity Services SDK timed out while loading.'));
+      }, 8000);
+    });
+  }, []);
+
+  const initializedRef = useRef<boolean>(false);
+
   // Initialize Google Identity Services
   useEffect(() => {
     if (isAuthenticated || loading) return;
-    if (initTriggeredRef.current) return;
-    initTriggeredRef.current = true;
+    if (initializedRef.current) return;
+    initializedRef.current = true;
 
     let isMounted = true;
 
     async function setupGis() {
+      setAuthError(null);
       try {
         const challenge = await requestAuthChallenge();
         if (!isMounted) return;
 
         if (!challenge.clientId) {
           setGoogleClientReady(false);
+          setAuthError('Google Client ID is not configured on the institutional backend.');
           return;
         }
 
-        // Dynamically load Google Identity Services if not already present
-        if (!window.google?.accounts?.id) {
-          await new Promise<void>((resolve, reject) => {
-            const existingScript = document.getElementById('google-gis-sdk');
-            if (existingScript) {
-              existingScript.addEventListener('load', () => resolve());
-              existingScript.addEventListener('error', () => reject(new Error('Google SDK load failed')));
-              return;
-            }
-            const script = document.createElement('script');
-            script.id = 'google-gis-sdk';
-            script.src = 'https://accounts.google.com/gsi/client';
-            script.async = true;
-            script.defer = true;
-            script.onload = () => resolve();
-            script.onerror = () => reject(new Error('Google SDK load failed'));
-            document.head.appendChild(script);
-          });
-        }
-
+        // Dynamically load Google Identity Services
+        await loadGoogleSdk();
         if (!isMounted) return;
 
         if (window.google?.accounts?.id && googleBtnContainerRef.current) {
@@ -164,10 +194,15 @@ export default function LoginPage() {
           });
 
           setGoogleClientReady(true);
+        } else {
+          throw new Error('Google Identity Services container or SDK is unavailable.');
         }
-      } catch {
+      } catch (err: unknown) {
         if (isMounted) {
           setGoogleClientReady(false);
+          initializedRef.current = false; // Allow retry on failure
+          const message = err instanceof Error ? err.message : 'Failed to initialize Google Single Sign-On.';
+          setAuthError(message);
         }
       }
     }
@@ -177,7 +212,7 @@ export default function LoginPage() {
     return () => {
       isMounted = false;
     };
-  }, [isAuthenticated, loading, handleCredentialResponse]);
+  }, [isAuthenticated, loading, handleCredentialResponse, loadGoogleSdk, retryCount]);
 
   if (loading) return null;
 
@@ -265,9 +300,25 @@ export default function LoginPage() {
             </button>
           )}
 
-          <p className={styles.stageNotice}>
-            {t.login.devNotice}
-          </p>
+          {!googleClientReady && (
+            <p className={styles.stageNotice}>
+              {t.login.devNotice}
+            </p>
+          )}
+
+          {!googleClientReady && !gisLoading && (
+            <button
+              type="button"
+              className={styles.retryBtn}
+              onClick={() => {
+                initializedRef.current = false;
+                setRetryCount((prev) => prev + 1);
+              }}
+              aria-label="Retry Google Sign-In initialization"
+            >
+              ↻ Retry Google Sign-In
+            </button>
+          )}
         </section>
 
         {/* Student Registration Prompt */}

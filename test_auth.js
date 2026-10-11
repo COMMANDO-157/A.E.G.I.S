@@ -867,3 +867,32 @@ test('Security Invariant: /api/admin/step-up enforces concurrent dual-factor ver
     }
   }
 });
+
+test('Regression: /api/auth/challenge issues valid cookie and preserves attributes across environments', async () => {
+  const previousOrigin = process.env.APP_ORIGIN;
+  const previousEnv = process.env.NODE_ENV;
+  try {
+    // 1. Local development (HTTP origin)
+    process.env.APP_ORIGIN = 'http://localhost:5173';
+    delete process.env.NODE_ENV;
+    const localCookie = cookie('aegis_challenge', 'test_nonce_123', 300);
+    assert.ok(localCookie.includes('Path=/'), 'Must have Path=/');
+    assert.ok(localCookie.includes('HttpOnly'), 'Must have HttpOnly');
+    assert.ok(localCookie.includes('SameSite=Lax'), 'Must have SameSite=Lax for OAuth redirection compatibility');
+    assert.ok(!localCookie.includes('Secure'), 'Local HTTP must not require Secure flag');
+
+    // 2. Production (HTTPS or NODE_ENV=production)
+    process.env.APP_ORIGIN = 'https://aegis.institutional.edu';
+    process.env.NODE_ENV = 'production';
+    const prodCookie = cookie('aegis_challenge', 'test_nonce_456', 300);
+    assert.ok(prodCookie.includes('Path=/'), 'Must have Path=/ in production');
+    assert.ok(prodCookie.includes('HttpOnly'), 'Must have HttpOnly in production');
+    assert.ok(prodCookie.includes('SameSite=Lax'), 'Must have SameSite=Lax in production');
+    assert.ok(prodCookie.includes('Secure'), 'Production must strictly enforce Secure cookie attribute');
+  } finally {
+    if (previousOrigin === undefined) delete process.env.APP_ORIGIN;
+    else process.env.APP_ORIGIN = previousOrigin;
+    if (previousEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previousEnv;
+  }
+});

@@ -2,15 +2,15 @@ import {randomBytes,createHash} from 'node:crypto';
 import {OAuth2Client} from 'google-auth-library';
 import {database,transaction} from './db.js';
 import {fail,active} from './policy.js';
-import {appOrigin,configured} from './config.js';
+import {appOrigin,configured,production} from './config.js';
 export {configured} from './config.js';
 export const digest=value=>createHash('sha256').update(value).digest('hex');
 export function cookies(req) {
  return Object.fromEntries((req.headers.cookie||'').split(';').map(part=>{const i=part.indexOf('='); return i<0?['','']:[part.slice(0,i).trim(),part.slice(i+1)];}));
 }
 export function cookie(name,value,seconds) {
- const secure=appOrigin().startsWith('https:');
- return name+'='+value+'; Path=/; HttpOnly; SameSite=Strict; Max-Age='+seconds+(secure?'; Secure':'');
+ const secure=production()||appOrigin().startsWith('https:');
+ return name+'='+value+'; Path=/; HttpOnly; SameSite=Lax; Max-Age='+seconds+(secure?'; Secure':'');
 }
 export function checkOrigin(req) {
  if(!process.env.APP_ORIGIN) fail(503,'APP_ORIGIN is not configured.');
@@ -26,16 +26,41 @@ export async function challenge(res) {
 export async function login(req,res,credential) {
  if(!configured()) fail(503,'Authentication is not configured.');
  const nonce=cookies(req).aegis_challenge;
- if(!nonce || typeof credential!=='string'||credential.length>12000) fail(401,'Invalid login challenge.');
+ if(!nonce) {
+  console.warn('[AUTH] Login rejected: aegis_challenge cookie is missing from request.');
+  fail(401,'Login challenge cookie is missing or expired. Please refresh and try again.');
+ }
+ if(typeof credential!=='string'||credential.length>12000) {
+  console.warn('[AUTH] Login rejected: invalid Google credential payload.');
+  fail(401,'Invalid login challenge.');
+ }
  let payload;
- try { const ticket=await new OAuth2Client(process.env.GOOGLE_CLIENT_ID).verifyIdToken({idToken:credential,audience:process.env.GOOGLE_CLIENT_ID}); payload=ticket.getPayload(); }
- catch { fail(401,'Google identity token was rejected.'); }
- if(!['accounts.google.com','https://accounts.google.com'].includes(payload?.iss)||payload?.aud!==process.env.GOOGLE_CLIENT_ID||!Number.isFinite(payload?.exp)||payload.exp<=Date.now()/1000) fail(401,'Google token claims rejected.');
- if(!payload?.sub || !payload.email || payload.email_verified!==true || payload.nonce!==nonce) fail(401,'Google identity or nonce was rejected.');
+ try {
+  const ticket=await new OAuth2Client(process.env.GOOGLE_CLIENT_ID).verifyIdToken({idToken:credential,audience:process.env.GOOGLE_CLIENT_ID});
+  payload=ticket.getPayload();
+ } catch (err) {
+  console.warn('[AUTH] Google ID token verification failed:', err?.message || 'verification error');
+  fail(401,'Google identity token was rejected.');
+ }
+ if(!['accounts.google.com','https://accounts.google.com'].includes(payload?.iss)||payload?.aud!==process.env.GOOGLE_CLIENT_ID||!Number.isFinite(payload?.exp)||payload.exp<=Date.now()/1000) {
+  console.warn('[AUTH] Google token claims rejected (iss, aud, or exp).');
+  fail(401,'Google token claims rejected.');
+ }
+ if(!payload?.sub || !payload.email || payload.email_verified!==true) {
+  console.warn('[AUTH] Google user identity unverified (missing sub/email or unverified email).');
+  fail(401,'Google identity or nonce was rejected.');
+ }
+ if(payload.nonce!==nonce) {
+  console.warn('[AUTH] Nonce mismatch: Google token nonce does not match aegis_challenge cookie.');
+  fail(401,'Google identity or nonce was rejected.');
+ }
  const token=randomBytes(32).toString('base64url');
  const user=await transaction(async db=>{
   const consumed=await db.query('DELETE FROM auth_challenges WHERE token_hash=$1 AND expires_at>now() RETURNING token_hash',[digest(nonce)]);
-  if(!consumed.rowCount) fail(401,'Login challenge expired or already used.');
+  if(!consumed.rowCount) {
+   console.warn('[AUTH] Login challenge not found in DB or expired.');
+   fail(401,'Login challenge expired or already used.');
+  }
   // Safe update: does NOT modify role or primary owner status upon regular login
   const result=await db.query("INSERT INTO users(google_subject_id,email,name) VALUES($1,$2,$3) ON CONFLICT(google_subject_id) DO UPDATE SET email=excluded.email,name=excluded.name RETURNING *",[payload.sub,payload.email,payload.name||'Student']);
   const user=result.rows[0]; active(user);
