@@ -156,34 +156,39 @@ export class CloudObjectStorageProvider {
     this.name = 'CloudObjectStorage';
     this.bucket = options.bucket || process.env.EVIDENCE_STORAGE_BUCKET;
     this.endpoint = options.endpoint || process.env.EVIDENCE_STORAGE_ENDPOINT;
-    this.mockStore = options.mockStore || new Map();
+    this.allowMock = Boolean(options.mockStore || options.allowMock);
+    this.mockStore = options.mockStore || (this.allowMock ? new Map() : null);
   }
 
   async init() {
-    if (!this.bucket && !process.env.EVIDENCE_STORAGE_BUCKET) {
-      // When unconfigured in dev/mock environment, fall back gracefully to mock storage
-      this.isMock = true;
+    if (!this.bucket && !this.allowMock) {
+      fail(503, 'Cloud evidence object storage is not configured (missing bucket/credentials).');
     }
   }
 
   async put(key, buffer) {
-    if (!this.bucket) {
+    await this.init();
+    if (this.mockStore) {
       this.mockStore.set(key, Buffer.from(buffer));
       return { key, size: buffer.length };
     }
-    // Production Cloud SDK dispatch (e.g. PutObjectCommand)
-    this.mockStore.set(key, Buffer.from(buffer));
-    return { key, size: buffer.length };
+    fail(503, 'Cloud evidence object storage upload dispatch is unconfigured.');
   }
 
   async get(key) {
-    const buf = this.mockStore.get(key);
-    if (!buf) fail(404, 'Evidence file not found in cloud storage.');
-    return Buffer.from(buf);
+    await this.init();
+    if (this.mockStore) {
+      const buf = this.mockStore.get(key);
+      if (!buf) fail(404, 'Evidence file not found in cloud storage.');
+      return Buffer.from(buf);
+    }
+    fail(503, 'Cloud evidence object storage download dispatch is unconfigured.');
   }
 
   async delete(key) {
-    this.mockStore.delete(key);
+    if (this.mockStore) {
+      this.mockStore.delete(key);
+    }
   }
 }
 
@@ -291,11 +296,41 @@ export async function readPrivateEvidence(fileReference) {
  * @param {string} [params.sessionHash]
  * @returns {string} token
  */
+// Track consumed tokens to prevent replay within the validity window (single-use enforcement)
+const consumedTokens = new Map();
+
+function cleanExpiredConsumedTokens() {
+  const now = Date.now();
+  for (const [jti, exp] of consumedTokens.entries()) {
+    if (now > exp) consumedTokens.delete(jti);
+  }
+}
+
+/**
+ * Issues a cryptographically bound, single-use, short-lived (15 minute) HMAC-signed access token.
+ * Token is bound to:
+ * - jti: unique token nonce
+ * - evidenceId: specific evidence record
+ * - complaintId: specific complaint
+ * - userId: requesting user
+ * - sessionHash: requesting user's active session hash
+ * - expiresAt: 15-minute validity window
+ *
+ * @param {Object} params
+ * @param {string} params.evidenceId
+ * @param {string} params.complaintId
+ * @param {string} params.userId
+ * @param {string} [params.sessionHash]
+ * @returns {string} token
+ */
 export function generateEvidenceAccessToken({ evidenceId, complaintId, userId, sessionHash = '' }) {
+  cleanExpiredConsumedTokens();
+  const jti = randomUUID();
   const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes
-  const payload = `${evidenceId}:${complaintId}:${userId}:${sessionHash || 'any'}:${expiresAt}`;
+  const payload = `${jti}:${evidenceId}:${complaintId}:${userId}:${sessionHash || 'any'}:${expiresAt}`;
   const sig = createHmac('sha256', getStorageSecret()).update(payload).digest('hex');
   return Buffer.from(JSON.stringify({
+    jti,
     evidenceId,
     complaintId,
     userId,
@@ -314,25 +349,46 @@ export function generateEvidenceAccessToken({ evidenceId, complaintId, userId, s
  * @param {string} expected.complaintId
  * @param {string} expected.userId
  * @param {string} [expected.sessionHash]
+ * @param {boolean} [expected.consume=false]
  * @returns {boolean}
  */
-export function verifyEvidenceAccessToken(token, { evidenceId, complaintId, userId, sessionHash = '' }) {
+export function verifyEvidenceAccessToken(token, { evidenceId, complaintId, userId, sessionHash = '', consume = false }) {
   try {
+    cleanExpiredConsumedTokens();
     const raw = Buffer.from(token, 'base64url').toString('utf8');
     const parsed = JSON.parse(raw);
-    const { evidenceId: tEvId, complaintId: tCompId, userId: tUid, sessionHash: tSess, expiresAt, sig } = parsed;
+    const { jti, evidenceId: tEvId, complaintId: tCompId, userId: tUid, sessionHash: tSess, expiresAt, sig } = parsed;
 
+    if (!jti || consumedTokens.has(jti)) return false; // Single-use rejection if already consumed
     if (tEvId !== evidenceId || tCompId !== complaintId || tUid !== userId) return false;
     if (tSess !== 'any' && sessionHash && tSess !== sessionHash) return false;
     if (Date.now() > expiresAt) return false;
 
-    const payload = `${tEvId}:${tCompId}:${tUid}:${tSess}:${expiresAt}`;
+    const payload = `${jti}:${tEvId}:${tCompId}:${tUid}:${tSess}:${expiresAt}`;
     const expectedSig = createHmac('sha256', getStorageSecret()).update(payload).digest('hex');
     const sigBuf = Buffer.from(sig, 'hex');
     const expBuf = Buffer.from(expectedSig, 'hex');
     if (sigBuf.length !== expBuf.length) return false;
-    return timingSafeEqual(sigBuf, expBuf);
+    if (!timingSafeEqual(sigBuf, expBuf)) return false;
+
+    if (consume) {
+      consumedTokens.set(jti, expiresAt);
+    }
+    return true;
   } catch {
     return false;
   }
+}
+
+/**
+ * Atomically marks token as consumed to prevent replay.
+ */
+export function consumeEvidenceAccessToken(token) {
+  try {
+    const raw = Buffer.from(token, 'base64url').toString('utf8');
+    const parsed = JSON.parse(raw);
+    if (parsed.jti && parsed.expiresAt) {
+      consumedTokens.set(parsed.jti, parsed.expiresAt);
+    }
+  } catch {}
 }

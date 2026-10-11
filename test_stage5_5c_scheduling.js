@@ -138,12 +138,42 @@ test('Stage 5.5C Storage: Provider-Independent Object Storage & Magic Bytes Sign
       /Content signature does not match declared MIME type/
     );
 
-    // 4. CloudObjectStorageProvider adapter sanity
-    const cloudProvider = new CloudObjectStorageProvider({ bucket: 'aegis-private-evidence-test' });
+    // 4. CloudObjectStorageProvider: Fails closed when unconfigured and allowMock is false
+    const unconfiguredProvider = new CloudObjectStorageProvider();
+    await assert.rejects(
+      async () => unconfiguredProvider.init(),
+      /Cloud evidence object storage is not configured/
+    );
+
+    // 5. CloudObjectStorageProvider adapter sanity when configured or in explicit mock mode
+    const cloudProvider = new CloudObjectStorageProvider({ bucket: 'aegis-private-evidence-test', allowMock: true });
     await cloudProvider.init();
     await cloudProvider.put('private/test-cloud-key.txt', Buffer.from('Cloud object content'));
     const cloudGet = await cloudProvider.get('private/test-cloud-key.txt');
     assert.equal(cloudGet.toString(), 'Cloud object content');
+
+    // 6. Token binding & single-use replay rejection test
+    const token = generateEvidenceAccessToken({
+      evidenceId: 'test-ev-123',
+      complaintId: 'test-comp-456',
+      userId: 'test-usr-789',
+      sessionHash: 'sess-abc'
+    });
+    // First verification with consume: true succeeds
+    assert.equal(verifyEvidenceAccessToken(token, {
+      evidenceId: 'test-ev-123',
+      complaintId: 'test-comp-456',
+      userId: 'test-usr-789',
+      sessionHash: 'sess-abc',
+      consume: true
+    }), true);
+    // Second verification with same token fails immediately (single-use replay prevention)
+    assert.equal(verifyEvidenceAccessToken(token, {
+      evidenceId: 'test-ev-123',
+      complaintId: 'test-comp-456',
+      userId: 'test-usr-789',
+      sessionHash: 'sess-abc'
+    }), false);
 
   } finally {
     setStorageProvider(originalProvider);
@@ -182,13 +212,23 @@ test('Stage 5.5C Scheduled Worker: Authenticated Cron Trigger & Timing Boundarie
   assert.ok(data.escalation);
   assert.equal(data.escalation.dryRun, true);
 
-  // 4. Authorized invocation via POST -> 200 OK
-  const { req: postReq, res: postRes, handler: h4 } = mockReqRes({
+  // 4. Authorized invocation via x-cron-secret header -> 200 OK (GET)
+  const { req: xCronReq, res: xCronRes, handler: h4 } = mockReqRes({
+    method: 'GET',
+    url: '/api/cron/escalate?dryRun=true',
+    headers: { 'x-cron-secret': cronSecret }
+  });
+  await h4(xCronReq, xCronRes);
+  assert.equal(xCronRes.statusCode, 200);
+  assert.equal(xCronRes.json().escalation.dryRun, true);
+
+  // 5. Authorized invocation via POST -> 200 OK
+  const { req: postReq, res: postRes, handler: h5 } = mockReqRes({
     method: 'POST',
     url: '/api/cron/escalate?dryRun=true',
     headers: { authorization: `Bearer ${cronSecret}` }
   });
-  await h4(postReq, postRes);
+  await h5(postReq, postRes);
   assert.equal(postRes.statusCode, 200);
   assert.equal(postRes.json().escalation.dryRun, true);
 });

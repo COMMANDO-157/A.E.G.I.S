@@ -2,9 +2,24 @@ import {createHash,timingSafeEqual} from 'node:crypto';
 import {fail} from './policy.js';
 export function authorizeMaintenance(req,secret=process.env.CRON_SECRET) {
  if(typeof secret!=='string'||secret.length<32) fail(503,'Maintenance is not configured.');
- const provided=String(req.headers.authorization||'');
  const hash=value=>createHash('sha256').update(value).digest();
- if(!timingSafeEqual(hash(provided),hash('Bearer '+secret))) fail(401,'Maintenance authorization required.');
+ const expectedHash=hash(secret);
+
+ // 1. Support x-cron-secret header
+ const xSecret=req.headers['x-cron-secret'];
+ if(typeof xSecret==='string' && xSecret.length > 0) {
+  if(timingSafeEqual(hash(xSecret), expectedHash)) return;
+  fail(401,'Maintenance authorization required.');
+ }
+
+ // 2. Support Authorization: Bearer <secret>
+ const authHeader=String(req.headers.authorization||'');
+ if(authHeader.startsWith('Bearer ')) {
+  const token=authHeader.slice(7);
+  if(timingSafeEqual(hash(token), expectedHash)) return;
+ }
+
+ fail(401,'Maintenance authorization required.');
 }
 export async function cleanupExpired(db) {
  const counts={};

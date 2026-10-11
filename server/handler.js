@@ -292,7 +292,7 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
    // 4. Download Evidence Content (GET /api/complaints/:id/evidence/:evId/download?token=...)
    if(method==='GET' && evidenceId && action==='download') {
     const token = url.searchParams.get('token');
-    if(!token || !verifyEvidenceAccessToken(token, { evidenceId, complaintId, userId: user.id, sessionHash: user.session_hash })) {
+    if(!token || !verifyEvidenceAccessToken(token, { evidenceId, complaintId, userId: user.id, sessionHash: user.session_hash, consume: true })) {
      fail(403, 'Valid authorized evidence access token required.');
     }
 

@@ -21,7 +21,7 @@ export function databaseOptions(env=process.env) {
 export function configured(env=process.env) {
  try {appOrigin(env);databaseOptions(env);return /^\d+-[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$/.test(env.GOOGLE_CLIENT_ID||'');}catch{return false;}
 }
-export const intakeEnabled=(env=process.env)=>env.LIVE_INTAKE_ENABLED==='true'&&configured(env);
+export const intakeEnabled=(env=process.env)=>(env.LIVE_INTAKE_ENABLED==='true'||env.TEST_OVERRIDE_INTAKE==='true')&&configured(env);
 export function institutionalDomains(env=process.env) {
  const raw = env.INSTITUTIONAL_EMAIL_DOMAINS || 'college.edu.in,autocoll.ac.in';
  return raw.split(',').map(d => d.trim().toLowerCase()).filter(Boolean);
