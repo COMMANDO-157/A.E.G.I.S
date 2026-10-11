@@ -304,17 +304,26 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
     return send(200, { verified: true, stepUpToken });
    }
 
-   // ─── General Admin Step-Up Endpoint ─────────────────────────────────────────
-   // Verifies either TOTP code or Action PIN and issues an 'admin_step_up' token.
-   // Prerequisites: Administrator must have enrolled in TOTP MFA and set 5-digit Action PIN.
+   // ─── Dual-Factor Privileged Admin Step-Up Endpoint ────────────────────────
+   // Requires fresh verification of BOTH TOTP MFA (6-digit code) AND 5-digit Action PIN.
+   // Issues a single-use, session-bound, action-scoped 'admin_step_up' token only after both succeed.
    if(path==='/api/admin/step-up'&&method==='POST') {
     requireAdmin(user);
     await limit('admin:stepup:'+user.id, 15);
     const input=await body(req);
-    fieldsOnly(input, ['type', 'code', 'pin']);
+    fieldsOnly(input, ['code', 'pin']);
+
+    if(typeof input.code!=='string'||!/^\d{6}$/.test(input.code.trim())) {
+     fail(422, 'Valid 6-digit TOTP MFA code is required.');
+    }
+    if(typeof input.pin!=='string'||!/^\d{5}$/.test(input.pin)) {
+     fail(422, 'Valid 5-digit Action PIN is required.');
+    }
+    validatePinFormat(input.pin);
+
     const dbUser=(await database().query('SELECT * FROM users WHERE id=$1',[user.id])).rows[0];
 
-    // Enforce dual prerequisites for privileged step-up authorization
+    // Enforce dual prerequisites
     if(!dbUser.mfa_enrolled || !dbUser.mfa_secret_encrypted) {
      fail(403, 'MFA enrollment is a required prerequisite before issuing privileged step-up tokens.');
     }
@@ -322,31 +331,40 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
      fail(403, 'Action PIN setup is a required prerequisite before issuing privileged step-up tokens.');
     }
 
-    if(input.type==='mfa') {
-     const secret = decryptSecret(dbUser.mfa_secret_encrypted);
-     if(!verifyTotp(input.code, secret)) fail(401, 'Invalid MFA code.');
-    } else if(input.type==='pin') {
-     if(dbUser.action_pin_locked_until && new Date(dbUser.action_pin_locked_until).getTime() > Date.now()) {
-      fail(429, 'Action PIN is locked.');
-     }
-     if(!verifyActionPin(input.pin, dbUser.action_pin_hash, dbUser.action_pin_salt)) {
-      const attempts = (dbUser.action_pin_failed_attempts || 0) + 1;
-      const lockUntil = attempts >= 5 ? new Date(Date.now() + 15 * 60 * 1000).toISOString() : null;
-      await database().query(
-       'UPDATE users SET action_pin_failed_attempts=$1,action_pin_locked_until=$2 WHERE id=$3',
-       [attempts, lockUntil, user.id]
-      );
-      if(lockUntil) {
-       fail(429, 'Action PIN locked for 15 minutes after 5 failed attempts.');
-      }
-      fail(401, `Invalid Action PIN. ${5 - attempts} attempt(s) remaining.`);
-     }
-     await database().query('UPDATE users SET action_pin_failed_attempts=0,action_pin_locked_until=NULL WHERE id=$1',[user.id]);
-    } else {
-     fail(422, 'Step-up type must be "mfa" or "pin".');
+    // Check PIN lockout
+    if(dbUser.action_pin_locked_until && new Date(dbUser.action_pin_locked_until).getTime() > Date.now()) {
+     fail(429, 'Action PIN is temporarily locked due to multiple failed attempts. Try again later.');
     }
 
+    // Factor 1: Verify fresh TOTP MFA
+    const secret = decryptSecret(dbUser.mfa_secret_encrypted);
+    if(!verifyTotp(input.code.trim(), secret)) {
+     fail(401, 'Invalid MFA code.');
+    }
+
+    // Factor 2: Verify fresh 5-digit Action PIN
+    if(!verifyActionPin(input.pin, dbUser.action_pin_hash, dbUser.action_pin_salt)) {
+     const attempts = (dbUser.action_pin_failed_attempts || 0) + 1;
+     const lockUntil = attempts >= 5 ? new Date(Date.now() + 15 * 60 * 1000).toISOString() : null;
+     await database().query(
+      'UPDATE users SET action_pin_failed_attempts=$1,action_pin_locked_until=$2 WHERE id=$3',
+      [attempts, lockUntil, user.id]
+     );
+     if(lockUntil) {
+      fail(429, 'Action PIN locked for 15 minutes after 5 failed attempts.');
+     }
+     fail(401, `Invalid Action PIN. ${5 - attempts} attempt(s) remaining.`);
+    }
+
+    // Reset failed attempts on full dual-factor success
+    await database().query(
+     'UPDATE users SET action_pin_failed_attempts=0,action_pin_locked_until=NULL WHERE id=$1',
+     [user.id]
+    );
+
+    // Issue single-use, session-bound step-up token
     const stepUpToken = await issueStepUpToken(user.id, 'admin_step_up', database(), user.session_hash);
+    await audit(database(), user, null, 'ADMIN_STEP_UP_GRANTED', { factorCount: 2 });
     return send(200, { verified: true, stepUpToken });
    }
 

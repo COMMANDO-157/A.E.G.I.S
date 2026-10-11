@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { performStepUp, verifyMfa, verifyActionPin } from '@/api/client';
+import { performStepUp } from '@/api/client';
 
 interface StepUpModalProps {
   isOpen: boolean;
@@ -13,10 +13,9 @@ export function StepUpModal({
   isOpen,
   onClose,
   onSuccess,
-  title = 'Privileged Step-Up Authorization Required',
-  description = 'This sensitive administrative operation requires verification of your MFA code or 5-digit Action PIN.',
+  title = 'Privileged Dual-Factor Authorization Required',
+  description = 'Sensitive administrative operations strictly require concurrent fresh verification of your 6-digit TOTP MFA code and 5-digit Action PIN.',
 }: StepUpModalProps) {
-  const [method, setMethod] = useState<'pin' | 'mfa'>('pin');
   const [pin, setPin] = useState('');
   const [mfaCode, setMfaCode] = useState('');
   const [loading, setLoading] = useState(false);
@@ -27,49 +26,45 @@ export function StepUpModal({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    const trimmedMfa = mfaCode.trim();
+    if (!/^\d{6}$/.test(trimmedMfa)) {
+      setError('MFA code must be exactly 6 digits.');
+      return;
+    }
+    if (!/^\d{5}$/.test(pin)) {
+      setError('Action PIN must be exactly 5 digits.');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      let res;
-      if (method === 'pin') {
-        if (!/^\d{5}$/.test(pin)) {
-          throw new Error('Action PIN must be exactly 5 digits.');
-        }
-        // Try unified admin step-up or direct pin verify
-        try {
-          res = await performStepUp({ type: 'pin', pin });
-        } catch (err: any) {
-          // Fallback to direct pin verification if admin step-up reports prerequisite or distinct endpoint
-          if (err.message && err.message.includes('prerequisite')) {
-            throw err;
-          }
-          res = await verifyActionPin(pin);
-        }
-      } else {
-        if (!/^\d{6}$/.test(mfaCode.trim())) {
-          throw new Error('MFA code must be exactly 6 digits.');
-        }
-        try {
-          res = await performStepUp({ type: 'mfa', code: mfaCode.trim() });
-        } catch (err: any) {
-          if (err.message && err.message.includes('prerequisite')) {
-            throw err;
-          }
-          res = await verifyMfa({ code: mfaCode.trim() });
-        }
-      }
+      const res = await performStepUp({ code: trimmedMfa, pin });
 
       if (res && res.stepUpToken) {
+        // Clear sensitive inputs immediately from memory
+        setPin('');
+        setMfaCode('');
         onSuccess(res.stepUpToken);
         onClose();
       } else {
-        throw new Error('Step-up verification failed to issue authorization token.');
+        throw new Error('Dual-factor verification failed to issue authorization token.');
       }
     } catch (err: any) {
       setError(err.message || 'Authorization failed.');
+      // Keep inputs or clear pin on failure for security
+      setPin('');
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleClose() {
+    setPin('');
+    setMfaCode('');
+    setError(null);
+    onClose();
   }
 
   return (
@@ -101,10 +96,10 @@ export function StepUpModal({
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span className="badge badge-warning">Step-Up Gate</span>
+          <span className="badge badge-warning">Dual-Factor Step-Up Gate</span>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             aria-label="Close step-up dialog"
             style={{
               background: 'none',
@@ -131,94 +126,76 @@ export function StepUpModal({
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 'var(--spacing-2)', marginTop: 'var(--spacing-4)' }}>
-          <button
-            type="button"
-            className={`btn btn-sm ${method === 'pin' ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => { setMethod('pin'); setError(null); }}
-          >
-            5-Digit Action PIN
-          </button>
-          <button
-            type="button"
-            className={`btn btn-sm ${method === 'mfa' ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => { setMethod('mfa'); setError(null); }}
-          >
-            TOTP MFA Code
-          </button>
-        </div>
-
         <form onSubmit={handleSubmit} style={{ marginTop: 'var(--spacing-4)' }}>
-          {method === 'pin' ? (
-            <div>
-              <label
-                htmlFor="stepup-pin-input"
-                style={{ display: 'block', fontSize: 'var(--font-size-sm)', fontWeight: 600 }}
-              >
-                Enter 5-Digit Action PIN
-              </label>
-              <input
-                id="stepup-pin-input"
-                type="password"
-                inputMode="numeric"
-                maxLength={5}
-                pattern="\d{5}"
-                value={pin}
-                onChange={e => setPin(e.target.value)}
-                placeholder="•••••"
-                required
-                autoFocus
-                style={{
-                  width: '100%',
-                  padding: 'var(--spacing-2) var(--spacing-3)',
-                  marginTop: 'var(--spacing-1)',
-                  fontSize: 'var(--font-size-lg)',
-                  letterSpacing: '0.25em',
-                  textAlign: 'center',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--color-border)',
-                }}
-              />
-            </div>
-          ) : (
-            <div>
-              <label
-                htmlFor="stepup-mfa-input"
-                style={{ display: 'block', fontSize: 'var(--font-size-sm)', fontWeight: 600 }}
-              >
-                Enter 6-Digit Authenticator (TOTP) Code
-              </label>
-              <input
-                id="stepup-mfa-input"
-                type="text"
-                inputMode="numeric"
-                maxLength={6}
-                pattern="\d{6}"
-                value={mfaCode}
-                onChange={e => setMfaCode(e.target.value)}
-                placeholder="123456"
-                required
-                autoFocus
-                style={{
-                  width: '100%',
-                  padding: 'var(--spacing-2) var(--spacing-3)',
-                  marginTop: 'var(--spacing-1)',
-                  fontSize: 'var(--font-size-lg)',
-                  letterSpacing: '0.25em',
-                  textAlign: 'center',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--color-border)',
-                }}
-              />
-            </div>
-          )}
+          <div>
+            <label
+              htmlFor="stepup-mfa-input"
+              style={{ display: 'block', fontSize: 'var(--font-size-sm)', fontWeight: 600 }}
+            >
+              1. Enter 6-Digit Authenticator (TOTP) Code
+            </label>
+            <input
+              id="stepup-mfa-input"
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              pattern="\d{6}"
+              value={mfaCode}
+              onChange={e => setMfaCode(e.target.value)}
+              placeholder="123456"
+              autoComplete="one-time-code"
+              required
+              autoFocus
+              style={{
+                width: '100%',
+                padding: 'var(--spacing-2) var(--spacing-3)',
+                marginTop: 'var(--spacing-1)',
+                fontSize: 'var(--font-size-lg)',
+                letterSpacing: '0.25em',
+                textAlign: 'center',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--color-border)',
+              }}
+            />
+          </div>
+
+          <div style={{ marginTop: 'var(--spacing-4)' }}>
+            <label
+              htmlFor="stepup-pin-input"
+              style={{ display: 'block', fontSize: 'var(--font-size-sm)', fontWeight: 600 }}
+            >
+              2. Enter 5-Digit Action PIN
+            </label>
+            <input
+              id="stepup-pin-input"
+              type="password"
+              inputMode="numeric"
+              maxLength={5}
+              pattern="\d{5}"
+              value={pin}
+              onChange={e => setPin(e.target.value)}
+              placeholder="•••••"
+              autoComplete="off"
+              required
+              style={{
+                width: '100%',
+                padding: 'var(--spacing-2) var(--spacing-3)',
+                marginTop: 'var(--spacing-1)',
+                fontSize: 'var(--font-size-lg)',
+                letterSpacing: '0.25em',
+                textAlign: 'center',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--color-border)',
+              }}
+            />
+          </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--spacing-3)', marginTop: 'var(--spacing-5)' }}>
-            <button type="button" className="btn btn-secondary" onClick={onClose} disabled={loading}>
+            <button type="button" className="btn btn-secondary" onClick={handleClose} disabled={loading}>
               Cancel
             </button>
             <button type="submit" className="btn btn-primary" disabled={loading}>
-              {loading ? 'Verifying…' : 'Authorize Action'}
+              {loading ? 'Verifying Factors…' : 'Authorize Action'}
             </button>
           </div>
         </form>

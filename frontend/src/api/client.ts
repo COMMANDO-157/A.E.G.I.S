@@ -384,7 +384,7 @@ export async function verifyActionPin(
 }
 
 export async function performStepUp(
-  payload: { type: 'mfa' | 'pin'; code?: string; pin?: string },
+  payload: { code: string; pin: string },
   signal?: AbortSignal,
 ): Promise<import('./types').StepUpResponse> {
   const opts: RequestOptions = { method: 'POST', body: payload };

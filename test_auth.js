@@ -715,7 +715,7 @@ test('Negative Security: /api/admin/step-up enforces dual MFA and PIN prerequisi
     const noMfaRes = await fetch(origin + '/api/admin/step-up', {
       method: 'POST',
       headers: { Origin: origin, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'pin', pin: '12345' })
+      body: JSON.stringify({ code: '123456', pin: '12345' })
     });
     assert.equal(noMfaRes.status, 403, 'Missing MFA prerequisite must reject step-up with 403');
 
@@ -728,9 +728,137 @@ test('Negative Security: /api/admin/step-up enforces dual MFA and PIN prerequisi
     const noPinRes = await fetch(origin + '/api/admin/step-up', {
       method: 'POST',
       headers: { Origin: origin, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'mfa', code: '123456' })
+      body: JSON.stringify({ code: '123456', pin: '12345' })
     });
     assert.equal(noPinRes.status, 403, 'Missing Action PIN prerequisite must reject step-up with 403');
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+});
+
+test('Security Invariant: /api/admin/step-up enforces concurrent dual-factor verification (MFA + PIN)', async () => {
+  const keys = ['APP_ORIGIN', 'DATABASE_URL', 'GOOGLE_CLIENT_ID', 'NODE_ENV'];
+  const saved = Object.fromEntries(keys.map(k => [k, process.env[k]]));
+  process.env.NODE_ENV = 'test';
+  process.env.DATABASE_URL = 'postgres://localhost/fictional';
+
+  const mfaSecret = generateTotpSecret();
+  const encryptedSecret = encryptSecret(mfaSecret);
+  const correctTotp = computeTotp(mfaSecret, 0);
+  const correctPin = '54321';
+  const { pinHash, pinSalt } = hashActionPin(correctPin);
+
+  const adminUser = {
+    id: '00000000-0000-0000-0000-000000000099',
+    email: 'admin.dualfactor@campus.test',
+    role: 'admin',
+    is_primary_owner: true,
+    account_status: 'active',
+    mfa_enrolled: true,
+    mfa_secret_encrypted: encryptedSecret,
+    action_pin_hash: pinHash,
+    action_pin_salt: pinSalt,
+    action_pin_failed_attempts: 0,
+    action_pin_locked_until: null,
+    session_hash: 'sess_dual_factor_test'
+  };
+
+  const tokens = [];
+  const db = {
+    query: async (sql, values) => {
+      if (sql.includes('SELECT * FROM users WHERE id=')) {
+        return { rows: [adminUser], rowCount: 1 };
+      }
+      if (sql.includes('UPDATE users SET action_pin_failed_attempts=')) {
+        adminUser.action_pin_failed_attempts = values[0];
+        adminUser.action_pin_locked_until = values[1];
+        return { rowCount: 1 };
+      }
+      if (sql.includes('INSERT INTO step_up_tokens')) {
+        tokens.push({
+          token_hash: values[0],
+          user_id: values[1],
+          purpose: values[2],
+          session_hash: values[3]
+        });
+        return { rowCount: 1 };
+      }
+      if (sql.includes('INSERT INTO audit_logs')) {
+        return { rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    }
+  };
+
+  const server = http.createServer(
+    createHandler(
+      { sessionUser: async () => adminUser, logout: async () => {} },
+      { database: () => db, transaction: fn => fn(db) },
+      { consumeRateLimit: async () => ({ remaining: 100 }) }
+    )
+  );
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const origin = 'http://127.0.0.1:' + server.address().port;
+  process.env.APP_ORIGIN = origin;
+
+  try {
+    // 1. Missing either factor fails with 422
+    const missingPin = await fetch(origin + '/api/admin/step-up', {
+      method: 'POST',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: correctTotp })
+    });
+    assert.equal(missingPin.status, 422, 'Missing PIN must return 422');
+
+    const missingMfa = await fetch(origin + '/api/admin/step-up', {
+      method: 'POST',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: correctPin })
+    });
+    assert.equal(missingMfa.status, 422, 'Missing MFA must return 422');
+
+    // 2. Correct MFA + Incorrect PIN fails with 401
+    const badPinRes = await fetch(origin + '/api/admin/step-up', {
+      method: 'POST',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: correctTotp, pin: '00000' })
+    });
+    assert.equal(badPinRes.status, 401, 'Bad PIN with good MFA must return 401');
+    assert.equal(tokens.length, 0, 'No step-up token issued on bad PIN');
+
+    // 3. Incorrect MFA + Correct PIN fails with 401
+    const badMfaRes = await fetch(origin + '/api/admin/step-up', {
+      method: 'POST',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: '000000', pin: correctPin })
+    });
+    assert.equal(badMfaRes.status, 401, 'Bad MFA with good PIN must return 401');
+    assert.equal(tokens.length, 0, 'No step-up token issued on bad MFA');
+
+    // 4. Correct MFA + Correct PIN succeeds with 200 and issues token
+    const successRes = await fetch(origin + '/api/admin/step-up', {
+      method: 'POST',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: correctTotp, pin: correctPin })
+    });
+    assert.equal(successRes.status, 200, 'Concurrent valid MFA + PIN must return 200');
+    const data = await successRes.json();
+    assert.equal(data.verified, true);
+    assert.ok(typeof data.stepUpToken === 'string' && data.stepUpToken.length >= 32);
+    assert.equal(tokens.length, 1, 'Exactly one step-up token issued');
+
+    // 5. PIN lockout prevents step-up even with valid MFA
+    adminUser.action_pin_locked_until = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const lockedRes = await fetch(origin + '/api/admin/step-up', {
+      method: 'POST',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: correctTotp, pin: correctPin })
+    });
+    assert.equal(lockedRes.status, 429, 'Locked Action PIN must reject step-up with 429');
   } finally {
     await new Promise(resolve => server.close(resolve));
     for (const [k, v] of Object.entries(saved)) {
