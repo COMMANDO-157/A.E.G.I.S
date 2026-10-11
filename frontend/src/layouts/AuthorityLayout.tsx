@@ -30,6 +30,7 @@ export default function AuthorityLayout() {
   const navItems = [
     { to: '/authority', label: t.common.dashboard, end: true, icon: '📊' },
     { to: '/authority/cases', label: t.authority.assignedCasesTitle, icon: '📋' },
+    { to: '/authority/students', label: 'Student Verification', icon: '🎓' },
     { to: '/authority/review', label: t.authority.verificationReviewsTitle, icon: '🔍' },
   ];
 

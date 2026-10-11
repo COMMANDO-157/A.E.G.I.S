@@ -30,7 +30,10 @@ export type DelegatedPermission =
   | 'users.suspend'
   | 'departments.manage'
   | 'audit.read'
-  | 'authorities.assign';
+  | 'authorities.assign'
+  | 'roster.import'
+  | 'roster.conflicts.manage'
+  | 'department.students.verify';
 
 /** Shape returned by /api/me and /api/auth/google (server/handler.js userView()) */
 export interface ApiUser {
@@ -38,10 +41,14 @@ export interface ApiUser {
   readonly email: string;
   readonly name: string;
   readonly department: string;
+  readonly department_code?: string | null;
   readonly role: UserRole;
   readonly account_status: AccountStatus;
   readonly staff_requested: boolean;
   readonly is_primary_owner?: boolean;
+  readonly is_verified_student?: boolean;
+  readonly roster_id?: string | null;
+  readonly assigned_departments?: string[];
   readonly mfa_enrolled?: boolean;
   readonly action_pin_set?: boolean;
   readonly permissions?: DelegatedPermission[];
@@ -207,6 +214,116 @@ export interface AuditLog {
   readonly action: string;
   readonly details: Record<string, unknown>;
   readonly timestamp: string;
+}
+
+// ─── Stage 5.5A: Student Verification & Institutional Rosters ────────────────
+export interface StudentVerificationStatusResponse {
+  readonly isVerified: boolean;
+  readonly roster: {
+    readonly registerNumber: string;
+    readonly departmentCode: string;
+  } | null;
+  readonly activeRequest: {
+    readonly id: string;
+    readonly user_id: string;
+    readonly roster_id: string;
+    readonly status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRED';
+    readonly claim_channel: string;
+    readonly notes: string | null;
+    readonly created_at: string;
+    readonly expires_at: string;
+    readonly register_number: string;
+    readonly department_code: string;
+    readonly department_name: string;
+  } | null;
+}
+
+export interface StudentVerificationRequestPayload {
+  registerNumber: string;
+  notes?: string | undefined;
+}
+
+export interface StudentVerificationRequestResponse {
+  readonly status: 'APPROVED' | 'PENDING';
+  readonly registerNumber: string;
+  readonly departmentCode: string;
+  readonly autoApproved?: boolean;
+  readonly expiresAt?: string;
+}
+
+export interface AuthorityStudentRequestItem {
+  readonly id: string;
+  readonly user_id: string;
+  readonly status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRED';
+  readonly claim_channel: string;
+  readonly notes: string | null;
+  readonly identity_evidence_reference: string | null;
+  readonly created_at: string;
+  readonly expires_at: string;
+  readonly user_email: string;
+  readonly user_name: string;
+  readonly register_number: string;
+  readonly institutional_email: string;
+  readonly roster_name: string;
+  readonly department_code: string;
+  readonly batch_year: string;
+  readonly department_name: string;
+}
+
+export interface AuthorityStudentReviewPayload {
+  decision: 'APPROVED' | 'REJECTED';
+  notes: string;
+  identityEvidenceReference?: string | undefined;
+  verificationMethod?: 'IN_PERSON_COLLEGE_ID' | 'PHYSICAL_OFFICE_VERIFICATION' | 'DEPT_ACADEMIC_RECORD' | 'FACULTY_ADVISOR_CONFIRMATION' | undefined;
+}
+
+export interface RosterRecordInput {
+  registerNumber: string;
+  institutionalEmail: string;
+  fullName: string;
+  departmentCode: string;
+  batchYear?: string;
+  degreeProgram?: string;
+}
+
+export interface RosterImportResponse {
+  readonly batchId: string;
+  readonly totalProcessed: number;
+  readonly importedCount: number;
+  readonly conflictsQuarantined: number;
+}
+
+export interface RosterConflictItem {
+  readonly id: string;
+  readonly batch_id: string;
+  readonly register_number: string;
+  readonly institutional_email: string;
+  readonly department_code: string;
+  readonly conflict_type: string;
+  readonly raw_payload: any;
+  readonly resolved: boolean;
+  readonly resolution_action: string | null;
+  readonly resolution_notes: string | null;
+  readonly created_at: string;
+}
+
+export interface AdminDepartmentItem {
+  readonly code: string;
+  readonly name: string;
+  readonly active: boolean;
+  readonly created_at: string;
+}
+
+export interface AdminAuthorityAssignmentItem {
+  readonly id: string;
+  readonly user_id: string;
+  readonly role: 'HOD' | 'Dean' | 'Higher Authority';
+  readonly department_code: string;
+  readonly department_name: string;
+  readonly email: string;
+  readonly name: string;
+  readonly active: boolean;
+  readonly assigned_at: string;
 }
 
 // ─── API Error ────────────────────────────────────────────────────────────────

@@ -42,12 +42,14 @@ import StudentTrackPage from '@/pages/student/StudentTrackPage';
 import AuthorityDashboardPage from '@/pages/authority/AuthorityDashboardPage';
 import AuthorityCasesPage from '@/pages/authority/AuthorityCasesPage';
 import AuthorityReviewPage from '@/pages/authority/AuthorityReviewPage';
+import AuthorityStudentsPage from '@/pages/authority/AuthorityStudentsPage';
 
 // Admin Portal Pages
 import AdminOverviewPage from '@/pages/admin/AdminOverviewPage';
 import AdminUsersPage from '@/pages/admin/AdminUsersPage';
 import AdminCasesPage from '@/pages/admin/AdminCasesPage';
 import AdminAuditPage from '@/pages/admin/AdminAuditPage';
+import AdminRosterConflictsPage from '@/pages/admin/AdminRosterConflictsPage';
 
 // Development-Only Showcase (Isolated from production)
 import DesignSystemShowcasePage from '@/pages/design-system/DesignSystemShowcasePage';
@@ -121,6 +123,7 @@ export default function App() {
                 <Route index element={<AuthorityDashboardPage />} />
                 <Route path="dashboard" element={<Navigate to="/authority" replace />} />
                 <Route path="cases" element={<AuthorityCasesPage />} />
+                <Route path="students" element={<AuthorityStudentsPage />} />
                 <Route path="review" element={<AuthorityReviewPage />} />
                 <Route path="reviews" element={<Navigate to="/authority/review" replace />} />
               </Route>
@@ -131,6 +134,7 @@ export default function App() {
               <Route path="/admin" element={<OwnerLayout />}>
                 <Route index element={<AdminOverviewPage />} />
                 <Route path="users" element={<AdminUsersPage />} />
+                <Route path="roster-conflicts" element={<AdminRosterConflictsPage />} />
                 <Route path="cases" element={<AdminCasesPage />} />
                 <Route path="audit" element={<AdminAuditPage />} />
               </Route>
@@ -139,6 +143,7 @@ export default function App() {
                 <Route index element={<AdminOverviewPage />} />
                 <Route path="dashboard" element={<Navigate to="/owner" replace />} />
                 <Route path="users" element={<AdminUsersPage />} />
+                <Route path="roster-conflicts" element={<AdminRosterConflictsPage />} />
                 <Route path="roles" element={<Navigate to="/owner/users" replace />} />
                 <Route path="cases" element={<AdminCasesPage />} />
                 <Route path="audit" element={<AdminAuditPage />} />

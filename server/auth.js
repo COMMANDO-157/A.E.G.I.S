@@ -92,6 +92,36 @@ export async function sessionUser(req,db) {
   user.permissions=[];
  }
 
+ // Query authority assignments for staff roles (HOD, Dean, Higher Authority)
+ try {
+  const assignsResult=await dbClient.query('SELECT department_code FROM authority_assignments WHERE user_id=$1 AND active=true',[user.id]);
+  user.assigned_departments=assignsResult.rows.map(r=>r.department_code);
+ } catch {
+  user.assigned_departments=[];
+ }
+
+ // Query authoritative active student roster binding for students
+ if(user.role==='student' && user.roster_id) {
+  try {
+   const rosterResult=await dbClient.query('SELECT * FROM student_rosters WHERE id=$1 AND bound_user_id=$2 AND is_active=true',[user.roster_id, user.id]);
+   const r=rosterResult.rows[0];
+   if(r) {
+    user.active_roster=r;
+    user.is_verified_student=true;
+    user.register_number=r.register_number;
+   } else {
+    user.active_roster=null;
+    user.is_verified_student=false;
+   }
+  } catch {
+   user.active_roster=null;
+   user.is_verified_student=false;
+  }
+ } else if(user.role==='student') {
+  user.active_roster=null;
+  user.is_verified_student=false;
+ }
+
  return user;
 }
 export async function logout(req,res,db) {

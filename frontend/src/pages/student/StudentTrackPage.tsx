@@ -230,6 +230,42 @@ export default function StudentTrackPage() {
                 </div>
               </div>
 
+              {/* Private Evidence Management */}
+              <div style={{ marginTop: 'var(--spacing-5)', borderTop: '1px solid var(--color-border)', paddingTop: 'var(--spacing-3)' }}>
+                <h4 style={{ fontSize: 'var(--font-size-sm)', marginBottom: 'var(--spacing-2)' }}>Confidential Supporting Evidence</h4>
+                <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-2)' }}>
+                  Files are stored in private institutional storage with access tokens. Max 10MB (PNG, JPG, PDF, TXT).
+                </p>
+                <div style={{ display: 'flex', gap: 'var(--spacing-2)', alignItems: 'center' }}>
+                  <input
+                    type="file"
+                    id="evidence-file-input"
+                    accept=".png,.jpg,.jpeg,.webp,.pdf,.txt"
+                    style={{ fontSize: 'var(--font-size-xs)' }}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file || !selectedCase) return;
+                      const reader = new FileReader();
+                      reader.onload = async () => {
+                        try {
+                          const base64Data = (reader.result as string).split(',')[1];
+                          const { uploadComplaintEvidence } = await import('@/api/client');
+                          await uploadComplaintEvidence(selectedCase.id, {
+                            fileName: file.name,
+                            mimeType: file.type || 'application/octet-stream',
+                            data: base64Data,
+                          });
+                          alert('Evidence uploaded successfully and secured in private storage.');
+                        } catch (err: any) {
+                          alert(err.message || 'Evidence upload failed.');
+                        }
+                      };
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                </div>
+              </div>
+
               <div style={{ marginTop: 'var(--spacing-6)', display: 'flex', justifyContent: 'flex-end' }}>
                 <button type="button" className="btn btn-secondary btn-sm" onClick={() => setSelectedCase(null)}>
                   Close

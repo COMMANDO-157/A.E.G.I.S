@@ -6,7 +6,10 @@ export const DELEGATED_PERMISSIONS=[
   'users.suspend',
   'departments.manage',
   'audit.read',
-  'authorities.assign'
+  'authorities.assign',
+  'roster.import',
+  'roster.conflicts.manage',
+  'department.students.verify'
 ];
 
 export function fail(status,message) { throw Object.assign(new Error(message),{status}); }
@@ -16,7 +19,14 @@ export function canRead(user,complaint) {
  if (!user || user.account_status!=='active') return false;
  if(user.role==='student') return complaint.owner_user_id===user.id;
  if(user.role==='admin'||user.role==='Higher Authority') return true;
- return STAFF.includes(user.role) && complaint.assigned_authority===user.role && complaint.department===user.department;
+ if(!STAFF.includes(user.role)) return false;
+
+ // Support multi-department appointments via user.assigned_departments or user.authority_assignments
+ const depts = Array.isArray(user.assigned_departments) && user.assigned_departments.length > 0
+  ? user.assigned_departments
+  : (user.department ? [user.department] : []);
+
+ return Boolean(complaint.assigned_authority===user.role && (depts.includes(complaint.department) || (user.department_code && depts.includes(user.department_code))));
 }
 
 export function canAct(user,complaint) { return STAFF.includes(user?.role) && canRead(user,complaint); }

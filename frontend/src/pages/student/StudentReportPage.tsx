@@ -111,11 +111,25 @@ export default function StudentReportPage() {
           {t.student.reportingDesc}
         </p>
 
+        {/* Unverified Student Advisory */}
+        {!user?.is_verified_student && (
+          <div className="alert alert-error" role="status" style={{ marginTop: 'var(--spacing-4)' }}>
+            <div>
+              <strong>Institutional Verification Required</strong>
+              <p style={{ marginTop: 'var(--spacing-1)', fontSize: 'var(--font-size-sm)' }}>
+                You must verify your official student register number before submitting grievances. Please visit your{' '}
+                <Link to="/student" style={{ textDecoration: 'underline', fontWeight: 600 }}>Student Dashboard</Link>{' '}
+                to verify your institutional identity.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Safety Disclaimer Banner */}
         <div
           className="alert alert-warning"
           role="status"
-          style={{ marginTop: 'var(--spacing-6)' }}
+          style={{ marginTop: 'var(--spacing-4)' }}
         >
           <div>
             <strong>{t.student.reportingDisabledAlertTitle}</strong>
@@ -308,9 +322,9 @@ export default function StudentReportPage() {
                 <button
                   type="submit"
                   className="btn btn-primary"
-                  disabled={submitting || (!intakeActive && !loadingConfig)}
+                  disabled={submitting || (!intakeActive && !loadingConfig) || !user?.is_verified_student}
                 >
-                  {submitting ? 'Submitting Report…' : intakeActive ? 'Submit Official Grievance' : 'Intake Paused (Simulation Only)'}
+                  {submitting ? 'Submitting Report…' : !user?.is_verified_student ? 'Verification Required' : intakeActive ? 'Submit Official Grievance' : 'Intake Paused (Simulation Only)'}
                 </button>
                 <Link to="/student" className="btn btn-secondary">
                   {t.student.backToDashboard}

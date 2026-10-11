@@ -10,3 +10,4 @@ COMMAND-X_HackVerse_2026_Final/
 .vercel/
 *.pem
 *.key
+data/

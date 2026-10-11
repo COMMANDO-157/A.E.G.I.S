@@ -318,7 +318,45 @@ export async function recordVerificationDecision(
   return data.complaint;
 }
 
-// ─── Admin ────────────────────────────────────────────────────────────────────
+// ─── Private Evidence API Methods ──────────────────────────────────────────
+
+export interface ApiEvidenceItem {
+  id: string;
+  status: string;
+  createdAt: string;
+  uploaderRole: string;
+  isOwner: boolean;
+}
+
+export async function uploadComplaintEvidence(
+  complaintId: string,
+  payload: { fileName: string; mimeType: string; data: string },
+  signal?: AbortSignal,
+): Promise<{ evidence: { id: string; fileName: string; mimeType: string; sizeBytes: number; status: string; createdAt: string } }> {
+  const opts: RequestOptions = { method: 'POST', body: payload };
+  if (signal !== undefined) opts.signal = signal;
+  return request<{ evidence: any }>(`complaints/${complaintId}/evidence`, opts);
+}
+
+export async function listComplaintEvidence(
+  complaintId: string,
+  signal?: AbortSignal,
+): Promise<ApiEvidenceItem[]> {
+  const opts: RequestOptions = {};
+  if (signal !== undefined) opts.signal = signal;
+  const res = await request<{ evidence: ApiEvidenceItem[] }>(`complaints/${complaintId}/evidence`, opts);
+  return res.evidence;
+}
+
+export async function getEvidenceDownloadToken(
+  complaintId: string,
+  evidenceId: string,
+  signal?: AbortSignal,
+): Promise<{ token: string; expiresInSeconds: number }> {
+  const opts: RequestOptions = { method: 'POST' };
+  if (signal !== undefined) opts.signal = signal;
+  return request<{ token: string; expiresInSeconds: number }>(`complaints/${complaintId}/evidence/${evidenceId}/token`, opts);
+}
 
 export async function listAdminUsers(signal?: AbortSignal): Promise<AdminUser[]> {
   const opts: RequestOptions = {};
@@ -408,4 +446,107 @@ export async function createAdminInvitation(
   const opts: RequestOptions = { method: 'POST', body: payload };
   if (signal !== undefined) opts.signal = signal;
   return request<import('./types').AdminInvitationResponse>('admin/invitations', opts);
+}
+
+// ─── Stage 5.5A: Student Verification & Roster Client Methods ────────────────
+
+export async function getStudentVerificationStatus(
+  signal?: AbortSignal,
+): Promise<import('./types').StudentVerificationStatusResponse> {
+  const opts: RequestOptions = {};
+  if (signal !== undefined) opts.signal = signal;
+  return request<import('./types').StudentVerificationStatusResponse>('student/verification-status', opts);
+}
+
+export async function submitStudentVerificationRequest(
+  payload: import('./types').StudentVerificationRequestPayload,
+  signal?: AbortSignal,
+): Promise<import('./types').StudentVerificationRequestResponse> {
+  const opts: RequestOptions = { method: 'POST', body: payload };
+  if (signal !== undefined) opts.signal = signal;
+  return request<import('./types').StudentVerificationRequestResponse>('student/verification-request', opts);
+}
+
+export async function listAuthorityStudentRequests(
+  signal?: AbortSignal,
+): Promise<import('./types').AuthorityStudentRequestItem[]> {
+  const opts: RequestOptions = {};
+  if (signal !== undefined) opts.signal = signal;
+  const data = await request<{ requests: import('./types').AuthorityStudentRequestItem[] }>('authority/students/requests', opts);
+  return data.requests;
+}
+
+export async function reviewAuthorityStudentRequest(
+  requestId: string,
+  payload: import('./types').AuthorityStudentReviewPayload,
+  signal?: AbortSignal,
+): Promise<{ ok: boolean; decision: string }> {
+  const opts: RequestOptions = { method: 'POST', body: payload };
+  if (signal !== undefined) opts.signal = signal;
+  return request<{ ok: boolean; decision: string }>(`authority/students/requests/${requestId}/review`, opts);
+}
+
+export async function listAdminDepartments(
+  signal?: AbortSignal,
+): Promise<import('./types').AdminDepartmentItem[]> {
+  const opts: RequestOptions = {};
+  if (signal !== undefined) opts.signal = signal;
+  const data = await request<{ departments: import('./types').AdminDepartmentItem[] }>('admin/departments', opts);
+  return data.departments;
+}
+
+export async function createAdminDepartment(
+  payload: { code: string; name: string; stepUpToken: string },
+  signal?: AbortSignal,
+): Promise<import('./types').AdminDepartmentItem> {
+  const opts: RequestOptions = { method: 'POST', body: payload };
+  if (signal !== undefined) opts.signal = signal;
+  const data = await request<{ department: import('./types').AdminDepartmentItem }>('admin/departments', opts);
+  return data.department;
+}
+
+export async function listAdminAuthorities(
+  signal?: AbortSignal,
+): Promise<import('./types').AdminAuthorityAssignmentItem[]> {
+  const opts: RequestOptions = {};
+  if (signal !== undefined) opts.signal = signal;
+  const data = await request<{ assignments: import('./types').AdminAuthorityAssignmentItem[] }>('admin/authorities', opts);
+  return data.assignments;
+}
+
+export async function assignAdminAuthority(
+  payload: { userId: string; departmentCode: string; role: string; stepUpToken: string },
+  signal?: AbortSignal,
+): Promise<void> {
+  const opts: RequestOptions = { method: 'POST', body: payload };
+  if (signal !== undefined) opts.signal = signal;
+  await request<{ ok: boolean }>('admin/authorities/assign', opts);
+}
+
+export async function importRosterBatch(
+  payload: { records: import('./types').RosterRecordInput[]; stepUpToken: string },
+  signal?: AbortSignal,
+): Promise<import('./types').RosterImportResponse> {
+  const opts: RequestOptions = { method: 'POST', body: payload };
+  if (signal !== undefined) opts.signal = signal;
+  return request<import('./types').RosterImportResponse>('admin/roster/import', opts);
+}
+
+export async function listRosterConflicts(
+  signal?: AbortSignal,
+): Promise<import('./types').RosterConflictItem[]> {
+  const opts: RequestOptions = {};
+  if (signal !== undefined) opts.signal = signal;
+  const data = await request<{ conflicts: import('./types').RosterConflictItem[] }>('admin/roster/conflicts', opts);
+  return data.conflicts;
+}
+
+export async function resolveRosterConflict(
+  conflictId: string,
+  payload: { action: 'ACCEPTED_UPDATE' | 'DISCARDED'; notes?: string | undefined; stepUpToken: string },
+  signal?: AbortSignal,
+): Promise<{ ok: boolean; conflictId: string; status: string }> {
+  const opts: RequestOptions = { method: 'POST', body: payload };
+  if (signal !== undefined) opts.signal = signal;
+  return request<{ ok: boolean; conflictId: string; status: string }>(`admin/roster/conflicts/${conflictId}/resolve`, opts);
 }

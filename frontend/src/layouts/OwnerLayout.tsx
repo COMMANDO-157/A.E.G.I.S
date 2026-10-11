@@ -24,6 +24,7 @@ export default function OwnerLayout() {
   const navItems = [
     { to: '/admin', label: t.admin.overviewTitle, end: true, icon: '🏛️' },
     { to: '/admin/users', label: t.admin.usersBadge, icon: '👥' },
+    { to: '/admin/roster-conflicts', label: 'Roster & Conflicts', icon: '📋' },
     { to: '/admin/cases', label: t.admin.casesBadge, icon: '📊' },
     { to: '/admin/audit', label: t.admin.auditBadge, icon: '📜' },
   ];
