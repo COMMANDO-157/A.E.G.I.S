@@ -1,18 +1,20 @@
 -- ==============================================================================
 -- A.E.G.I.S — Production & Staging Runtime Role Provisioning Script
 -- Target Database: aegis
--- Target Role: Parameterized (:runtime_role or aegis_runtime_prod)
+-- Target Role: Parameterized (:runtime_role or aegis_app_runtime)
 -- Security Posture: Strict Least Privilege (DML-only, Append-only Audit, No DDL)
 -- ==============================================================================
 --
 -- INSTRUCTIONS FOR OPERATOR:
 -- 1. Execute strictly as database owner ('neondb_owner') on database 'aegis'.
--- 2. Ensure target runtime role exists with LOGIN and NO administrative privileges.
+-- 2. Ensure target runtime role exists with:
+--      CREATE ROLE aegis_app_runtime WITH LOGIN PASSWORD '...'
+--        NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
 -- 3. Run this script via psql or automated runner.
 --
 DO $$
 DECLARE
-  v_runtime_role text := COALESCE(current_setting('aegis.runtime_role', true), 'aegis_runtime_restricted_test');
+  v_runtime_role text := COALESCE(NULLIF(current_setting('aegis.runtime_role', true), ''), 'aegis_app_runtime');
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = v_runtime_role) THEN
     RAISE EXCEPTION 'Target runtime role % does not exist. Create the role first.', v_runtime_role;
