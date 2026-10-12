@@ -152,6 +152,60 @@ test('Stage 5.5C Storage: Provider-Independent Object Storage & Magic Bytes Sign
     const cloudGet = await cloudProvider.get('private/test-cloud-key.txt');
     assert.equal(cloudGet.toString(), 'Cloud object content');
 
+    // 5b. CloudObjectStorageProvider SigV4 request signing and mock HTTP dispatch validation
+    const mockHttpStore = new Map();
+    const mockFetch = async (url, opts = {}) => {
+      const u = new URL(url);
+      const key = u.pathname;
+      if (opts.method === 'PUT') {
+        mockHttpStore.set(key, opts.body);
+        return { ok: true, status: 200 };
+      }
+      if (opts.method === 'GET') {
+        if (!mockHttpStore.has(key)) return { ok: false, status: 404 };
+        const data = mockHttpStore.get(key);
+        return {
+          ok: true,
+          status: 200,
+          arrayBuffer: async () => data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)
+        };
+      }
+      if (opts.method === 'DELETE') {
+        mockHttpStore.delete(key);
+        return { ok: true, status: 204 };
+      }
+      return { ok: false, status: 405 };
+    };
+
+    const s3Provider = new CloudObjectStorageProvider({
+      bucket: 'test-bucket',
+      endpoint: 'https://r2.cloudflarestorage.com',
+      region: 'auto',
+      accessKeyId: 'TEST_ACCESS_KEY',
+      secretAccessKey: 'TEST_SECRET_ACCESS_KEY_0123456789',
+      allowMock: false,
+      fetchFn: mockFetch
+    });
+
+    const signedHeaders = s3Provider.signRequest({
+      method: 'PUT',
+      url: 'https://r2.cloudflarestorage.com/test-bucket/private/file.txt',
+      body: Buffer.from('sigv4-test-data')
+    });
+    assert.ok(signedHeaders.Authorization.startsWith('AWS4-HMAC-SHA256 Credential=TEST_ACCESS_KEY/'));
+    assert.ok(signedHeaders['x-amz-date']);
+    assert.ok(signedHeaders['x-amz-content-sha256']);
+
+    // Test real dispatch via mock fetch
+    await s3Provider.put('private/evidence-sigv4.bin', Buffer.from('secure-sigv4-bytes'));
+    const sigv4FetchedBuf = await s3Provider.get('private/evidence-sigv4.bin');
+    assert.equal(sigv4FetchedBuf.toString(), 'secure-sigv4-bytes');
+    await s3Provider.delete('private/evidence-sigv4.bin');
+    await assert.rejects(
+      async () => s3Provider.get('private/evidence-sigv4.bin'),
+      /Evidence file not found/
+    );
+
     // 6. Token binding & single-use replay rejection test
     const token = generateEvidenceAccessToken({
       evidenceId: 'test-ev-123',

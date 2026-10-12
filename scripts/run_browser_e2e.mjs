@@ -110,6 +110,28 @@ async function runBrowserTestSuite() {
   console.log('  Browser: Google Chrome (Headless CDP Engine)');
   console.log('========================================================\n');
 
+  // Spawn local API backend
+  const backendProc = spawn('node', ['--env-file=.env', 'server/local.js'], {
+    cwd: process.cwd(),
+    stdio: 'ignore'
+  });
+
+  // Spawn Vite preview server
+  const previewProc = spawn('npx', ['vite', 'preview', '--port', '5173', '--host', '127.0.0.1'], {
+    cwd: 'frontend',
+    stdio: 'ignore',
+    shell: true
+  });
+
+  // Wait for servers to be reachable
+  for (let i = 0; i < 20; i++) {
+    try {
+      const res = await fetch('http://127.0.0.1:5173/');
+      if (res.ok) break;
+    } catch {}
+    await new Promise(r => setTimeout(r, 500));
+  }
+
   const db = new pg.Pool({ ...databaseOptions({ ...process.env, DATABASE_URL: process.env.MIGRATION_DATABASE_URL || process.env.DATABASE_URL }), max: 2, connectionTimeoutMillis: 10000 });
   const chrome = new ChromeSession(9225);
   await chrome.start();
@@ -422,6 +444,8 @@ async function runBrowserTestSuite() {
 
   } finally {
     chrome.close();
+    try { backendProc.kill(); } catch {}
+    try { previewProc.kill(); } catch {}
     // Cleanup synthetic test records
     for (const uid of createdUsers) {
       try {

@@ -148,16 +148,20 @@ export class MemoryMockStorageProvider {
 }
 
 /**
- * Cloud Object Storage Adapter (Compatible with AWS S3, Cloudflare R2, Google Cloud Storage, Neon/Vercel Blob)
- * Operates with standard pre-authenticated or client-based object upload/download SDKs.
+ * Cloud Object Storage Adapter (Compatible with AWS S3, Cloudflare R2, Google Cloud Storage, MinIO)
+ * Operates with standard SigV4 authenticated HTTP requests or in-memory mock when unconfigured.
  */
 export class CloudObjectStorageProvider {
   constructor(options = {}) {
     this.name = 'CloudObjectStorage';
     this.bucket = options.bucket || process.env.EVIDENCE_STORAGE_BUCKET;
     this.endpoint = options.endpoint || process.env.EVIDENCE_STORAGE_ENDPOINT;
+    this.region = options.region || process.env.EVIDENCE_STORAGE_REGION || 'auto';
+    this.accessKeyId = options.accessKeyId || process.env.EVIDENCE_STORAGE_ACCESS_KEY_ID;
+    this.secretAccessKey = options.secretAccessKey || process.env.EVIDENCE_STORAGE_SECRET_ACCESS_KEY;
     this.allowMock = Boolean(options.mockStore || options.allowMock);
     this.mockStore = options.mockStore || (this.allowMock ? new Map() : null);
+    this.fetchFn = options.fetchFn || globalThis.fetch;
   }
 
   async init() {
@@ -166,13 +170,92 @@ export class CloudObjectStorageProvider {
     }
   }
 
+  /**
+   * Helper to construct signed SigV4 headers for an S3-compatible REST API request.
+   */
+  signRequest({ method, url, body = null, headers = {} }) {
+    if (!this.accessKeyId || !this.secretAccessKey) {
+      fail(503, 'Cloud evidence object storage credentials (access key / secret key) not configured.');
+    }
+    const u = new URL(url);
+    const host = u.host;
+    const now = new Date();
+    const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
+    const dateStamp = amzDate.slice(0, 8);
+    const service = 's3';
+    const region = this.region || 'auto';
+
+    const payloadHash = createHash('sha256').update(body || '').digest('hex');
+
+    const canonicalHeaders = [
+      `host:${host}`,
+      `x-amz-content-sha256:${payloadHash}`,
+      `x-amz-date:${amzDate}`
+    ].join('\n') + '\n';
+
+    const signedHeaders = 'host;x-amz-content-sha256;x-amz-date';
+
+    const canonicalRequest = [
+      method,
+      u.pathname,
+      u.search ? u.search.slice(1) : '',
+      canonicalHeaders,
+      signedHeaders,
+      payloadHash
+    ].join('\n');
+
+    const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
+    const stringToSign = [
+      'AWS4-HMAC-SHA256',
+      amzDate,
+      credentialScope,
+      createHash('sha256').update(canonicalRequest).digest('hex')
+    ].join('\n');
+
+    const kDate = createHmac('sha256', 'AWS4' + this.secretAccessKey).update(dateStamp).digest();
+    const kRegion = createHmac('sha256', kDate).update(region).digest();
+    const kService = createHmac('sha256', kRegion).update(service).digest();
+    const kSigning = createHmac('sha256', kService).update('aws4_request').digest();
+    const signature = createHmac('sha256', kSigning).update(stringToSign).digest('hex');
+
+    const authorizationHeader = `AWS4-HMAC-SHA256 Credential=${this.accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+
+    return {
+      ...headers,
+      'host': host,
+      'x-amz-date': amzDate,
+      'x-amz-content-sha256': payloadHash,
+      'Authorization': authorizationHeader
+    };
+  }
+
+  getObjectUrl(key) {
+    const cleanKey = key.replace(/^\/+/, '');
+    if (this.endpoint) {
+      const ep = this.endpoint.replace(/\/+$/, '');
+      return `${ep}/${this.bucket}/${cleanKey}`;
+    }
+    return `https://${this.bucket}.s3.${this.region}.amazonaws.com/${cleanKey}`;
+  }
+
   async put(key, buffer) {
     await this.init();
     if (this.mockStore) {
       this.mockStore.set(key, Buffer.from(buffer));
       return { key, size: buffer.length };
     }
-    fail(503, 'Cloud evidence object storage upload dispatch is unconfigured.');
+    const targetUrl = this.getObjectUrl(key);
+    const headers = this.signRequest({
+      method: 'PUT',
+      url: targetUrl,
+      body: buffer,
+      headers: { 'content-type': 'application/octet-stream' }
+    });
+    const res = await this.fetchFn(targetUrl, { method: 'PUT', headers, body: buffer });
+    if (!res.ok) {
+      fail(502, `Cloud evidence storage upload failed with HTTP status ${res.status}.`);
+    }
+    return { key, size: buffer.length };
   }
 
   async get(key) {
@@ -182,12 +265,37 @@ export class CloudObjectStorageProvider {
       if (!buf) fail(404, 'Evidence file not found in cloud storage.');
       return Buffer.from(buf);
     }
-    fail(503, 'Cloud evidence object storage download dispatch is unconfigured.');
+    const targetUrl = this.getObjectUrl(key);
+    const headers = this.signRequest({
+      method: 'GET',
+      url: targetUrl
+    });
+    const res = await this.fetchFn(targetUrl, { method: 'GET', headers });
+    if (res.status === 404) {
+      fail(404, 'Evidence file not found in cloud storage.');
+    }
+    if (!res.ok) {
+      fail(502, `Cloud evidence storage fetch failed with HTTP status ${res.status}.`);
+    }
+    const arrayBuffer = await res.arrayBuffer();
+    return Buffer.from(arrayBuffer);
   }
 
   async delete(key) {
     if (this.mockStore) {
       this.mockStore.delete(key);
+      return;
+    }
+    if (!this.bucket || !this.accessKeyId) return;
+    try {
+      const targetUrl = this.getObjectUrl(key);
+      const headers = this.signRequest({
+        method: 'DELETE',
+        url: targetUrl
+      });
+      await this.fetchFn(targetUrl, { method: 'DELETE', headers });
+    } catch {
+      // Fail closed or ignore deletion failure on cleanup
     }
   }
 }
