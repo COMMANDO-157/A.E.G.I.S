@@ -245,12 +245,8 @@ test('Stage 5.5C Escalation: Timing Boundaries & Non-Overdue Cases Protected', a
     ['AEG-FRESH-' + rand.slice(-6)]
   )).rows[0];
 
-  try {
-    const cycle = await runEscalationCycle({ dryRun: true });
-    // Verify fresh case is NOT escalated
-    const escalatedFresh = cycle.escalated.find(e => e.id === freshComp.id);
-    assert.equal(escalatedFresh, undefined);
-  } finally {
-    // cleanup
-  }
+  const cycle = await runEscalationCycle({ dryRun: true });
+  // Verify fresh case is NOT escalated
+  const escalatedFresh = cycle.escalated.find(e => e.id === freshComp.id);
+  assert.equal(escalatedFresh, undefined);
 });

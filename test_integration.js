@@ -22,6 +22,11 @@ try{
   const id=randomUUID();users[key]=id;tokens[key]=randomBytes(32).toString('base64url');
   await client.query('INSERT INTO users(id,google_subject_id,email,name,department,role,is_primary_owner) VALUES($1,$2,$3,$4,$5,$6,$7)',[id,'synthetic:'+id,key+'@example.test','FICTIONAL INTEGRATION '+key,department,role,key==='admin']);
   await client.query("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '1 hour')",[digest(tokens[key]),id]);
+  if(role==='student'){
+   const rosterId=randomUUID(),regNum='REG'+Math.floor(100000+Math.random()*900000);
+   await client.query('INSERT INTO student_rosters(id,register_number,institutional_email,full_name,department_code,batch_year,degree_program,bound_user_id,is_active) VALUES($1,$2,$3,$4,$5,$6,$7,$8,true)',[rosterId,regNum,key+'@example.test','FICTIONAL INTEGRATION '+key,'CSE',2026,'B.E.',id]);
+   await client.query('UPDATE users SET roster_id=$1,is_verified_student=true WHERE id=$2',[rosterId,id]);
+  }
  }
  const expired=randomBytes(32).toString('base64url');
  await client.query("INSERT INTO sessions VALUES($1,$2,now()-interval '1 second')",[digest(expired),users.a]);

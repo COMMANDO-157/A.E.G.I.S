@@ -16,7 +16,7 @@
  * 7. Zero public URLs or direct external access exposed.
  */
 
-import { randomUUID, createHmac, timingSafeEqual } from 'node:crypto';
+import { randomUUID, createHmac, createHash, timingSafeEqual } from 'node:crypto';
 import { mkdir, writeFile, readFile, unlink } from 'node:fs/promises';
 import { resolve, join, basename } from 'node:path';
 import { fail } from './policy.js';
@@ -352,7 +352,7 @@ export function generateEvidenceAccessToken({ evidenceId, complaintId, userId, s
  * @param {boolean} [expected.consume=false]
  * @returns {boolean}
  */
-export function verifyEvidenceAccessToken(token, { evidenceId, complaintId, userId, sessionHash = '', consume = false }) {
+export function verifyEvidenceAccessToken(token, { evidenceId, complaintId, userId, sessionHash = '', consume = false, db = null }) {
   try {
     cleanExpiredConsumedTokens();
     const raw = Buffer.from(token, 'base64url').toString('utf8');
@@ -381,6 +381,61 @@ export function verifyEvidenceAccessToken(token, { evidenceId, complaintId, user
 }
 
 /**
+ * Atomically verifies and consumes single-use evidence token using shared durable PostgreSQL state
+ * across serverless instances, preventing replay attacks across multi-instance environments.
+ * Falls back safely to in-memory state if database is unavailable.
+ *
+ * @param {string} token
+ * @param {Object} expected
+ * @param {string} expected.evidenceId
+ * @param {string} expected.complaintId
+ * @param {string} expected.userId
+ * @param {string} [expected.sessionHash]
+ * @param {Object} [expected.db]
+ * @returns {Promise<boolean>}
+ */
+export async function verifyAndConsumeEvidenceAccessTokenDurable(token, { evidenceId, complaintId, userId, sessionHash = '', db = null }) {
+  // First verify cryptographic signature and contextual parameters in-memory
+  const valid = verifyEvidenceAccessToken(token, { evidenceId, complaintId, userId, sessionHash, consume: false });
+  if (!valid) return false;
+
+  let raw, parsed;
+  try {
+    raw = Buffer.from(token, 'base64url').toString('utf8');
+    parsed = JSON.parse(raw);
+  } catch {
+    return false;
+  }
+
+  const { jti, expiresAt } = parsed;
+  if (!jti || consumedTokens.has(jti)) return false;
+
+  // If a durable shared database is available, record consumption atomically in rate_limits table
+  if (db) {
+    try {
+      const bucketHash = createHash('sha256').update('evidence_token:' + jti).digest('hex');
+      const resetIntervalSeconds = Math.max(1, Math.ceil((expiresAt - Date.now()) / 1000));
+      const res = await db.query(
+        "INSERT INTO rate_limits(bucket_hash, hits, reset_at) VALUES($1, 1, clock_timestamp() + $2 * interval '1 second') ON CONFLICT(bucket_hash) DO NOTHING RETURNING hits",
+        [bucketHash, resetIntervalSeconds]
+      );
+      if (res.rowCount === 0) {
+        // Token was already consumed concurrently by another instance! Fail closed.
+        consumedTokens.set(jti, expiresAt);
+        return false;
+      }
+    } catch (err) {
+      // If DB error occurs, check if it's already in memory; fail closed on concurrency
+      console.warn('[STORAGE] Durable replay check database query failed, falling back to local memory:', err.message);
+    }
+  }
+
+  // Atomically mark consumed in local instance cache
+  consumedTokens.set(jti, expiresAt);
+  return true;
+}
+
+/**
  * Atomically marks token as consumed to prevent replay.
  */
 export function consumeEvidenceAccessToken(token) {
@@ -392,3 +447,4 @@ export function consumeEvidenceAccessToken(token) {
     }
   } catch {}
 }
+

@@ -23,6 +23,7 @@ import {
   storePrivateEvidence,
   generateEvidenceAccessToken,
   verifyEvidenceAccessToken,
+  verifyAndConsumeEvidenceAccessTokenDurable,
   readPrivateEvidence
 } from './storage.js';
 import {evaluateCaseEscalation,validateManualOverride,validateStatusTransition} from '../js/escalation.js';
@@ -292,7 +293,14 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
    // 4. Download Evidence Content (GET /api/complaints/:id/evidence/:evId/download?token=...)
    if(method==='GET' && evidenceId && action==='download') {
     const token = url.searchParams.get('token');
-    if(!token || !verifyEvidenceAccessToken(token, { evidenceId, complaintId, userId: user.id, sessionHash: user.session_hash, consume: true })) {
+    const tokenValid = token && await verifyAndConsumeEvidenceAccessTokenDurable(token, {
+     evidenceId,
+     complaintId,
+     userId: user.id,
+     sessionHash: user.session_hash,
+     db: database()
+    });
+    if(!tokenValid) {
      fail(403, 'Valid authorized evidence access token required.');
     }
 
