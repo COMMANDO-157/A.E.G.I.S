@@ -300,14 +300,30 @@ export class CloudObjectStorageProvider {
   }
 }
 
-// Active storage provider singleton (defaults to LocalDiskStorageProvider for local dev)
-let activeProvider = new LocalDiskStorageProvider();
+// Active storage provider singleton (defaults to CloudObjectStorageProvider if EVIDENCE_STORAGE_BUCKET is present or in production, else LocalDiskStorageProvider for local dev)
+let activeProvider = null;
+
+export function initializeDefaultStorageProvider(env = process.env) {
+  if (env.EVIDENCE_STORAGE_BUCKET) {
+    return new CloudObjectStorageProvider({
+      bucket: env.EVIDENCE_STORAGE_BUCKET,
+      endpoint: env.EVIDENCE_STORAGE_ENDPOINT,
+      region: env.EVIDENCE_STORAGE_REGION || 'auto',
+      accessKeyId: env.EVIDENCE_STORAGE_ACCESS_KEY_ID,
+      secretAccessKey: env.EVIDENCE_STORAGE_SECRET_ACCESS_KEY,
+    });
+  }
+  return new LocalDiskStorageProvider();
+}
 
 export function setStorageProvider(provider) {
   activeProvider = provider;
 }
 
 export function getStorageProvider() {
+  if (!activeProvider) {
+    activeProvider = initializeDefaultStorageProvider();
+  }
   return activeProvider;
 }
 
@@ -359,7 +375,7 @@ export async function storePrivateEvidence({ complaintId, userId, mimeType, file
   const objectKey = `private/${fileId}${ext}`;
 
   // Store through provider adapter
-  await activeProvider.put(objectKey, buffer);
+  await getStorageProvider().put(objectKey, buffer);
 
   // Sanitize filename to alphanumeric and safe punctuation
   const safeBaseName = basename(fileName || `${fileId}${ext}`).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 255);
@@ -385,7 +401,7 @@ export async function readPrivateEvidence(fileReference) {
   if (cleanKey.includes('..') || cleanKey.includes('/') || cleanKey.includes('\\')) {
     fail(403, 'Path traversal rejected.');
   }
-  return await activeProvider.get(fileReference);
+  return await getStorageProvider().get(fileReference);
 }
 
 /**
