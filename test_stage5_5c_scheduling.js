@@ -23,6 +23,7 @@ import { runEscalationCycle } from './server/escalation-worker.js';
 import {
   setStorageProvider,
   getStorageProvider,
+  initializeDefaultStorageProvider,
   LocalDiskStorageProvider,
   MemoryMockStorageProvider,
   CloudObjectStorageProvider,
@@ -228,6 +229,27 @@ test('Stage 5.5C Storage: Provider-Independent Object Storage & Magic Bytes Sign
       userId: 'test-usr-789',
       sessionHash: 'sess-abc'
     }), false);
+
+    // 7. Security requirement: Production environment MUST fail closed if cloud storage is unconfigured
+    const prodUnconfigured = initializeDefaultStorageProvider({ NODE_ENV: 'production' });
+    assert.equal(prodUnconfigured.name, 'CloudObjectStorage');
+    await assert.rejects(
+      async () => prodUnconfigured.init(),
+      /Cloud evidence object storage is not configured/
+    );
+
+    // Development environment defaults safely to LocalDiskStorageProvider
+    const devStorage = initializeDefaultStorageProvider({ NODE_ENV: 'development' });
+    assert.equal(devStorage.name, 'LocalDiskStorage');
+
+    // Configured cloud storage returns CloudObjectStorageProvider
+    const configuredCloud = initializeDefaultStorageProvider({
+      EVIDENCE_STORAGE_BUCKET: 'prod-bucket',
+      EVIDENCE_STORAGE_ACCESS_KEY_ID: 'key',
+      EVIDENCE_STORAGE_SECRET_ACCESS_KEY: 'secret'
+    });
+    assert.equal(configuredCloud.name, 'CloudObjectStorage');
+    assert.equal(configuredCloud.bucket, 'prod-bucket');
 
   } finally {
     setStorageProvider(originalProvider);

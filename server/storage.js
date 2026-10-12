@@ -20,6 +20,7 @@ import { randomUUID, createHmac, createHash, timingSafeEqual } from 'node:crypto
 import { mkdir, writeFile, readFile, unlink } from 'node:fs/promises';
 import { resolve, join, basename } from 'node:path';
 import { fail } from './policy.js';
+import { production } from './config.js';
 
 const STORAGE_ROOT = resolve(process.cwd(), 'data', 'evidence', 'private');
 export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -165,7 +166,7 @@ export class CloudObjectStorageProvider {
   }
 
   async init() {
-    if (!this.bucket && !this.allowMock) {
+    if (!this.allowMock && (!this.bucket || !this.accessKeyId || !this.secretAccessKey)) {
       fail(503, 'Cloud evidence object storage is not configured (missing bucket/credentials).');
     }
   }
@@ -311,6 +312,13 @@ export function initializeDefaultStorageProvider(env = process.env) {
       region: env.EVIDENCE_STORAGE_REGION || 'auto',
       accessKeyId: env.EVIDENCE_STORAGE_ACCESS_KEY_ID,
       secretAccessKey: env.EVIDENCE_STORAGE_SECRET_ACCESS_KEY,
+    });
+  }
+  // Mandatory security requirement: In production, local disk fallback is forbidden.
+  // Must fail closed with CloudObjectStorageProvider (which rejects calls when unconfigured).
+  if (production(env)) {
+    return new CloudObjectStorageProvider({
+      allowMock: false,
     });
   }
   return new LocalDiskStorageProvider();
