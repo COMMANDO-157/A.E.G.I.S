@@ -2,7 +2,61 @@ import {readFile,readdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import pg from 'pg';
 import {databaseOptions} from '../server/config.js';
-const pool=new pg.Pool({...databaseOptions({...process.env,DATABASE_URL:process.env.MIGRATION_DATABASE_URL||process.env.DATABASE_URL}),connectionTimeoutMillis:10000,statement_timeout:30000,max:1});
+const isProduction = process.env.NODE_ENV === 'production' || process.env.TARGET_ENV === 'production';
+const rawConn = process.env.MIGRATION_DATABASE_URL || (!isProduction ? process.env.DATABASE_URL : null);
+
+if (!rawConn) {
+  if (isProduction) {
+    console.error('Target safety violation: Production migration requires MIGRATION_DATABASE_URL to be explicitly configured.');
+  } else {
+    console.error('Database connection not configured. Specify MIGRATION_DATABASE_URL or DATABASE_URL.');
+  }
+  process.exit(1);
+}
+
+// Target parameter validation
+let parsedUrl;
+try {
+  parsedUrl = new URL(rawConn);
+} catch {
+  console.error('Malformed connection string provided.');
+  process.exit(1);
+}
+
+// In production, enforce explicit hostname and database confirmation
+if (isProduction) {
+  const expectedHost = process.env.EXPECTED_PRODUCTION_HOST;
+  const expectedDb = process.env.EXPECTED_PRODUCTION_DB || 'aegis';
+  const expectedUser = process.env.EXPECTED_PRODUCTION_USER || 'neondb_owner';
+
+  if (!expectedHost) {
+    console.error('Target safety violation: Production migration requires EXPECTED_PRODUCTION_HOST to be explicitly confirmed.');
+    process.exit(1);
+  }
+
+  if (parsedUrl.hostname.toLowerCase() !== expectedHost.toLowerCase()) {
+    console.error(`Target mismatch: Target hostname does not match independently confirmed EXPECTED_PRODUCTION_HOST (${expectedHost}).`);
+    process.exit(1);
+  }
+
+  const dbName = parsedUrl.pathname.replace(/^\//, '');
+  if (dbName !== expectedDb) {
+    console.error(`Target mismatch: Target database (${dbName}) does not match expected (${expectedDb}).`);
+    process.exit(1);
+  }
+
+  if (parsedUrl.username !== expectedUser) {
+    console.error(`Target mismatch: Target user (${parsedUrl.username}) does not match expected (${expectedUser}).`);
+    process.exit(1);
+  }
+}
+
+const pool = new pg.Pool({
+  ...databaseOptions({ ...process.env, DATABASE_URL: rawConn }),
+  connectionTimeoutMillis: 10000,
+  statement_timeout: 30000,
+  max: 1
+});
 let client;
 try {
  client=await pool.connect();
