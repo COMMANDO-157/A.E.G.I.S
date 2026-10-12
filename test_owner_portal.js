@@ -4,7 +4,7 @@ import http from 'node:http';
 import {randomBytes} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {beginOwnerEntry,finishOwnerEntry,requireOwnerGrant,designatedOwner} from './server/owner-portal.js';
-import {sendOwnerOtp} from './server/owner-email.js';
+import {sendOwnerOtp,checkOwnerEmailProvider} from './server/owner-email.js';
 import {hashActionPin,encryptSecret,generateTotpSecret,computeTotp} from './server/crypto.js';
 import {digest} from './server/auth.js';
 import {createHandler} from './server/handler.js';
@@ -160,6 +160,12 @@ test('Resend domain must be verified and match the configured sender before emai
   calls.push({url,options});return {ok:true,json:async()=>url.includes('/domains/')?{name:'campus.test',status:'verified'}:{id:'message-id'}};
  });
  assert.equal(calls.length,2);assert.deepEqual(JSON.parse(calls[1].options.body).to,['owner@campus.test']);
+ const readOnlyCalls=[];
+ const preflight=await checkOwnerEmailProvider(async(url,options)=>{
+  readOnlyCalls.push({url,options});return {ok:true,json:async()=>({name:'campus.test',status:'verified'})};
+ });
+ assert.equal(preflight.emailSent,false);assert.equal(readOnlyCalls.length,1);
+ assert.ok(readOnlyCalls[0].url.includes('/domains/'));assert.equal(readOnlyCalls[0].options.method,undefined);
 });
 test('Direct owner/admin API requests cannot bypass entry, change the PIN, or replace enrolled MFA',async()=>{
  const f=fixture();const server=http.createServer(createHandler({sessionUser:async()=>f.user,logout:async()=>{}},{database:()=>f.db,transaction:f.deps.transaction},{consumeRateLimit:async()=>({})}));

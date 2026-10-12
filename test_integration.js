@@ -34,6 +34,12 @@ try{
  for(const [key,who,department,severity,tier]of [['a','a',dept,'Low','HOD'],['b','b',dept,'Low','HOD'],['other','b',otherDept,'Low','HOD'],['critical','a',dept,'Critical','Higher Authority']]){
   await client.query("INSERT INTO complaints(id,reference_id,owner_user_id,case_id,department,category,description,severity,urgency,assigned_authority) VALUES($1,$2,$3,$4,$5,'General Campus Grievance','FICTIONAL integration scenario only. No actual allegation.',$6,'Routine',$7)",[ids[key],'SYNTHETIC-'+randomUUID(),users[who],randomUUID(),department,severity,tier]);
  }
+ // Synthetic SQL fixture represents an owner who has already completed entry.
+ // Separate owner tests exercise PIN/OTP issuance; no real owner or email is used.
+ tokens.ownerPortal=randomBytes(32).toString('base64url');
+ process.env.PRIMARY_OWNER_USER_ID=users.admin;process.env.PRIMARY_OWNER_EMAIL='admin@example.test';
+ await client.query('UPDATE users SET mfa_enrolled=true,action_pin_hash=$1,action_pin_salt=$2,action_pin_set_at=now() WHERE id=$3',[randomBytes(64).toString('hex'),randomBytes(16).toString('hex'),users.admin]);
+ await client.query("INSERT INTO owner_portal_grants(token_hash,user_id,session_hash,pin_set_at,expires_at) SELECT $1,id,$2,action_pin_set_at,now()+interval '10 minutes' FROM users WHERE id=$3",[digest(tokens.ownerPortal),digest(tokens.admin),users.admin]);
  await client.query('SET LOCAL ROLE aegis_runtime');
  let txSerial=0;
  const tx=async fn=>{const save='api_'+(++txSerial);await client.query('SAVEPOINT '+save);try{const out=await fn(client);await client.query('RELEASE SAVEPOINT '+save);return out;}catch(e){await client.query('ROLLBACK TO SAVEPOINT '+save);await client.query('RELEASE SAVEPOINT '+save);throw e;}};
@@ -42,7 +48,7 @@ try{
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  const origin='http://127.0.0.1:'+server.address().port;
  delete process.env.VERCEL;process.env.NODE_ENV='test';process.env.APP_ORIGIN=origin;process.env.GOOGLE_CLIENT_ID='123-integration.apps.googleusercontent.com';process.env.LIVE_INTAKE_ENABLED='true';
- const request=(who,path,method='GET',data,extra={})=>fetch(origin+'/api/'+path,{method,headers:{Cookie:'aegis_session='+tokens[who],...(method!=='GET'?{Origin:origin,'Content-Type':'application/json'}:{}),...extra},body:data===undefined?undefined:JSON.stringify(data)});
+ const request=(who,path,method='GET',data,extra={})=>fetch(origin+'/api/'+path,{method,headers:{Cookie:'aegis_session='+tokens[who],...(who==='admin'?{'X-Aegis-Owner-Grant':tokens.ownerPortal}:{}),...(method!=='GET'?{Origin:origin,'Content-Type':'application/json'}:{}),...extra},body:data===undefined?undefined:JSON.stringify(data)});
  const payload={category:'General Campus Grievance',description:'FICTIONAL integration scenario only; no actual incident.',identityMode:'anonymous',riskFlags:{}};
  await run('Real client connection uses verified TLS',async()=>{assert.equal(client.connection.stream.encrypted,true);assert.equal(client.connection.stream.authorized,true);});
  await run('Runtime role cannot create databases or roles',async()=>{const r=await client.query("SELECT rolcreatedb,rolcreaterole,rolsuper FROM pg_roles WHERE rolname=current_user");assert.deepEqual(r.rows[0],{rolcreatedb:false,rolcreaterole:false,rolsuper:false});});
@@ -57,6 +63,7 @@ try{
  await run('Higher Authority can access lower tiers under policy',async()=>assert.equal((await request('higher','complaints/'+ids.a)).status,200));
  await run('Student administrator endpoint rejected',async()=>assert.equal((await request('a','admin/users')).status,403));
  await run('Trusted synthetic administrator can list accounts',async()=>assert.equal((await request('admin','admin/users')).status,200));
+ await run('Owner session without portal grant cannot list accounts',async()=>assert.equal((await request('admin','admin/users','GET',undefined,{'X-Aegis-Owner-Grant':''})).status,403));
  await run('Cross-owner case linking rejected',async()=>assert.equal((await request('a','complaints','POST',{...payload,linkedComplaintId:ids.b})).status,404));
  await run('Forged complaint ownership fields rejected',async()=>assert.equal((await request('a','complaints','POST',{...payload,owner_user_id:users.b})).status,422));
  await run('Owned second report escalates linked case to Dean',async()=>{const r=await request('a','complaints','POST',{...payload,linkedComplaintId:ids.a});assert.equal(r.status,201);assert.equal((await r.json()).complaint.assigned_authority,'Dean');const original=await client.query('SELECT assigned_authority FROM complaints WHERE id=$1',[ids.a]);assert.equal(original.rows[0].assigned_authority,'Dean');});

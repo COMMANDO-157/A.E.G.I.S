@@ -164,7 +164,7 @@ export async function verifyStepUpToken(userId, purpose, token, db, sessionHash=
  let sql = 'DELETE FROM step_up_tokens WHERE token_hash=$1 AND user_id=$2 AND purpose=$3 AND expires_at>now()';
  const params = [digest(token), userId, purpose];
  if(sessionHash) {
-  sql += ' AND (session_hash=$4 OR session_hash IS NULL)';
+  sql += ' AND session_hash=$4';
   params.push(sessionHash);
  }
  sql += ' RETURNING token_hash';

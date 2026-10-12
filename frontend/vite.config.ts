@@ -1,6 +1,22 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
+import { realpathSync } from 'node:fs';
+
+// Some Windows sandbox hosts permit file reads but reject native realpath.
+// Use Vite's supported path-preservation option only for that exact condition.
+// Ordinary permission failures still propagate; no ACL or security setting changes.
+let preserveWindowsPaths = false;
+if (process.platform === 'win32') {
+  const entry = resolve(__dirname, 'src/main.tsx');
+  try { realpathSync.native(entry); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EPERM') throw error;
+    realpathSync(entry); // Must still be accessible through standard resolution.
+    preserveWindowsPaths = true;
+    console.warn('Native Windows path resolution unavailable; using original file paths.');
+  }
+}
 
 /**
  * A.E.G.I.S 4.0 — Vite Configuration
@@ -19,6 +35,8 @@ export default defineConfig({
   plugins: [react()],
 
   resolve: {
+    preserveSymlinks: preserveWindowsPaths,
+    dedupe: preserveWindowsPaths ? ['react', 'react-dom', 'react-router', 'react-router-dom'] : [],
     alias: {
       '@': resolve(__dirname, 'src'),
     },

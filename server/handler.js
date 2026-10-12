@@ -559,7 +559,8 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
     await transaction(async db=>{
      // Store encrypted secret in staging or directly with mfa_enrolled=false
      await db.query('UPDATE users SET mfa_secret_encrypted=$1,mfa_enrolled=false WHERE id=$2',[encrypted, user.id]);
-     await db.query('DELETE FROM mfa_recovery_codes WHERE user_id=$1',[user.id]);
+     // Runtime deliberately cannot delete recovery history; revoke old codes instead.
+     await db.query('UPDATE mfa_recovery_codes SET used=true,used_at=now() WHERE user_id=$1 AND used=false',[user.id]);
      for(const h of hashedCodes) {
       await db.query('INSERT INTO mfa_recovery_codes(user_id,code_hash) VALUES($1,$2)',[user.id, h]);
      }

@@ -1,5 +1,7 @@
 # A.E.G.I.S owner portal continuation — 12 October 2026
 
+Latest status: see **PRODUCTION_READINESS.md**. Production access is now verified through the newly connected Neon integration; a current recovery branch has been created and checked, migration grants/dependencies are corrected locally, native integration tests pass, and the ordinary Windows build succeeds. The sections below retain the earlier checkpoint's findings and are superseded where the readiness report states otherwise.
+
 ## Completed
 
 - Pushed the exact requested commit `317ec2305e073d55cc61eae95084cb48884aa977` to `origin/stage-4.2`; verified the remote ref afterward.

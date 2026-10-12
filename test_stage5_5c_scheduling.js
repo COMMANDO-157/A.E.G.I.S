@@ -313,12 +313,14 @@ test('Stage 5.5C Escalation: Timing Boundaries & Non-Overdue Cases Protected', a
   const db = database();
   const rand = Date.now().toString();
 
+  const reporter=(await db.query("INSERT INTO users(google_subject_id,email,name) VALUES($1,$2,'Synthetic scheduling reporter') RETURNING id",['scheduling_'+rand,'scheduling.'+rand+'@example.test'])).rows[0];
+
   // Create complaint that is fresh (created now, < 48 hours)
   const freshComp = (await db.query(
     `INSERT INTO complaints(reference_id, owner_user_id, case_id, department, category, description, identity_mode, severity, urgency, assigned_authority, status, updated_at)
-     VALUES($1, (SELECT id FROM users LIMIT 1), gen_random_uuid(), 'Computer Science & Engineering', 'General Campus Grievance', 'Recent complaint that must not be prematurely escalated.', 'standard', 'Moderate', 'Routine', 'HOD', 'Pending', now() - interval '24 hours')
+     VALUES($1, $2, gen_random_uuid(), 'Computer Science & Engineering', 'General Campus Grievance', 'Recent complaint that must not be prematurely escalated.', 'standard', 'Moderate', 'Routine', 'HOD', 'Pending', now() - interval '24 hours')
      RETURNING *`,
-    ['AEG-FRESH-' + rand.slice(-6)]
+    ['AEG-FRESH-' + rand.slice(-6),reporter.id]
   )).rows[0];
 
   const cycle = await runEscalationCycle({ dryRun: true });

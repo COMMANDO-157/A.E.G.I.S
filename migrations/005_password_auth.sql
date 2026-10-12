@@ -1,5 +1,6 @@
 -- A.E.G.I.S 4.0 — Migration 005: Dual Authentication (Password & Account Linking) & Password Reset
--- Non-destructive, reversible, strict least-privilege compatible.
+-- Non-destructive, strict least-privilege compatible. Rollback after password-only
+-- accounts exist requires a reviewed data-preserving recovery plan.
 -- Preserves existing tables, constraints, triggers, and append-only audit log rules.
 
 BEGIN;
@@ -45,5 +46,15 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
 );
 
 CREATE INDEX IF NOT EXISTS password_reset_tokens_lookup_idx ON password_reset_tokens(token_hash) WHERE used = false;
+
+-- Ephemeral reset state requires DML and TTL cleanup, never DDL or TRUNCATE.
+-- Scoped to this new table; do not run the full provisioning script before 006.
+REVOKE ALL ON TABLE public.password_reset_tokens FROM PUBLIC;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='aegis_app_runtime') THEN
+    REVOKE ALL ON TABLE public.password_reset_tokens FROM aegis_app_runtime;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.password_reset_tokens TO aegis_app_runtime;
+  END IF;
+END $$;
 
 COMMIT;
