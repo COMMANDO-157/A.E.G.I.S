@@ -21,6 +21,8 @@ export function canRead(user,complaint) {
  if(user.role==='admin'||user.role==='Higher Authority') return true;
  if(!STAFF.includes(user.role)) return false;
 
+ if(user.role==='Dean') return complaint.assigned_authority==='Dean';
+
  // Support multi-department appointments via user.assigned_departments or user.authority_assignments
  const depts = Array.isArray(user.assigned_departments) && user.assigned_departments.length > 0
   ? user.assigned_departments

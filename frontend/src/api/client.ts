@@ -205,6 +205,9 @@ export async function requestAuthChallenge(
 /**
  * Authenticate with backend using verified Google credential and active challenge nonce cookie.
  */
+/**
+ * Authenticate with backend using verified Google credential and active challenge nonce cookie.
+ */
 export async function loginWithGoogle(
   credential: string,
   signal?: AbortSignal,
@@ -212,6 +215,66 @@ export async function loginWithGoogle(
   const opts: RequestOptions = { method: 'POST', body: { credential } };
   if (signal !== undefined) opts.signal = signal;
   return request<{ user: ApiUser }>('auth/google', opts);
+}
+
+/**
+ * Authenticate with backend using institutional email and password.
+ */
+export async function loginWithPassword(
+  payload: { email: string; password: string },
+  signal?: AbortSignal,
+): Promise<{ user: ApiUser }> {
+  const opts: RequestOptions = { method: 'POST', body: payload };
+  if (signal !== undefined) opts.signal = signal;
+  return request<{ user: ApiUser }>('auth/login-password', opts);
+}
+
+/**
+ * Register a new student account using institutional credentials.
+ */
+export async function registerStudent(
+  payload: { email: string; password: string; name: string; department: string },
+  signal?: AbortSignal,
+): Promise<{ user: ApiUser }> {
+  const opts: RequestOptions = { method: 'POST', body: payload };
+  if (signal !== undefined) opts.signal = signal;
+  return request<{ user: ApiUser }>('auth/register', opts);
+}
+
+/**
+ * Request single-use password reset token.
+ */
+export async function requestPasswordReset(
+  email: string,
+  signal?: AbortSignal,
+): Promise<{ message: string; resetToken?: string }> {
+  const opts: RequestOptions = { method: 'POST', body: { email } };
+  if (signal !== undefined) opts.signal = signal;
+  return request<{ message: string; resetToken?: string }>('auth/password-reset/request', opts);
+}
+
+/**
+ * Confirm password reset using valid token and new strong password.
+ */
+export async function confirmPasswordReset(
+  payload: { token: string; newPassword: string },
+  signal?: AbortSignal,
+): Promise<{ ok: boolean; message: string }> {
+  const opts: RequestOptions = { method: 'POST', body: payload };
+  if (signal !== undefined) opts.signal = signal;
+  return request<{ ok: boolean; message: string }>('auth/password-reset/confirm', opts);
+}
+
+/**
+ * Authenticated linking of Google identity to active account session.
+ */
+export async function linkGoogleAccount(
+  credential: string,
+  signal?: AbortSignal,
+): Promise<{ user: ApiUser; ok: boolean }> {
+  const opts: RequestOptions = { method: 'POST', body: { credential } };
+  if (signal !== undefined) opts.signal = signal;
+  return request<{ user: ApiUser; ok: boolean }>('me/link-google', opts);
 }
 
 /**

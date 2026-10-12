@@ -12,8 +12,11 @@ import { AuthProvider } from '@/context/AuthContext';
 import { LocaleProvider } from '@/context/LocaleContext';
 import {
   StudentRoute,
-  AuthorityRoute,
+  HodRoute,
+  DeanRoute,
+  HigherAuthorityRoute,
   AdminRoute,
+  OwnerRoute,
   GuestRoute,
 } from '@/routes/ProtectedRoutes';
 import { AccessDeniedScreen } from '@/components/auth/AuthScreens';
@@ -21,8 +24,11 @@ import { AccessDeniedScreen } from '@/components/auth/AuthScreens';
 // Layouts
 import PublicLayout from '@/layouts/PublicLayout';
 import StudentLayout from '@/layouts/StudentLayout';
+import HodLayout from '@/layouts/HodLayout';
+import DeanLayout from '@/layouts/DeanLayout';
 import AuthorityLayout from '@/layouts/AuthorityLayout';
 import OwnerLayout from '@/layouts/OwnerLayout';
+import PrimaryOwnerLayout from '@/layouts/PrimaryOwnerLayout';
 
 // Public Pages
 import LandingPage from '@/pages/LandingPage';
@@ -117,8 +123,42 @@ export default function App() {
               </Route>
             </Route>
 
-            {/* Protected Authority Portal */}
-            <Route element={<AuthorityRoute />}>
+            {/* 1. Protected Student Portal (/student) */}
+            <Route element={<StudentRoute />}>
+              <Route path="/student" element={<StudentLayout />}>
+                <Route index element={<StudentDashboardPage />} />
+                <Route path="dashboard" element={<Navigate to="/student" replace />} />
+                <Route path="report" element={<StudentReportPage />} />
+                <Route path="track" element={<StudentTrackPage />} />
+                <Route path="cases" element={<Navigate to="/student/track" replace />} />
+                <Route path="profile" element={<Navigate to="/student" replace />} />
+              </Route>
+            </Route>
+
+            {/* 2. Protected Head of Department Portal (/hod) */}
+            <Route element={<HodRoute />}>
+              <Route path="/hod" element={<HodLayout />}>
+                <Route index element={<AuthorityDashboardPage />} />
+                <Route path="dashboard" element={<Navigate to="/hod" replace />} />
+                <Route path="cases" element={<AuthorityCasesPage />} />
+                <Route path="students" element={<AuthorityStudentsPage />} />
+                <Route path="review" element={<AuthorityReviewPage />} />
+              </Route>
+            </Route>
+
+            {/* 3. Protected Dean Portal (/dean) */}
+            <Route element={<DeanRoute />}>
+              <Route path="/dean" element={<DeanLayout />}>
+                <Route index element={<AuthorityDashboardPage />} />
+                <Route path="dashboard" element={<Navigate to="/dean" replace />} />
+                <Route path="cases" element={<AuthorityCasesPage />} />
+                <Route path="students" element={<AuthorityStudentsPage />} />
+                <Route path="review" element={<AuthorityReviewPage />} />
+              </Route>
+            </Route>
+
+            {/* 4. Protected Higher Authority Portal (/authority) */}
+            <Route element={<HigherAuthorityRoute />}>
               <Route path="/authority" element={<AuthorityLayout />}>
                 <Route index element={<AuthorityDashboardPage />} />
                 <Route path="dashboard" element={<Navigate to="/authority" replace />} />
@@ -129,17 +169,21 @@ export default function App() {
               </Route>
             </Route>
 
-            {/* Protected Owner / Admin Portal */}
+            {/* 5. Protected Delegated Administrator Portal (/admin) */}
             <Route element={<AdminRoute />}>
               <Route path="/admin" element={<OwnerLayout />}>
                 <Route index element={<AdminOverviewPage />} />
+                <Route path="dashboard" element={<Navigate to="/admin" replace />} />
                 <Route path="users" element={<AdminUsersPage />} />
                 <Route path="roster-conflicts" element={<AdminRosterConflictsPage />} />
                 <Route path="cases" element={<AdminCasesPage />} />
                 <Route path="audit" element={<AdminAuditPage />} />
               </Route>
-              {/* Protected /owner aliases — identical security boundary */}
-              <Route path="/owner" element={<OwnerLayout />}>
+            </Route>
+
+            {/* 6. Protected Primary Owner Portal (/owner) */}
+            <Route element={<OwnerRoute />}>
+              <Route path="/owner" element={<PrimaryOwnerLayout />}>
                 <Route index element={<AdminOverviewPage />} />
                 <Route path="dashboard" element={<Navigate to="/owner" replace />} />
                 <Route path="users" element={<AdminUsersPage />} />

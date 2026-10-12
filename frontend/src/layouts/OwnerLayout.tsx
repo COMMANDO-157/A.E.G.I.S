@@ -21,13 +21,20 @@ export default function OwnerLayout() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const navItems = [
-    { to: '/admin', label: t.admin.overviewTitle, end: true, icon: '🏛️' },
-    { to: '/admin/users', label: t.admin.usersBadge, icon: '👥' },
-    { to: '/admin/roster-conflicts', label: 'Roster & Conflicts', icon: '📋' },
-    { to: '/admin/cases', label: t.admin.casesBadge, icon: '📊' },
-    { to: '/admin/audit', label: t.admin.auditBadge, icon: '📜' },
+  const allNavItems = [
+    { to: '/admin', label: t.admin.overviewTitle, end: true, icon: '🏛️', permission: null },
+    { to: '/admin/users', label: t.admin.usersBadge, icon: '👥', permission: 'users.read' },
+    { to: '/admin/roster-conflicts', label: 'Roster & Conflicts', icon: '📋', permission: 'roster.conflicts.manage' },
+    { to: '/admin/cases', label: t.admin.casesBadge, icon: '📊', permission: null },
+    { to: '/admin/audit', label: t.admin.auditBadge, icon: '📜', permission: 'audit.read' },
   ];
+
+  const userPerms = Array.isArray(user?.permissions) ? user.permissions : [];
+  const navItems = allNavItems.filter((item) => {
+    if (!item.permission) return true;
+    if (user?.is_primary_owner) return true;
+    return userPerms.includes(item.permission as any);
+  });
 
   const handleLogout = async () => {
     await logout();

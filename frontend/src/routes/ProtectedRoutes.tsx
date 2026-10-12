@@ -116,41 +116,72 @@ export function ProtectedRoute() {
   return <Guard />;
 }
 
-/** Students only */
+/** 1. Students only (/student) */
 export function StudentRoute() {
   return <Guard allowedRoles={['student']} requiredRoleName="Student" />;
 }
 
-/** Authority tiers: HOD, Dean, Higher Authority */
+/** 2. Head of Department only (/hod) */
+export function HodRoute() {
+  return <Guard allowedRoles={['HOD']} requiredRoleName="Head of Department" />;
+}
+
+/** 3. Dean only (/dean) */
+export function DeanRoute() {
+  return <Guard allowedRoles={['Dean']} requiredRoleName="Dean of Students" />;
+}
+
+/** 4. Higher Authority only (/authority) */
+export function HigherAuthorityRoute() {
+  return <Guard allowedRoles={['Higher Authority']} requiredRoleName="Higher Authority" />;
+}
+
+/** Shared Authority guard for multi-tier authority workspace views */
 export function AuthorityRoute() {
   return (
     <Guard
       allowedRoles={['HOD', 'Dean', 'Higher Authority']}
-      requiredRoleName="Authority Tier (HOD, Dean, or Senior Authority)"
+      requiredRoleName="Authority Tier (HOD, Dean, or Higher Authority)"
     />
   );
 }
 
-/** Admin / Owner only */
+/** 5. Delegated Administrator (/admin) */
 export function AdminRoute() {
   return (
     <Guard
       allowedRoles={['admin']}
-      requiredRoleName="Institutional Administrator / Owner"
+      requiredRoleName="Institutional Administrator"
     />
   );
 }
 
-/** OwnerRoute — alias for AdminRoute enforcing verified admin role */
+/** 6. Primary Owner strictly (/owner) — requires admin role AND is_primary_owner flag */
 export function OwnerRoute() {
-  return <AdminRoute />;
+  const { user } = useAuth();
+  if (user && user.role === 'admin' && !user.is_primary_owner) {
+    // Delegated admin trying to access primary owner portal is rejected
+    return <AccessDeniedScreen requiredRole="Primary Owner Clearance" userRole={user.role} />;
+  }
+  return (
+    <Guard
+      allowedRoles={['admin']}
+      requiredRoleName="Primary Owner"
+    />
+  );
 }
 
 // ─── Guest Route ──────────────────────────────────────────────────────────────
 
 /**
  * GuestRoute — ensures unauthenticated access only.
- * Redirects authenticated users to their authorized portal.
+ * Redirects authenticated users to their specific authorized portal:
+ * /owner for Primary Owner
+ * /admin for Delegated Admin
+ * /hod for Head of Department
+ * /dean for Dean
+ * /authority for Higher Authority
+ * /student for Student
  */
 export function GuestRoute() {
   const { status, user, logout } = useAuth();
@@ -165,10 +196,18 @@ export function GuestRoute() {
     }
 
     if (user.role === 'admin') {
-      return <Navigate to="/admin" replace />;
+      return <Navigate to={user.is_primary_owner ? '/owner' : '/admin'} replace />;
     }
 
-    if (['HOD', 'Dean', 'Higher Authority'].includes(user.role)) {
+    if (user.role === 'HOD') {
+      return <Navigate to="/hod" replace />;
+    }
+
+    if (user.role === 'Dean') {
+      return <Navigate to="/dean" replace />;
+    }
+
+    if (user.role === 'Higher Authority') {
       return <Navigate to="/authority" replace />;
     }
 

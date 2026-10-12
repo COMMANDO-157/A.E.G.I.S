@@ -53,8 +53,8 @@ BEGIN
   EXECUTE format('REVOKE DELETE, TRUNCATE ON TABLE users, complaints, student_rosters, student_verification_requests, authority_assignments, roster_import_conflicts, admin_invitations, mfa_recovery_codes FROM %I', v_runtime_role);
 
   -- 8. Ephemeral State, Sessions & Quotas (Full DML for TTL Pruning & Consumption)
-  EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE sessions, auth_challenges, rate_limits, admin_permissions, step_up_tokens TO %I', v_runtime_role);
-  EXECUTE format('REVOKE TRUNCATE ON TABLE sessions, auth_challenges, rate_limits, admin_permissions, step_up_tokens FROM %I', v_runtime_role);
+  EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE sessions, auth_challenges, rate_limits, admin_permissions, step_up_tokens, password_reset_tokens TO %I', v_runtime_role);
+  EXECUTE format('REVOKE TRUNCATE ON TABLE sessions, auth_challenges, rate_limits, admin_permissions, step_up_tokens, password_reset_tokens FROM %I', v_runtime_role);
 
   -- 9. Explicit Denial of Sequence / Serial Privileges (All PKs use UUID / Gen_Random_UUID)
   EXECUTE format('REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM %I', v_runtime_role);

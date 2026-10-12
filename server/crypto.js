@@ -207,3 +207,42 @@ export function hashRecoveryCode(code) {
   const normalized = code.trim().toUpperCase();
   return createHash('sha256').update(normalized).digest('hex');
 }
+
+// ─── Dual Authentication: Password Hashing (scrypt) ───────────────────────────
+
+export function validatePasswordStrength(password) {
+  if (typeof password !== 'string' || password.length < 10) {
+    fail(422, 'Password must be at least 10 characters long.');
+  }
+  if (password.length > 128) {
+    fail(422, 'Password must not exceed 128 characters.');
+  }
+  const hasUpper = /[A-Z]/.test(password);
+  const hasLower = /[a-z]/.test(password);
+  const hasDigit = /[0-9]/.test(password);
+  const hasSpecial = /[^A-Za-z0-9]/.test(password);
+  if (!hasUpper || !hasLower || !hasDigit || !hasSpecial) {
+    fail(422, 'Password must contain uppercase, lowercase, numeric, and special characters.');
+  }
+}
+
+export function hashPassword(password) {
+  validatePasswordStrength(password);
+  const salt = randomBytes(32).toString('hex');
+  // High-work factor scrypt parameters for account passwords
+  const derived = scryptSync(password, salt, 64, { N: 32768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
+  return { passwordHash: derived.toString('hex'), passwordSalt: salt };
+}
+
+export function verifyPassword(password, storedHash, storedSalt) {
+  if (typeof password !== 'string' || !storedHash || !storedSalt) return false;
+  try {
+    const derived = scryptSync(password, storedSalt, 64, { N: 32768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
+    const storedBuf = Buffer.from(storedHash, 'hex');
+    if (derived.length !== storedBuf.length) return false;
+    return timingSafeEqual(derived, storedBuf);
+  } catch {
+    return false;
+  }
+}
+

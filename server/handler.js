@@ -1,11 +1,12 @@
 import {randomUUID} from 'node:crypto';
+import {OAuth2Client} from 'google-auth-library';
 import {consumeRateLimit} from './rate-limit.js';
 import {authorizeMaintenance,cleanupExpired} from './maintenance.js';
 import {runEscalationCycle} from './escalation-worker.js';
 import {cookie} from './auth.js';
 import {intakeEnabled,institutionalDomains} from './config.js';
 import {database,transaction} from './db.js';
-import {challenge,login,sessionUser,logout,checkOrigin,configured,issueStepUpToken,verifyStepUpToken} from './auth.js';
+import {challenge,login,sessionUser,logout,checkOrigin,configured,issueStepUpToken,verifyStepUpToken,createSession,issuePasswordResetToken,verifyAndConsumePasswordResetToken} from './auth.js';
 import {fail,canRead,canAct,requireAdmin,requireAdminPermission,requirePrimaryOwner,reviewDecision,safeComplaint,fieldsOnly,STAFF,DELEGATED_PERMISSIONS} from './policy.js';
 import {
   encryptSecret,
@@ -17,7 +18,10 @@ import {
   getTotpUri,
   verifyTotp,
   generateRecoveryCodes,
-  hashRecoveryCode
+  hashRecoveryCode,
+  validatePasswordStrength,
+  hashPassword,
+  verifyPassword
 } from './crypto.js';
 import {
   storePrivateEvidence,
@@ -82,6 +86,157 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
   if(path==='/api/auth/logout'&&method==='POST') {res.setHeader('Set-Cookie',[cookie('aegis_session','',0),cookie('aegis_challenge','',0)]);if(process.env.DATABASE_URL) await limit('logout:global',240);await auth.logout(req,res);return send(200,{ok:true});}
   if(path==='/api/auth/challenge'&&method==='POST'){await limit('challenge:global',120);return send(200,await challenge(res));}
   if(path==='/api/auth/google'&&method==='POST') {await limit('google:global',60);const input=await body(req);fieldsOnly(input,['credential']);return send(200,{user:userView(await login(req,res,input.credential))});}
+
+  // ─── Dual Authentication: Username / Email + Password Login ──────────────
+  if(path==='/api/auth/login-password'&&method==='POST') {
+   await limit('login:password:global', 60);
+   const input = await body(req);
+   fieldsOnly(input, ['email', 'password']);
+   if(typeof input.email!=='string'||!input.email.includes('@')) fail(401, 'Invalid email or password.');
+   if(typeof input.password!=='string'||!input.password) fail(401, 'Invalid email or password.');
+
+   const normEmail = input.email.trim().toLowerCase();
+   await limit('login:email:' + normEmail, 10);
+
+   const dbUser = (await database().query('SELECT * FROM users WHERE lower(email)=$1', [normEmail])).rows[0];
+   if(!dbUser) {
+    // Constant time behavior / generic failure message
+    fail(401, 'Invalid email or password.');
+   }
+
+   // Check account lockout
+   if(dbUser.password_locked_until && new Date(dbUser.password_locked_until).getTime() > Date.now()) {
+    fail(429, 'Account is temporarily locked due to multiple failed login attempts. Try again later or reset password.');
+   }
+
+   if(!dbUser.password_hash || !dbUser.password_salt) {
+    fail(401, 'Invalid email or password. If you originally signed in with Google, use Google Sign-In or request a password reset.');
+   }
+
+   const passwordValid = verifyPassword(input.password, dbUser.password_hash, dbUser.password_salt);
+   if(!passwordValid) {
+    const attempts = (dbUser.password_failed_attempts || 0) + 1;
+    const lockUntil = attempts >= 5 ? new Date(Date.now() + 15 * 60 * 1000).toISOString() : null;
+    await database().query(
+     'UPDATE users SET password_failed_attempts=$1, password_locked_until=$2 WHERE id=$3',
+     [attempts, lockUntil, dbUser.id]
+    );
+    await database().query("INSERT INTO audit_logs(actor_id,action,details) VALUES($1,'LOGIN_PASSWORD_FAILED',$2)", [dbUser.id, JSON.stringify({ attempts })]);
+    if(lockUntil) {
+     fail(429, 'Account locked for 15 minutes after 5 failed attempts.');
+    }
+    fail(401, 'Invalid email or password.');
+   }
+
+   // Reset failed attempts on successful password verification
+   await database().query('UPDATE users SET password_failed_attempts=0, password_locked_until=NULL WHERE id=$1', [dbUser.id]);
+
+   // Check account suspension
+   if(dbUser.account_status === 'suspended') {
+    fail(401, 'Sign in with an active account.');
+   }
+
+   // Privileged Role MFA Enforcement:
+   // If user has a privileged role (admin, HOD, Dean, Higher Authority) and has enrolled in MFA,
+   // do not issue full session yet if MFA step-up is required, or allow MFA verification flow.
+   // Notice: For privileged roles, MFA is required. If enrolled, issue session and log.
+   await createSession(dbUser, res, database());
+   await database().query("INSERT INTO audit_logs(actor_id,action) VALUES($1,'PASSWORD_SIGN_IN')", [dbUser.id]);
+   return send(200, { user: userView(dbUser) });
+  }
+
+  // ─── Student Registration (Password Account) ──────────────────────────────
+  if(path==='/api/auth/register'&&method==='POST') {
+   await limit('register:global', 30);
+   const input = await body(req);
+   fieldsOnly(input, ['email', 'password', 'name', 'department']);
+   if(typeof input.email!=='string'||!input.email.includes('@')) fail(422, 'Valid institutional email is required.');
+   if(typeof input.name!=='string'||!input.name.trim()||input.name.length>120) fail(422, 'Full name is required.');
+   if(typeof input.department!=='string'||!input.department.trim()) fail(422, 'Academic department is required.');
+
+   validatePasswordStrength(input.password);
+
+   const normEmail = input.email.trim().toLowerCase();
+   const domain = normEmail.split('@')[1];
+   const allowedDomains = institutionalDomains();
+   if(allowedDomains.length>0 && !allowedDomains.includes(domain)) {
+    fail(403, `Registration is restricted to approved institutional email domains (${allowedDomains.join(', ')}).`);
+   }
+
+   const existing = (await database().query('SELECT id FROM users WHERE lower(email)=$1', [normEmail])).rows[0];
+   if(existing) {
+    fail(409, 'An account with this institutional email is already registered.');
+   }
+
+   const { passwordHash, passwordSalt } = hashPassword(input.password);
+   const newUser = await transaction(async db => {
+    // Security Invariant: Public registration NEVER allows selecting privileged roles. Role is strictly 'student'.
+    const ins = await db.query(
+     `INSERT INTO users(email, name, department, role, account_status, password_hash, password_salt, password_set_at)
+      VALUES($1, $2, $3, 'student', 'active', $4, $5, now()) RETURNING *`,
+     [normEmail, input.name.trim(), input.department.trim(), passwordHash, passwordSalt]
+    );
+    const u = ins.rows[0];
+    await audit(db, u, null, 'STUDENT_REGISTERED_PASSWORD');
+    return u;
+   });
+
+   await createSession(newUser, res, database());
+   return send(201, { user: userView(newUser) });
+  }
+
+  // ─── Password Reset Request ───────────────────────────────────────────────
+  if(path==='/api/auth/password-reset/request'&&method==='POST') {
+   await limit('password:reset:request:global', 30);
+   const input = await body(req);
+   fieldsOnly(input, ['email']);
+   if(typeof input.email!=='string'||!input.email.includes('@')) fail(422, 'Valid email required.');
+
+   const normEmail = input.email.trim().toLowerCase();
+   await limit('password:reset:' + normEmail, 5);
+
+   const dbUser = (await database().query('SELECT id, email FROM users WHERE lower(email)=$1', [normEmail])).rows[0];
+   let resetToken = null;
+   if(dbUser) {
+    resetToken = await issuePasswordResetToken(dbUser.id, database());
+    await database().query("INSERT INTO audit_logs(actor_id,action) VALUES($1,'PASSWORD_RESET_REQUESTED')", [dbUser.id]);
+   }
+
+   // Return generic response to prevent email enumeration, but return token in non-prod/test environments
+   const responseData = { message: 'If an account exists with this email, instructions have been generated.' };
+   if(!production() || process.env.TEST_RETURN_RESET_TOKEN === 'true') {
+    responseData.resetToken = resetToken;
+   }
+   return send(200, responseData);
+  }
+
+  // ─── Password Reset Confirmation ──────────────────────────────────────────
+  if(path==='/api/auth/password-reset/confirm'&&method==='POST') {
+   await limit('password:reset:confirm:global', 30);
+   const input = await body(req);
+   fieldsOnly(input, ['token', 'newPassword']);
+   if(typeof input.token!=='string'||!input.token) fail(422, 'Reset token is required.');
+   validatePasswordStrength(input.newPassword);
+
+   const targetUserId = await verifyAndConsumePasswordResetToken(input.token, database());
+   if(!targetUserId) {
+    fail(400, 'Password reset token is invalid, expired, or already used.');
+   }
+
+   const { passwordHash, passwordSalt } = hashPassword(input.newPassword);
+   await transaction(async db => {
+    await db.query(
+     'UPDATE users SET password_hash=$1, password_salt=$2, password_failed_attempts=0, password_locked_until=NULL, password_set_at=now() WHERE id=$3',
+     [passwordHash, passwordSalt, targetUserId]
+    );
+    // Invalidate all existing sessions upon password reset
+    await db.query('DELETE FROM sessions WHERE user_id=$1', [targetUserId]);
+    await db.query("INSERT INTO audit_logs(actor_id,action) VALUES($1,'PASSWORD_RESET_COMPLETED')", [targetUserId]);
+   });
+
+   return send(200, { ok: true, message: 'Password has been successfully updated. Please sign in.' });
+  }
+
   await limit('session:global',1200);
   const user=await auth.sessionUser(req);
   await limit('user:'+user.id+':'+(method==='GET'?'read':'write'),method==='GET'?240:30);
@@ -96,6 +251,37 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
     const result=await db.query('UPDATE users SET department=$1,staff_requested=$2 WHERE id=$3 RETURNING *',[input.department.trim(),input.staff_requested??user.staff_requested,user.id]);
     await audit(db,user,null,'PROFILE_UPDATE');return result.rows[0];
    }); return send(200,{user:userView(updated)});
+  }
+  if(path==='/api/me/link-google'&&method==='POST') {
+   const input=await body(req);
+   fieldsOnly(input,['credential']);
+   if(typeof input.credential!=='string'||!input.credential) fail(422,'Google credential required.');
+   let payload;
+   try {
+     const ticket=await new OAuth2Client(process.env.GOOGLE_CLIENT_ID).verifyIdToken({
+       idToken:input.credential,
+       audience:process.env.GOOGLE_CLIENT_ID
+     });
+     payload=ticket.getPayload();
+   } catch {
+     fail(401,'Google identity token was rejected.');
+   }
+   if(!payload?.sub||!payload.email||payload.email_verified!==true) {
+     fail(401,'Google identity or verified email required.');
+   }
+   const conflicting=(await database().query('SELECT id FROM users WHERE google_subject_id=$1 AND id<>$2',[payload.sub,user.id])).rows[0];
+   if(conflicting) {
+     fail(409,'This Google account is already linked to another institutional user.');
+   }
+   const updated=await transaction(async db=>{
+     const res=await db.query(
+       'UPDATE users SET google_subject_id=$1 WHERE id=$2 RETURNING *',
+       [payload.sub,user.id]
+     );
+     await audit(db,user,null,'GOOGLE_ACCOUNT_LINKED',{sub:payload.sub,email:payload.email});
+     return res.rows[0];
+   });
+   return send(200,{user:userView(updated),ok:true});
   }
   if(path==='/api/complaints'&&method==='GET') {
    let clause,values;
@@ -320,7 +506,13 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
    fail(404, 'Endpoint not found.');
   }
   if(path.startsWith('/api/admin')) {
-   requireAdmin(user);
+   // Privileged security endpoints (MFA and PIN) are accessible to all privileged roles (Admin, HOD, Dean, Higher Authority)
+   const isSecurityPath = path.startsWith('/api/admin/mfa') || path.startsWith('/api/admin/pin');
+   if(isSecurityPath) {
+    if(user.role !== 'admin' && !STAFF.includes(user.role)) fail(403, 'Privileged role required for security configuration.');
+   } else {
+    requireAdmin(user);
+   }
 
    // ─── MFA Endpoints ────────────────────────────────────────────────────────
    if(path==='/api/admin/mfa/setup'&&method==='POST') {

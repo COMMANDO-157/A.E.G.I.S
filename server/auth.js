@@ -61,9 +61,22 @@ export async function login(req,res,credential) {
    console.warn('[AUTH] Login challenge not found in DB or expired.');
    fail(401,'Login challenge expired or already used.');
   }
-  // Safe update: does NOT modify role or primary owner status upon regular login
-  const result=await db.query("INSERT INTO users(google_subject_id,email,name) VALUES($1,$2,$3) ON CONFLICT(google_subject_id) DO UPDATE SET email=excluded.email,name=excluded.name RETURNING *",[payload.sub,payload.email,payload.name||'Student']);
-  const user=result.rows[0]; active(user);
+  let result=await db.query('SELECT * FROM users WHERE google_subject_id=$1',[payload.sub]);
+  let user=result.rows[0];
+  if(user) {
+   await db.query('UPDATE users SET email=$1,name=$2 WHERE id=$3',[payload.email,payload.name||user.name,user.id]);
+  } else {
+   const existingByEmail=(await db.query('SELECT * FROM users WHERE lower(email)=lower($1)',[payload.email])).rows[0];
+   if(existingByEmail) {
+    fail(409,'An account with this institutional email already exists. Sign in with your password and link your Google account.');
+   }
+   const inserted=await db.query(
+    'INSERT INTO users(google_subject_id,email,name) VALUES($1,$2,$3) RETURNING *',
+    [payload.sub,payload.email,payload.name||'Student']
+   );
+   user=inserted.rows[0];
+  }
+  active(user);
   await db.query("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '8 hours')",[digest(token),user.id]);
   await db.query("INSERT INTO audit_logs(actor_id,action) VALUES($1,'GOOGLE_SIGN_IN')",[user.id]);
   return user;
@@ -158,3 +171,40 @@ export async function verifyStepUpToken(userId, purpose, token, db, sessionHash=
  const result = await dbClient.query(sql, params);
  return Boolean(result.rowCount);
 }
+
+/**
+ * Creates and sets an authenticated session cookie for a verified user
+ */
+export async function createSession(user, res, db) {
+ const token = randomBytes(32).toString('base64url');
+ const dbClient = db || database();
+ await dbClient.query("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '8 hours')", [digest(token), user.id]);
+ res.setHeader('Set-Cookie', [cookie('aegis_session', token, 28800), cookie('aegis_challenge', '', 0)]);
+ return token;
+}
+
+/**
+ * Single-use password reset token management
+ */
+export async function issuePasswordResetToken(userId, db) {
+ const token = randomBytes(32).toString('base64url');
+ const dbClient = db || database();
+ // Invalidate any older unused reset tokens for this user
+ await dbClient.query('UPDATE password_reset_tokens SET used=true WHERE user_id=$1 AND used=false', [userId]);
+ await dbClient.query(
+  "INSERT INTO password_reset_tokens(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '1 hour')",
+  [digest(token), userId]
+ );
+ return token;
+}
+
+export async function verifyAndConsumePasswordResetToken(token, db) {
+ if (!token || typeof token !== 'string') return null;
+ const dbClient = db || database();
+ const res = await dbClient.query(
+  'UPDATE password_reset_tokens SET used=true, used_at=now() WHERE token_hash=$1 AND used=false AND expires_at>now() RETURNING user_id',
+  [digest(token)]
+ );
+ return res.rows[0]?.user_id || null;
+}
+
