@@ -6,10 +6,12 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useLocale } from '@/context/LocaleContext';
+import { useAuth } from '@/context/AuthContext';
 import { listComplaints } from '@/api/client';
 import type { ApiComplaint } from '@/api/types';
 
 export default function AdminCasesPage() {
+  const {user}=useAuth();
   const { t } = useLocale();
   const [cases, setCases] = useState<ApiComplaint[]>([]);
   const [loading, setLoading] = useState(true);
@@ -197,7 +199,7 @@ export default function AdminCasesPage() {
       )}
 
       <div>
-        <Link to="/admin" className="btn btn-secondary">
+        <Link to={user?.is_primary_owner ? '/owner' : '/admin'} className="btn btn-secondary">
           &larr; {t.admin.backToOverview}
         </Link>
       </div>

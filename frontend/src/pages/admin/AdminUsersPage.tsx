@@ -589,7 +589,7 @@ export default function AdminUsersPage() {
       />
 
       <div>
-        <Link to="/admin" className="btn btn-secondary">
+        <Link to={isPrimaryOwner ? '/owner' : '/admin'} className="btn btn-secondary">
           &larr; {t.admin.backToOverview}
         </Link>
       </div>

@@ -67,10 +67,21 @@ export interface RequestOptions {
   signal?: AbortSignal | undefined;
 }
 
+let ownerGrant: string | null = null;
+export function setOwnerGrant(value: string | null) { ownerGrant = value; }
+export function releaseOwnerGrant() {
+ const grant=ownerGrant; ownerGrant=null;
+ if(grant) void fetch('/api/owner/entry/exit',{method:'POST',credentials:'same-origin',keepalive:true,
+  headers:{'Content-Type':'application/json','X-Aegis-Owner-Grant':grant},body:'{}'}).catch(()=>{});
+}
+export const startOwnerEntry = (pin?: string) => request<{challengeId: string; setup: boolean}>('owner/entry/start', {method:'POST',body:pin ? {pin} : {}});
+export const verifyOwnerEntry = (body: {challengeId: string; otp: string; pin?: string; totp?: string}) => request<{grant: string; expiresIn: number}>('owner/entry/verify',{method:'POST',body});
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, signal } = options;
 
   const headers: Record<string, string> = {};
+  if(ownerGrant) headers['X-Aegis-Owner-Grant']=ownerGrant;
   if (body !== undefined) {
     headers['Content-Type'] = 'application/json';
   }
@@ -124,6 +135,10 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   if (!response.ok) {
     const errorData = data as { error?: string };
     const rawMessage = errorData?.error || `Request failed with status ${response.status}`;
+    if(response.status===403 && rawMessage==='Owner access unavailable.') {
+      ownerGrant=null;
+      window.dispatchEvent(new Event('aegis-owner-locked'));
+    }
 
     // Rate Limit (429) Retry-After parsing
     let retryAfter: number | undefined;

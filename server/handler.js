@@ -3,8 +3,9 @@ import {OAuth2Client} from 'google-auth-library';
 import {consumeRateLimit} from './rate-limit.js';
 import {authorizeMaintenance,cleanupExpired} from './maintenance.js';
 import {runEscalationCycle} from './escalation-worker.js';
-import {cookie} from './auth.js';
-import {intakeEnabled,institutionalDomains} from './config.js';
+import {cookie,digest} from './auth.js';
+import {intakeEnabled,institutionalDomains,production} from './config.js';
+import {designatedOwner,requireOwnerGrant,beginOwnerEntry,finishOwnerEntry} from './owner-portal.js';
 import {database,transaction} from './db.js';
 import {challenge,login,sessionUser,logout,checkOrigin,configured,issueStepUpToken,verifyStepUpToken,createSession,issuePasswordResetToken,verifyAndConsumePasswordResetToken} from './auth.js';
 import {fail,canRead,canAct,requireAdmin,requireAdminPermission,requirePrimaryOwner,reviewDecision,safeComplaint,fieldsOnly,STAFF,DELEGATED_PERMISSIONS} from './policy.js';
@@ -69,7 +70,7 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
   const path='/api/'+(url.searchParams.get('route')||url.pathname.replace(/^\/api\/?/,'')).replace(/^\/|\/$/g,'');
   const method=req.method;
   if(path==='/api/not-found')fail(404,'Endpoint not found.');
-  const limit=(bucket,max)=>security.consumeRateLimit(database(),bucket,max);
+  const limit=(bucket,max,seconds=60)=>security.consumeRateLimit(database(),bucket,max,seconds);
   if((path==='/api/maintenance'||path==='/api/cron/escalate')&&['GET','POST'].includes(method)){
    authorizeMaintenance(req);
    const dryRun = url.searchParams.get('dryRun') === 'true';
@@ -204,7 +205,7 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
 
    // Return generic response to prevent email enumeration, but return token in non-prod/test environments
    const responseData = { message: 'If an account exists with this email, instructions have been generated.' };
-   if(!production() || process.env.TEST_RETURN_RESET_TOKEN === 'true') {
+   if(!production() && process.env.TEST_RETURN_RESET_TOKEN === 'true') {
     responseData.resetToken = resetToken;
    }
    return send(200, responseData);
@@ -241,6 +242,28 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
   const user=await auth.sessionUser(req);
   await limit('user:'+user.id+':'+(method==='GET'?'read':'write'),method==='GET'?240:30);
   if(path==='/api/me'&&method==='GET') return send(200,{user:userView(user)});
+
+  if(path.startsWith('/api/owner')) {
+   designatedOwner(user);
+   const deps={transaction,db:database(),limit};
+   if(path==='/api/owner/entry/start'&&method==='POST') {
+    const input=await body(req);fieldsOnly(input,['pin']);
+    return send(200,await beginOwnerEntry(user,input,deps));
+   }
+   if(path==='/api/owner/entry/verify'&&method==='POST') {
+    const input=await body(req);fieldsOnly(input,['challengeId','otp','pin','totp']);
+    return send(200,await finishOwnerEntry(user,input,deps));
+   }
+   if(path==='/api/owner/entry/exit'&&method==='POST') {
+    const token=req.headers['x-aegis-owner-grant'];
+    if(typeof token==='string') await database().query('DELETE FROM owner_portal_grants WHERE user_id=$1 AND session_hash=$2 AND token_hash=$3',[user.id,user.session_hash,digest(token)]);
+    return send(200,{ok:true});
+   }
+   fail(404,'Endpoint not found.');
+  }
+
+  // Shared case/roster APIs also expose owner data; changing URL cannot skip entry.
+  if(user.is_primary_owner && !path.startsWith('/api/admin')) await requireOwnerGrant(req,user,database());
 
   if(path==='/api/me'&&method==='PATCH') {
    const input=await body(req);fieldsOnly(input,['department','staff_requested']);
@@ -506,6 +529,15 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
    fail(404, 'Endpoint not found.');
   }
   if(path.startsWith('/api/admin')) {
+   // Owner APIs include the shared admin endpoints: URL aliases cannot bypass entry.
+   if(user.is_primary_owner) {
+    designatedOwner(user);
+    // Initial authenticator enrollment is possible before PIN setup; email proof
+    // is still required to set that PIN and enter. Enrolled MFA cannot be replaced.
+    const initialMfa=(path==='/api/admin/mfa/setup'||path==='/api/admin/mfa/verify') && !user.mfa_enrolled;
+    if(!initialMfa) await requireOwnerGrant(req,user,database());
+    if(path==='/api/admin/pin/setup') fail(403,'Owner PIN setup requires emailed verification in the owner portal.');
+   }
    // Privileged security endpoints (MFA and PIN) are accessible to all privileged roles (Admin, HOD, Dean, Higher Authority)
    const isSecurityPath = path.startsWith('/api/admin/mfa') || path.startsWith('/api/admin/pin');
    if(isSecurityPath) {
@@ -516,6 +548,7 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
 
    // ─── MFA Endpoints ────────────────────────────────────────────────────────
    if(path==='/api/admin/mfa/setup'&&method==='POST') {
+    if(user.mfa_enrolled) fail(403,'Authenticator replacement requires a separate recovery process.');
     await limit('admin:mfa:setup:'+user.id, 10);
     // Generate TOTP secret and return otpauth URL (and plaintext secret for setup only)
     const secret = generateTotpSecret();

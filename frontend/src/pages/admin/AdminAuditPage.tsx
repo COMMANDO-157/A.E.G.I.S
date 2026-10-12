@@ -6,10 +6,12 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useLocale } from '@/context/LocaleContext';
+import { useAuth } from '@/context/AuthContext';
 import { listAuditLogs } from '@/api/client';
 import type { AuditLog } from '@/api/types';
 
 export default function AdminAuditPage() {
+  const {user}=useAuth();
   const { t } = useLocale();
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -124,7 +126,7 @@ export default function AdminAuditPage() {
       </div>
 
       <div>
-        <Link to="/admin" className="btn btn-secondary">
+        <Link to={user?.is_primary_owner ? '/owner' : '/admin'} className="btn btn-secondary">
           &larr; {t.admin.backToOverview}
         </Link>
       </div>

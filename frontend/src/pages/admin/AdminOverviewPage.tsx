@@ -78,19 +78,19 @@ export default function AdminOverviewPage() {
     {
       title: t.admin.usersTitle,
       description: t.admin.usersDesc,
-      path: '/admin/users',
+      path: user?.is_primary_owner ? '/owner/users' : '/admin/users',
       action: t.admin.viewUsersAction,
     },
     {
       title: t.admin.casesTitle,
       description: t.admin.casesDesc,
-      path: '/admin/cases',
+      path: user?.is_primary_owner ? '/owner/cases' : '/admin/cases',
       action: t.admin.viewCasesAction,
     },
     {
       title: t.admin.auditTitle,
       description: t.admin.auditDesc,
-      path: '/admin/audit',
+      path: user?.is_primary_owner ? '/owner/audit' : '/admin/audit',
       action: t.admin.viewAuditAction,
     },
   ] as const;
@@ -168,7 +168,7 @@ export default function AdminOverviewPage() {
               </div>
             )}
 
-            {!mfaData && !mfaSuccess && (
+            {!mfaData && !mfaSuccess && !user?.mfa_enrolled && (
               <button
                 type="button"
                 className="btn btn-secondary btn-sm"
@@ -213,7 +213,7 @@ export default function AdminOverviewPage() {
           <div className="card" style={{ background: 'var(--color-bg-secondary)' }}>
             <h3 style={{ fontSize: 'var(--font-size-md)', fontWeight: 600 }}>2. 5-Digit Action PIN</h3>
             <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)', marginTop: 'var(--spacing-1)' }}>
-              Encrypted PBKDF2 salt/hash with automatic 15-minute lockout protection.
+              Salted scrypt hash with automatic 15-minute lockout protection.
             </p>
 
             {pinSuccess && (
@@ -228,7 +228,7 @@ export default function AdminOverviewPage() {
               </div>
             )}
 
-            <form onSubmit={handleSetPin} style={{ marginTop: 'var(--spacing-3)' }}>
+            {user?.is_primary_owner ? <p>Your access PIN is managed through verified owner entry. Contact the trusted operator for recovery.</p> : <form onSubmit={handleSetPin} style={{ marginTop: 'var(--spacing-3)' }}>
               <input
                 type="password"
                 inputMode="numeric"
@@ -248,7 +248,7 @@ export default function AdminOverviewPage() {
               >
                 {pinLoading ? 'Saving…' : 'Save & Activate PIN'}
               </button>
-            </form>
+            </form>}
           </div>
         </div>
       </section>

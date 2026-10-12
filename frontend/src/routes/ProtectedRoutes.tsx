@@ -30,6 +30,7 @@ import {
 } from '@/components/auth/AuthScreens';
 import { sanitizeReturnUrl } from '@/utils/url';
 import type { UserRole } from '@/api/types';
+import OwnerEntryGate from '@/components/auth/OwnerEntryGate';
 
 const KNOWN_ROLES: readonly UserRole[] = [
   'student',
@@ -44,9 +45,10 @@ const KNOWN_ROLES: readonly UserRole[] = [
 interface GuardProps {
   allowedRoles?: readonly UserRole[];
   requiredRoleName?: string;
+  children?: React.ReactNode;
 }
 
-function Guard({ allowedRoles, requiredRoleName }: GuardProps) {
+function Guard({ allowedRoles, requiredRoleName, children }: GuardProps) {
   const { status, user, error, retry, logout } = useAuth();
   const location = useLocation();
 
@@ -106,7 +108,7 @@ function Guard({ allowedRoles, requiredRoleName }: GuardProps) {
   }
 
   // 10. Clearance granted
-  return <Outlet />;
+  return children ?? <Outlet />;
 }
 
 // ─── Specific Guards ──────────────────────────────────────────────────────────
@@ -148,6 +150,8 @@ export function AuthorityRoute() {
 
 /** 5. Delegated Administrator (/admin) */
 export function AdminRoute() {
+  const {user}=useAuth();
+  if(user?.role==='admin' && user.is_primary_owner) return <Navigate to="/owner" replace />;
   return (
     <Guard
       allowedRoles={['admin']}
@@ -167,7 +171,7 @@ export function OwnerRoute() {
     <Guard
       allowedRoles={['admin']}
       requiredRoleName="Primary Owner"
-    />
+    ><OwnerEntryGate /></Guard>
   );
 }
 

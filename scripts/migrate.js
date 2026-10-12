@@ -2,7 +2,9 @@ import {readFile,readdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import pg from 'pg';
 import {databaseOptions} from '../server/config.js';
+import {migrationBody} from './migration-sql.js';
 const isProduction = process.env.NODE_ENV === 'production' || process.env.TARGET_ENV === 'production';
+const through=process.argv.find(arg=>arg.startsWith('--through='))?.slice('--through='.length);
 const rawConn = process.env.MIGRATION_DATABASE_URL || (!isProduction ? process.env.DATABASE_URL : null);
 
 if (!rawConn) {
@@ -61,14 +63,17 @@ let client;
 try {
  client=await pool.connect();
  await client.query('BEGIN');
+ await client.query("SET LOCAL lock_timeout = '5s'");
  await client.query("SELECT pg_advisory_xact_lock(hashtext('aegis:migrations'))");
  await client.query('CREATE TABLE IF NOT EXISTS schema_migrations(name text PRIMARY KEY,checksum text NOT NULL,applied_at timestamptz NOT NULL DEFAULT now())');
  const directory=new URL('../migrations/',import.meta.url);
- for(const name of (await readdir(directory)).filter(name=>/^\d+.*\.sql$/.test(name)).sort()) {
+ const names=(await readdir(directory)).filter(name=>/^\d+.*\.sql$/.test(name)).sort();
+ if(through!==undefined&&!names.includes(through)) throw new Error('Unknown migration boundary.');
+ for(const name of names.filter(name=>through===undefined||name<=through)) {
   const sql=await readFile(new URL(name,directory),'utf8'),checksum=createHash('sha256').update(sql.replaceAll('\r\n','\n')).digest('hex');
   const existing=await client.query('SELECT checksum FROM schema_migrations WHERE name=$1',[name]);
   if(existing.rowCount){if(existing.rows[0].checksum!==checksum)throw new Error('Applied migration changed: '+name);continue;}
-  await client.query(sql.replace(/^BEGIN;\s*/i,'').replace(/COMMIT;\s*$/i,''));
+  await client.query(migrationBody(sql));
   await client.query('INSERT INTO schema_migrations(name,checksum) VALUES($1,$2)',[name,checksum]);
   console.log('Applied migration:',name);
  }

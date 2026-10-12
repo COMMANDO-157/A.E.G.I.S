@@ -316,7 +316,7 @@ test('Negative Security: 5 failed Action PIN attempts trigger lockout and reject
     id: '00000000-0000-0000-0000-000000000001',
     email: 'admin.pin@campus.test',
     role: 'admin',
-    is_primary_owner: true,
+    is_primary_owner: false,
     account_status: 'active',
     action_pin_hash: pinHash,
     action_pin_salt: pinSalt,
@@ -460,7 +460,7 @@ test('Security Invariant: Step-up tokens bound to session_hash, purpose, user, a
 });
 
 test('Negative Security: Privileged endpoints require valid step-up token and reject missing/reused/wrong tokens with 403', async () => {
-  const keys = ['APP_ORIGIN', 'DATABASE_URL', 'GOOGLE_CLIENT_ID', 'NODE_ENV'];
+  const keys = ['APP_ORIGIN', 'DATABASE_URL', 'GOOGLE_CLIENT_ID', 'NODE_ENV', 'PRIMARY_OWNER_USER_ID', 'PRIMARY_OWNER_EMAIL'];
   const saved = Object.fromEntries(keys.map(k => [k, process.env[k]]));
   process.env.NODE_ENV = 'test';
   process.env.DATABASE_URL = 'postgres://localhost/fictional';
@@ -480,8 +480,17 @@ test('Negative Security: Privileged endpoints require valid step-up token and re
   };
 
   const stepUpTokens = [];
+  process.env.PRIMARY_OWNER_USER_ID=ownerUser.id;
+  process.env.PRIMARY_OWNER_EMAIL=ownerUser.email;
+  const ownerGrant='g'.repeat(43);
   const db = {
     query: async (sql, values) => {
+      if(sql.includes('SELECT g.token_hash FROM owner_portal_grants')) {
+        assert.equal(values[0],digest(ownerGrant));
+        assert.equal(values[1],ownerUser.id);
+        assert.equal(values[2],ownerUser.session_hash);
+        return {rows:[{token_hash:values[0]}],rowCount:1};
+      }
       if (sql.includes('SELECT * FROM users WHERE id=')) {
         if (values[0] === ownerUser.id) return { rows: [ownerUser], rowCount: 1 };
         return {
@@ -558,7 +567,7 @@ test('Negative Security: Privileged endpoints require valid step-up token and re
     // 1. Roles endpoint: Missing stepUpToken must return 403
     const roleMissing = await fetch(origin + '/api/admin/roles', {
       method: 'PATCH',
-      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      headers: { Origin: origin, 'Content-Type': 'application/json', 'X-Aegis-Owner-Grant': ownerGrant },
       body: JSON.stringify({
         userId: targetId,
         role: 'HOD',
@@ -571,7 +580,7 @@ test('Negative Security: Privileged endpoints require valid step-up token and re
     // 2. Roles endpoint: Invalid / wrong stepUpToken must return 403
     const roleInvalid = await fetch(origin + '/api/admin/roles', {
       method: 'PATCH',
-      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      headers: { Origin: origin, 'Content-Type': 'application/json', 'X-Aegis-Owner-Grant': ownerGrant },
       body: JSON.stringify({
         userId: targetId,
         role: 'HOD',
@@ -585,7 +594,7 @@ test('Negative Security: Privileged endpoints require valid step-up token and re
     // 3. Permissions endpoint: Missing stepUpToken must return 403
     const permMissing = await fetch(origin + '/api/admin/permissions', {
       method: 'PATCH',
-      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      headers: { Origin: origin, 'Content-Type': 'application/json', 'X-Aegis-Owner-Grant': ownerGrant },
       body: JSON.stringify({
         userId: targetId,
         permissions: ['users.read']
@@ -596,7 +605,7 @@ test('Negative Security: Privileged endpoints require valid step-up token and re
     // 4. Invitations endpoint: Missing stepUpToken must return 403
     const inviteMissing = await fetch(origin + '/api/admin/invitations', {
       method: 'POST',
-      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      headers: { Origin: origin, 'Content-Type': 'application/json', 'X-Aegis-Owner-Grant': ownerGrant },
       body: JSON.stringify({
         email: 'invited@campus.test',
         permissions: ['users.read']
@@ -608,7 +617,7 @@ test('Negative Security: Privileged endpoints require valid step-up token and re
     const validToken = await issueStepUpToken(ownerUser.id, 'admin_step_up', db, adminSessionHash);
     const roleSuccess = await fetch(origin + '/api/admin/roles', {
       method: 'PATCH',
-      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      headers: { Origin: origin, 'Content-Type': 'application/json', 'X-Aegis-Owner-Grant': ownerGrant },
       body: JSON.stringify({
         userId: targetId,
         role: 'HOD',
@@ -622,7 +631,7 @@ test('Negative Security: Privileged endpoints require valid step-up token and re
     // Replay attempt with same token must fail with 403
     const roleReplay = await fetch(origin + '/api/admin/roles', {
       method: 'PATCH',
-      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      headers: { Origin: origin, 'Content-Type': 'application/json', 'X-Aegis-Owner-Grant': ownerGrant },
       body: JSON.stringify({
         userId: targetId,
         role: 'HOD',
@@ -637,7 +646,7 @@ test('Negative Security: Privileged endpoints require valid step-up token and re
     const wrongSessionToken = await issueStepUpToken(ownerUser.id, 'admin_step_up', db, 'different_session_hash');
     const roleWrongSession = await fetch(origin + '/api/admin/roles', {
       method: 'PATCH',
-      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      headers: { Origin: origin, 'Content-Type': 'application/json', 'X-Aegis-Owner-Grant': ownerGrant },
       body: JSON.stringify({
         userId: targetId,
         role: 'HOD',
@@ -652,7 +661,7 @@ test('Negative Security: Privileged endpoints require valid step-up token and re
     const wrongPurposeToken = await issueStepUpToken(ownerUser.id, 'mfa_step_up', db, adminSessionHash);
     const roleWrongPurpose = await fetch(origin + '/api/admin/roles', {
       method: 'PATCH',
-      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      headers: { Origin: origin, 'Content-Type': 'application/json', 'X-Aegis-Owner-Grant': ownerGrant },
       body: JSON.stringify({
         userId: targetId,
         role: 'HOD',
@@ -756,7 +765,7 @@ test('Security Invariant: /api/admin/step-up enforces concurrent dual-factor ver
     id: '00000000-0000-0000-0000-000000000099',
     email: 'admin.dualfactor@campus.test',
     role: 'admin',
-    is_primary_owner: true,
+    is_primary_owner: false,
     account_status: 'active',
     mfa_enrolled: true,
     mfa_secret_encrypted: encryptedSecret,
