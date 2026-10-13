@@ -6,6 +6,7 @@ import {runEscalationCycle} from './escalation-worker.js';
 import {cookie,digest} from './auth.js';
 import {intakeEnabled,institutionalDomains,production} from './config.js';
 import {designatedOwner,requireOwnerGrant,beginOwnerEntry,finishOwnerEntry} from './owner-portal.js';
+import {sendPasswordResetEmail} from './owner-email.js';
 import {database,transaction} from './db.js';
 import {challenge,login,sessionUser,logout,checkOrigin,configured,issueStepUpToken,verifyStepUpToken,createSession,issuePasswordResetToken,verifyAndConsumePasswordResetToken} from './auth.js';
 import {fail,canRead,canAct,requireAdmin,requireAdminPermission,requirePrimaryOwner,reviewDecision,safeComplaint,fieldsOnly,STAFF,DELEGATED_PERMISSIONS} from './policy.js';
@@ -201,6 +202,14 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
    if(dbUser) {
     resetToken = await issuePasswordResetToken(dbUser.id, database());
     await database().query("INSERT INTO audit_logs(actor_id,action) VALUES($1,'PASSWORD_RESET_REQUESTED')", [dbUser.id]);
+    
+    // Deliver password reset email if email provider is configured
+    try {
+     const origin = req.headers.origin || (process.env.APP_ORIGIN || 'http://localhost:5501');
+     await sendPasswordResetEmail({ email: dbUser.email, resetToken, appOrigin: origin });
+    } catch {
+     // If email provider is not configured or fails, fail closed gracefully without revealing user existence
+    }
    }
 
    // Return generic response to prevent email enumeration, but return token in non-prod/test environments

@@ -23,8 +23,15 @@ export function authorizeMaintenance(req,secret=process.env.CRON_SECRET) {
 }
 export async function cleanupExpired(db) {
  const counts={};
- for(const [table,column] of [['sessions','expires_at'],['auth_challenges','expires_at'],['rate_limits','reset_at']]) {
-  const key=table==='rate_limits'?'bucket_hash':'token_hash';
+ const targets = [
+  ['sessions','expires_at','token_hash'],
+  ['auth_challenges','expires_at','token_hash'],
+  ['rate_limits','reset_at','bucket_hash'],
+  ['password_reset_tokens','expires_at','id'],
+  ['owner_entry_challenges','expires_at','id'],
+  ['owner_portal_grants','expires_at','token_hash']
+ ];
+ for(const [table,column,key] of targets) {
   const result=await db.query(`WITH expired AS (SELECT ${key} FROM ${table} WHERE ${column}<=now() ORDER BY ${column} LIMIT 1000 FOR UPDATE SKIP LOCKED)
  DELETE FROM ${table} WHERE ${key} IN (SELECT ${key} FROM expired)`);
   counts[table]=result.rowCount;

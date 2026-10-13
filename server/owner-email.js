@@ -11,7 +11,16 @@ export async function sendOwnerOtp({email, code, challengeId}, fetcher=fetch) {
  return sent.id;
 }
 
-// Shared read-only preflight: checks sender verification without issuing any email.
+export async function sendPasswordResetEmail({email, resetToken, appOrigin}, fetcher=fetch) {
+ const {call,from}=await verifiedOwnerEmailProvider(fetcher);
+ const resetUrl = `${appOrigin}/reset-password?token=${encodeURIComponent(resetToken)}`;
+ const sent=await call('/emails',{method:'POST',body:JSON.stringify({
+  from,to:[email],subject:'A.E.G.I.S Password Reset Request',
+  text:`A password reset was requested for your A.E.G.I.S account. Use the following link to reset your password within 1 hour:\n\n${resetUrl}\n\nIf you did not request this, you can safely ignore this email.`
+ })});
+ if(!sent.id) fail(503,'Password reset email delivery unavailable.');
+ return sent.id;
+}
 export async function checkOwnerEmailProvider(fetcher=fetch) {
  await verifiedOwnerEmailProvider(fetcher);
  return {provider:'Resend',senderVerified:true,emailSent:false};

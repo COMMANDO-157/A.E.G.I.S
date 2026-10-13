@@ -41,6 +41,11 @@ if (isProduction) {
     process.exit(1);
   }
 
+  if (parsedUrl.hostname.toLowerCase().includes('-pooler')) {
+    console.error('Target safety violation: Migration requires direct database host, -pooler endpoint forbidden.');
+    process.exit(1);
+  }
+
   const dbName = parsedUrl.pathname.replace(/^\//, '');
   if (dbName !== expectedDb) {
     console.error(`Target mismatch: Target database (${dbName}) does not match expected (${expectedDb}).`);

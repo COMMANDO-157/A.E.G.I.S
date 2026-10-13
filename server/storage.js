@@ -59,8 +59,13 @@ const MAGIC_SIGNATURES = [
   }
 ];
 
-function getStorageSecret() {
-  return process.env.SESSION_SECRET || 'aegis-evidence-storage-secret-key-32b';
+function getStorageSecret(env = process.env) {
+  const secret = env.EVIDENCE_STORAGE_SIGNING_SECRET || env.SESSION_SECRET;
+  if (secret && secret.length >= 32) return secret;
+  if (production(env)) {
+    fail(503, 'Evidence storage signing secret is not configured.');
+  }
+  return secret || 'aegis-evidence-storage-secret-key-32b';
 }
 
 /**
