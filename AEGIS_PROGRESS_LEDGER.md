@@ -55,7 +55,7 @@ Version 1.0 · Updated 13 October 2026 · Asia/Calcutta (IST)
 | **G03** | Production Secrets Configuration | **PROVISIONED** | Staged server secrets provisioned to Vercel production. Resend credentials deferred. |
 | **G04** | PR #1 Merge to Main | **EXECUTED** | Merged `stage-4.2` to `main` at commit `5685d5a` and pushed |
 | **G05** | Production Deployment (Vercel) | **EXECUTED** | Deployed to production (`dpl_AFLFyHYDk7qV9gmnDBGhjsgYHAQe`, state READY) |
-| **G06** | Human Candidate Sign-in Enrollment | **READY** | Database synchronized to Neon. Ready for candidate first sign-in. |
+| **G06** | Human Candidate Sign-in Enrollment | **VERIFIED** | Candidate account persisted in Neon production database with valid Google subject ID. |
 | **G07** | Primary Owner Designation Bootstrap | **HOLD** | Approval-gated exact transaction |
 | **G08** | Live Owner Setup & OTP Delivery | **DEFERRED** | Resend integration deferred by operator authorization (Blocker: domain DNS & active API key) |
 | **G09** | Maintenance Cron Scheduler Activation | **HOLD** | Approval-gated cron setup |
