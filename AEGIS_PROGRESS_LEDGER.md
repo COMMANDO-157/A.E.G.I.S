@@ -40,6 +40,7 @@ Version 1.0 · Updated 13 October 2026 · Asia/Calcutta (IST)
 | **WP-4.1** | PR #1 / Merge Readiness Audit | P4 | **COMPLETE** | Merged `stage-4.2` into `main` at commit `5685d5a`. Pushed to GitHub `COMMANDO-157/A.E.G.I.S`. Vercel automatic production deployment `dpl_35bayguXKNgRvxmC498zcEUR3Wob` completed with state READY. |
 | **WP-4.2** | Live Production Deployment & Intake Activation | P4 | **COMPLETE** | Production variable `LIVE_INTAKE_ENABLED` set to `true`. Production redeployment `dpl_AFLFyHYDk7qV9gmnDBGhjsgYHAQe` completed in state READY. Live `/api/config` and `/api/health` verified reporting `ready: true, configured: true, intakeEnabled: true`. Authentication challenges and security boundaries verified live. |
 | **WP-5.1** | Functional Defect Investigation & UI/API Alignment | P5 | **COMPLETE** | Resolved static advisories in `StudentDashboardPage.tsx`, `StudentReportPage.tsx`, and `StudentTrackPage.tsx` so active intake and live case tracking are reactively rendered. Fixed Google Identity Services container detection & race conditions in `LoginPage.tsx`. Enhanced `server/auth.js` to auto-link matching institutional email rosters on Google OAuth login. Passed all 63 unit/integration tests, 6 roster spec tests, Stage 6 E2E test, and 24 headless Chrome E2E browser tests (100% pass). |
+| **WP-5.2** | Production Acceptance Gate G12 Execution | P5 | **COMPLETE** | Verified Vercel production commit `149220f` in state READY. Confirmed `/api/config` and `/api/health` return live `intakeEnabled=true` and database connectivity. Audited Google SSO, student dashboard, auto-roster matching invariants, grievance authorization gates, case tracking, and role-based access restrictions. All automated regression suites pass. |
 
 ---
 
@@ -59,4 +60,6 @@ Version 1.0 · Updated 13 October 2026 · Asia/Calcutta (IST)
 | **G09** | Maintenance Cron Scheduler Activation | **HOLD** | Approval-gated cron setup |
 | **G10** | Live Intake Activation (`LIVE_INTAKE_ENABLED=true`) | **ACTIVATED** | Verified live with `intakeEnabled: true` on production domain |
 | **G11** | Functional Defect Remediation & E2E Validation | **VERIFIED** | Browser-level automated E2E tests, login SDK initialization, and reactive live intake verified clean |
+| **G12** | Production Acceptance Gate Execution | **VERIFIED** | Production deployment `149220f` confirmed READY. All 6 core workflows verified (WF1-WF6 PASS, WF7 BLOCKED by design). Invariants and regressions verified. |
+
 

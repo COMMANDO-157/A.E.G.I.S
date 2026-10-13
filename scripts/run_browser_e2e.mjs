@@ -254,10 +254,16 @@ async function runBrowserTestSuite() {
     }
 
     // Student navigates to Report Filing page
-    await chrome.navigate(`${APP_URL}/student/report`);
-    const reportFormInputs = await chrome.evaluate(`
-      Array.from(document.querySelectorAll('input, select, textarea')).map(el => el.getAttribute('name') || el.id || el.tagName)
-    `);
+    await chrome.navigate(`${APP_URL}/student/report`, 3500);
+    // Poll for React form hydration
+    let reportFormInputs = [];
+    for (let retry = 0; retry < 5; retry++) {
+      reportFormInputs = await chrome.evaluate(`
+        Array.from(document.querySelectorAll('input, select, textarea')).map(el => el.getAttribute('name') || el.id || el.tagName)
+      `) || [];
+      if (reportFormInputs.length > 0) break;
+      await new Promise(r => setTimeout(r, 1000));
+    }
     if (reportFormInputs.length > 0) {
       recordPass('Grievance Submission Form Rendered with Safe Inputs', `${reportFormInputs.length} controls found`);
     } else {
