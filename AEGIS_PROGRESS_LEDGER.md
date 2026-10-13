@@ -41,6 +41,7 @@ Version 1.0 · Updated 13 October 2026 · Asia/Calcutta (IST)
 | **WP-4.2** | Live Production Deployment & Intake Activation | P4 | **COMPLETE** | Production variable `LIVE_INTAKE_ENABLED` set to `true`. Production redeployment `dpl_AFLFyHYDk7qV9gmnDBGhjsgYHAQe` completed in state READY. Live `/api/config` and `/api/health` verified reporting `ready: true, configured: true, intakeEnabled: true`. Authentication challenges and security boundaries verified live. |
 | **WP-5.1** | Functional Defect Investigation & UI/API Alignment | P5 | **COMPLETE** | Resolved static advisories in `StudentDashboardPage.tsx`, `StudentReportPage.tsx`, and `StudentTrackPage.tsx` so active intake and live case tracking are reactively rendered. Fixed Google Identity Services container detection & race conditions in `LoginPage.tsx`. Enhanced `server/auth.js` to auto-link matching institutional email rosters on Google OAuth login. Passed all 63 unit/integration tests, 6 roster spec tests, Stage 6 E2E test, and 24 headless Chrome E2E browser tests (100% pass). |
 | **WP-5.2** | Production Acceptance Gate G12 Execution | P5 | **COMPLETE** | Verified Vercel production commit `149220f` in state READY. Confirmed `/api/config` and `/api/health` return live `intakeEnabled=true` and database connectivity. Audited Google SSO, student dashboard, auto-roster matching invariants, grievance authorization gates, case tracking, and role-based access restrictions. All automated regression suites pass. |
+| **WP-5.3** | Controlled Production Database Cutover | P5 | **COMPLETE** | Rotated runtime database password on Neon direct compute for `aegis_app_runtime`. Verified least-privilege role boundaries (no DDL, append-only audit). Preserved legacy database state. Temporarily disabled live intake during cutover. Updated Vercel production `DATABASE_URL` to runtime connection string. Deployed `dpl_2atvaURKNrDDQ8VCc2TLHqgA9hKF` and verified challenge persistence into Neon. Restored `LIVE_INTAKE_ENABLED=true` via deployment `dpl_A5yY11TTZuuT6GAwzcPSsdt27Rb2` (READY). Verified live health and config endpoints. |
 
 ---
 
@@ -54,12 +55,13 @@ Version 1.0 · Updated 13 October 2026 · Asia/Calcutta (IST)
 | **G03** | Production Secrets Configuration | **PROVISIONED** | Staged server secrets provisioned to Vercel production. Resend credentials deferred. |
 | **G04** | PR #1 Merge to Main | **EXECUTED** | Merged `stage-4.2` to `main` at commit `5685d5a` and pushed |
 | **G05** | Production Deployment (Vercel) | **EXECUTED** | Deployed to production (`dpl_AFLFyHYDk7qV9gmnDBGhjsgYHAQe`, state READY) |
-| **G06** | Human Candidate Sign-in Enrollment | **READY** | Google OAuth active on `https://aegis-command-x.vercel.app` |
+| **G06** | Human Candidate Sign-in Enrollment | **READY** | Database synchronized to Neon. Ready for candidate first sign-in. |
 | **G07** | Primary Owner Designation Bootstrap | **HOLD** | Approval-gated exact transaction |
 | **G08** | Live Owner Setup & OTP Delivery | **DEFERRED** | Resend integration deferred by operator authorization (Blocker: domain DNS & active API key) |
 | **G09** | Maintenance Cron Scheduler Activation | **HOLD** | Approval-gated cron setup |
 | **G10** | Live Intake Activation (`LIVE_INTAKE_ENABLED=true`) | **ACTIVATED** | Verified live with `intakeEnabled: true` on production domain |
 | **G11** | Functional Defect Remediation & E2E Validation | **VERIFIED** | Browser-level automated E2E tests, login SDK initialization, and reactive live intake verified clean |
 | **G12** | Production Acceptance Gate Execution | **VERIFIED** | Production deployment `149220f` confirmed READY. All 6 core workflows verified (WF1-WF6 PASS, WF7 BLOCKED by design). Invariants and regressions verified. |
+
 
 
