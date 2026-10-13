@@ -194,7 +194,9 @@ export default function LoginPage() {
     if (window.google?.accounts?.id) return;
 
     return new Promise<void>((resolve, reject) => {
-      const existingScript = document.getElementById('google-gis-sdk') as HTMLScriptElement | null;
+      // Check for any existing GIS script (from index.html or dynamic creation)
+      const existingScript = document.getElementById('google-gis-sdk') as HTMLScriptElement | null ||
+        document.querySelector('script[src*="accounts.google.com/gsi/client"]') as HTMLScriptElement | null;
       if (existingScript) {
         if (window.google?.accounts?.id) {
           resolve();
@@ -202,11 +204,18 @@ export default function LoginPage() {
         }
         existingScript.addEventListener('load', () => resolve(), { once: true });
         existingScript.addEventListener('error', () => reject(new Error('Google Identity Services SDK failed to load. Check network or content blocker.')), { once: true });
-        // Set a timeout in case script is already stalled
+        // Poll briefly in case script loaded without event dispatch
+        const checkInterval = setInterval(() => {
+          if (window.google?.accounts?.id) {
+            clearInterval(checkInterval);
+            resolve();
+          }
+        }, 200);
         setTimeout(() => {
+          clearInterval(checkInterval);
           if (window.google?.accounts?.id) resolve();
           else reject(new Error('Google Identity Services SDK timed out while loading.'));
-        }, 8000);
+        }, 10000);
         return;
       }
 
@@ -222,65 +231,73 @@ export default function LoginPage() {
       setTimeout(() => {
         if (window.google?.accounts?.id) resolve();
         else reject(new Error('Google Identity Services SDK timed out while loading.'));
-      }, 8000);
+      }, 10000);
     });
   }, []);
 
   const initializedRef = useRef<boolean>(false);
+  const challengeRef = useRef<{ clientId: string; nonce: string } | null>(null);
 
   // Initialize Google Identity Services
   useEffect(() => {
     if (isAuthenticated || loading) return;
-    if (initializedRef.current) return;
-    initializedRef.current = true;
 
     let isMounted = true;
 
     async function setupGis() {
-      setAuthError(null);
       try {
-        const challenge = await requestAuthChallenge();
-        if (!isMounted) return;
-
-        if (!challenge.clientId) {
-          setGoogleClientReady(false);
-          setAuthError('Google Client ID is not configured on the institutional backend.');
-          return;
+        if (!challengeRef.current) {
+          const challenge = await requestAuthChallenge();
+          if (!isMounted) return;
+          if (!challenge.clientId) {
+            setGoogleClientReady(false);
+            setAuthError('Google Client ID is not configured on the institutional backend.');
+            return;
+          }
+          challengeRef.current = challenge;
         }
 
-        // Dynamically load Google Identity Services
+        const challenge = challengeRef.current;
+
+        // Dynamically ensure Google Identity Services SDK is loaded
         await loadGoogleSdk();
         if (!isMounted) return;
 
-        if (window.google?.accounts?.id && googleBtnContainerRef.current) {
-          window.google.accounts.id.initialize({
-            client_id: challenge.clientId,
-            nonce: challenge.nonce,
-            callback: handleCredentialResponse,
-            cancel_on_tap_outside: true,
-          });
+        if (window.google?.accounts?.id) {
+          if (!initializedRef.current) {
+            window.google.accounts.id.initialize({
+              client_id: challenge.clientId,
+              nonce: challenge.nonce,
+              callback: handleCredentialResponse,
+              cancel_on_tap_outside: true,
+            });
+            initializedRef.current = true;
+          }
 
-          googleBtnContainerRef.current.innerHTML = '';
-          window.google.accounts.id.renderButton(googleBtnContainerRef.current, {
-            type: 'standard',
-            theme: 'outline',
-            size: 'large',
-            text: 'continue_with',
-            shape: 'rectangular',
-            logo_alignment: 'left',
-            width: 360,
-          });
-
-          setGoogleClientReady(true);
-        } else {
-          throw new Error('Google Identity Services container or SDK is unavailable.');
+          if (googleBtnContainerRef.current) {
+            googleBtnContainerRef.current.innerHTML = '';
+            window.google.accounts.id.renderButton(googleBtnContainerRef.current, {
+              type: 'standard',
+              theme: 'outline',
+              size: 'large',
+              text: 'continue_with',
+              shape: 'rectangular',
+              logo_alignment: 'left',
+              width: 360,
+            });
+            setGoogleClientReady(true);
+          }
         }
       } catch (err: unknown) {
         if (isMounted) {
           setGoogleClientReady(false);
           initializedRef.current = false; // Allow retry on failure
+          challengeRef.current = null;
           const message = err instanceof Error ? err.message : 'Failed to initialize Google Single Sign-On.';
-          setAuthError(message);
+          // Only show error if on Google auth mode
+          if (authMode === 'google') {
+            setAuthError(message);
+          }
         }
       }
     }
@@ -290,7 +307,7 @@ export default function LoginPage() {
     return () => {
       isMounted = false;
     };
-  }, [isAuthenticated, loading, handleCredentialResponse, loadGoogleSdk, retryCount]);
+  }, [isAuthenticated, loading, handleCredentialResponse, loadGoogleSdk, retryCount, authMode]);
 
   if (loading) return null;
 

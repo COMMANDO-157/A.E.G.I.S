@@ -125,19 +125,21 @@ export default function StudentReportPage() {
           </div>
         )}
 
-        {/* Safety Disclaimer Banner */}
-        <div
-          className="alert alert-warning"
-          role="status"
-          style={{ marginTop: 'var(--spacing-4)' }}
-        >
-          <div>
-            <strong>{t.student.reportingDisabledAlertTitle}</strong>
-            <p>
-              {t.student.reportingDisabledAlertDesc}
-            </p>
+        {/* Safety Disclaimer Banner - only displayed if live intake is paused/disabled on backend */}
+        {!intakeActive && !loadingConfig && (
+          <div
+            className="alert alert-warning"
+            role="status"
+            style={{ marginTop: 'var(--spacing-4)' }}
+          >
+            <div>
+              <strong>{t.student.reportingDisabledAlertTitle}</strong>
+              <p>
+                {t.student.reportingDisabledAlertDesc}
+              </p>
+            </div>
           </div>
-        </div>
+        )}
 
         {error && (
           <div className="alert alert-error" style={{ marginTop: 'var(--spacing-4)' }}>

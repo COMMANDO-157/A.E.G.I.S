@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useLocale } from '@/context/LocaleContext';
-import { getStudentVerificationStatus, submitStudentVerificationRequest } from '@/api/client';
+import { getStudentVerificationStatus, submitStudentVerificationRequest, getConfig } from '@/api/client';
 import type { StudentVerificationStatusResponse } from '@/api/types';
 
 export default function StudentDashboardPage() {
@@ -11,6 +11,7 @@ export default function StudentDashboardPage() {
 
   const [vStatus, setVStatus] = useState<StudentVerificationStatusResponse | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
+  const [intakeActive, setIntakeActive] = useState<boolean>(true);
   const [claimOpen, setClaimOpen] = useState(false);
   const [registerNumber, setRegisterNumber] = useState('');
   const [claimNotes, setClaimNotes] = useState('');
@@ -22,10 +23,14 @@ export default function StudentDashboardPage() {
     let active = true;
     async function loadStatus() {
       try {
-        const res = await getStudentVerificationStatus();
-        if (active) setVStatus(res);
-      } catch {
-        // Fallback to user session flags
+        const [res, cfg] = await Promise.all([
+          getStudentVerificationStatus().catch(() => null),
+          getConfig().catch(() => null),
+        ]);
+        if (active) {
+          if (res) setVStatus(res);
+          if (cfg) setIntakeActive(cfg.intakeEnabled);
+        }
       } finally {
         if (active) setLoadingStatus(false);
       }
@@ -269,20 +274,22 @@ export default function StudentDashboardPage() {
         </div>
       )}
 
-      {/* Reporting availability advisory */}
-      <div className="alert alert-warning" role="status">
-        <div>
-          <strong>{t.student.reportingDisabledTitle}</strong>
-          <p
-            style={{
-              marginTop: 'var(--spacing-1)',
-              fontSize: 'var(--font-size-sm)',
-            }}
-          >
-            {t.student.reportingDisabledDesc}
-          </p>
+      {/* Reporting availability advisory - displayed only if intake is paused/disabled on backend */}
+      {!intakeActive && (
+        <div className="alert alert-warning" role="status">
+          <div>
+            <strong>{t.student.reportingDisabledTitle}</strong>
+            <p
+              style={{
+                marginTop: 'var(--spacing-1)',
+                fontSize: 'var(--font-size-sm)',
+              }}
+            >
+              {t.student.reportingDisabledDesc}
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Overview Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 'var(--spacing-6)' }}>

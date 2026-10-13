@@ -2,7 +2,7 @@ import {randomBytes,createHash} from 'node:crypto';
 import {OAuth2Client} from 'google-auth-library';
 import {database,transaction} from './db.js';
 import {fail,active} from './policy.js';
-import {appOrigin,configured,production} from './config.js';
+import {appOrigin,configured,production,institutionalDomains} from './config.js';
 export {configured} from './config.js';
 export const digest=value=>createHash('sha256').update(value).digest('hex');
 export function cookies(req) {
@@ -76,6 +76,35 @@ export async function login(req,res,credential) {
    );
    user=inserted.rows[0];
   }
+  // Institutional Auto-Verification on Google Login:
+  // If student account is unverified, check if email matches an active roster row on a trusted institutional domain
+  if(user.role === 'student' && !user.is_verified_student) {
+   const emailNorm = user.email.trim().toLowerCase();
+   const emailDomain = emailNorm.split('@')[1] || '';
+   const trusted = institutionalDomains();
+   if(trusted.includes(emailDomain)) {
+    const matchingRoster = (await db.query(
+     'SELECT sr.*, d.name AS dept_name FROM student_rosters sr LEFT JOIN departments d ON d.code=sr.department_code WHERE lower(sr.institutional_email)=$1 AND sr.is_active=true AND (sr.bound_user_id IS NULL OR sr.bound_user_id=$2)',
+     [emailNorm, user.id]
+    )).rows[0];
+    if(matchingRoster) {
+     await db.query('UPDATE student_rosters SET bound_user_id=$1, updated_at=now() WHERE id=$2', [user.id, matchingRoster.id]);
+     const updatedUser = await db.query(
+      'UPDATE users SET is_verified_student=true, roster_id=$1, department_code=$2, department=$3 WHERE id=$4 RETURNING *',
+      [matchingRoster.id, matchingRoster.department_code, matchingRoster.dept_name || matchingRoster.department_code, user.id]
+     );
+     user = updatedUser.rows[0];
+     await db.query(
+      `INSERT INTO student_verification_requests(user_id, roster_id, status, claim_channel, notes, reviewed_at)
+       VALUES($1, $2, 'APPROVED', 'INSTITUTIONAL_OAUTH_EXACT', 'Auto-approved on Google OAuth institutional login.', now())
+       ON CONFLICT DO NOTHING`,
+      [user.id, matchingRoster.id]
+     );
+     await db.query("INSERT INTO audit_logs(actor_id,action) VALUES($1,'STUDENT_VERIFIED_AUTO')",[user.id]);
+    }
+   }
+  }
+
   active(user);
   await db.query("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '8 hours')",[digest(token),user.id]);
   await db.query("INSERT INTO audit_logs(actor_id,action) VALUES($1,'GOOGLE_SIGN_IN')",[user.id]);

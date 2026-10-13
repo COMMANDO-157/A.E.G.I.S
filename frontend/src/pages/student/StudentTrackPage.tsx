@@ -68,19 +68,21 @@ export default function StudentTrackPage() {
           {t.student.trackingDesc}
         </p>
 
-        {/* Safety Disclaimer Banner */}
-        <div
-          className="alert alert-warning"
-          role="status"
-          style={{ marginTop: 'var(--spacing-6)' }}
-        >
-          <div>
-            <strong>{t.student.trackingDisabledTitle}</strong>
-            <p>
-              {t.student.trackingDisabledDesc}
-            </p>
+        {/* Safety Disclaimer Banner - only display if live records connection failed */}
+        {error && (
+          <div
+            className="alert alert-warning"
+            role="status"
+            style={{ marginTop: 'var(--spacing-6)' }}
+          >
+            <div>
+              <strong>{t.student.trackingDisabledTitle}</strong>
+              <p>
+                {t.student.trackingDisabledDesc}
+              </p>
+            </div>
           </div>
-        </div>
+        )}
 
         {error && (
           <div className="alert alert-error" style={{ marginTop: 'var(--spacing-4)' }}>
