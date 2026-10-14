@@ -317,16 +317,16 @@ export const en = {
       'Owner MFA, action PIN verification, and privileged workflow approvals are pending implementation and security testing.',
     activationPending: 'Activation pending',
     backToOverview: 'Back to Overview',
-    usersBadge: 'User Administration',
-    usersHeading: 'User Directory & Role Assignments',
+    usersBadge: 'Owner Governance',
+    usersHeading: 'User Directory & Role Governance',
     usersSubtitle:
-      'This workspace is reserved for future account review, departmental mapping, and authorized role management.',
-    roleBoundaryTitle: 'Role Assignment Boundary',
+      'Manage verified institutional accounts, staff authorization requests, departmental role scopes, and account statuses.',
+    roleBoundaryTitle: 'Institutional Role & Departmental Scope',
     roleBoundaryDesc:
-      'Role permissions (student, HOD, Dean, Higher Authority) activate interactive state management in WP-4.2.',
-    usersEmptyTitle: 'User Management Console',
+      'Privileged institutional roles (HOD, Dean, Higher Authority) are cryptographically audited and require Owner dual-factor step-up authorization. Role revocations immediately terminate active sessions.',
+    usersEmptyTitle: 'User Directory Empty',
     usersEmptyDesc:
-      'The interactive user directory and role management tools are not yet available. Activation requires verified owner authorization and security controls.',
+      'No registered users currently match the directory query.',
     casesBadge: 'System Oversight',
     casesHeading: 'Campus-Wide Case Oversight',
     casesSubtitle:

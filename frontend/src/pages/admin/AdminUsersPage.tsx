@@ -12,8 +12,10 @@ import {
   assignRole,
   updateAdminPermissions,
   createAdminInvitation,
+  listAdminDepartments,
+  revokeAdminAuthority,
 } from '@/api/client';
-import type { AdminUser, UserRole, AccountStatus, DelegatedPermission } from '@/api/types';
+import type { AdminUser, UserRole, AccountStatus, DelegatedPermission, AdminDepartmentItem } from '@/api/types';
 import { StepUpModal } from '@/components/admin/StepUpModal';
 
 const AVAILABLE_ROLES: { role: UserRole; label: string }[] = [
@@ -38,9 +40,14 @@ export default function AdminUsersPage() {
   const { t } = useLocale();
 
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [departments, setDepartments] = useState<AdminDepartmentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Filter state
+  const [filterRole, setFilterRole] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Step-Up Modal State
   const [stepUpOpen, setStepUpOpen] = useState(false);
@@ -50,7 +57,8 @@ export default function AdminUsersPage() {
   // Selected User Editing State
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [editRole, setEditRole] = useState<UserRole>('student');
-  const [editDept, setEditDept] = useState('');
+  const [editDeptCode, setEditDeptCode] = useState('');
+  const [editDeptName, setEditDeptName] = useState('');
   const [editStatus, setEditStatus] = useState<AccountStatus>('active');
 
   // Permission Editing State
@@ -63,12 +71,16 @@ export default function AdminUsersPage() {
   const [invitePerms, setInvitePerms] = useState<DelegatedPermission[]>(['users.read']);
   const [inviteResult, setInviteResult] = useState<{ email: string; inviteToken: string } | null>(null);
 
-  const fetchUsers = useCallback(async () => {
+  const fetchUsersAndDepts = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await listAdminUsers();
-      setUsers(data);
+      const [usersData, deptsData] = await Promise.all([
+        listAdminUsers(),
+        listAdminDepartments().catch(() => [] as AdminDepartmentItem[]),
+      ]);
+      setUsers(usersData);
+      setDepartments(deptsData);
     } catch (err: any) {
       setError(err.message || 'Failed to retrieve user directory.');
     } finally {
@@ -77,8 +89,8 @@ export default function AdminUsersPage() {
   }, []);
 
   useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+    fetchUsersAndDepts();
+  }, [fetchUsersAndDepts]);
 
   function triggerStepUp(
     title: string,
@@ -87,7 +99,6 @@ export default function AdminUsersPage() {
   ) {
     setStepUpTitle(title);
     setStepUpDesc(desc);
-    // Store action that accepts stepUpToken
     (window as any).__pendingStepUpAction = actionWithToken;
     setStepUpOpen(true);
   }
@@ -110,20 +121,68 @@ export default function AdminUsersPage() {
     e.preventDefault();
     if (!editingUser) return;
 
+    const chosenDept = departments.find(d => d.code === editDeptCode);
+    const finalDeptName = chosenDept ? chosenDept.name : (editDeptName || editingUser.department || 'General');
+
     triggerStepUp(
       `Confirm Role & Boundary Assignment for ${editingUser.name || editingUser.email}`,
-      `Assigning role "${editRole}" in department "${editDept}" with account status "${editStatus}".`,
+      `Assigning role "${editRole}" with department "${finalDeptName}" (${editDeptCode || 'N/A'}) and status "${editStatus}".`,
       async (stepUpToken: string) => {
         await assignRole({
           userId: editingUser.id,
           role: editRole,
-          department: editDept,
+          department: finalDeptName,
+          department_code: editDeptCode || undefined,
           account_status: editStatus,
           stepUpToken,
         });
         setSuccessMsg(`Successfully updated credentials for ${editingUser.name || editingUser.email}. Target sessions invalidated.`);
         setEditingUser(null);
-        await fetchUsers();
+        await fetchUsersAndDepts();
+      },
+    );
+  }
+
+  // Quick Staff Request Actions
+  function handleApproveStaffRequest(targetUser: AdminUser) {
+    setEditingUser(targetUser);
+    setEditRole('HOD');
+    setEditDeptCode(targetUser.department_code || (departments[0]?.code ?? ''));
+    setEditDeptName(targetUser.department || (departments[0]?.name ?? ''));
+    setEditStatus('active');
+  }
+
+  function handleRejectStaffRequest(targetUser: AdminUser) {
+    triggerStepUp(
+      `Reject Staff Role Request for ${targetUser.name || targetUser.email}`,
+      `Dismiss staff request and maintain account as standard student. Target user's request flag will be cleared.`,
+      async (stepUpToken: string) => {
+        await assignRole({
+          userId: targetUser.id,
+          role: 'student',
+          department: targetUser.department || 'General',
+          department_code: targetUser.department_code || undefined,
+          account_status: targetUser.account_status,
+          stepUpToken,
+        });
+        setSuccessMsg(`Rejected staff request for ${targetUser.email}. User remains as student.`);
+        await fetchUsersAndDepts();
+      },
+    );
+  }
+
+  // Role Revocation Action
+  function handleRevokeRole(targetUser: AdminUser) {
+    triggerStepUp(
+      `Revoke Privileged Institutional Role for ${targetUser.name || targetUser.email}`,
+      `Revoking all staff permissions and authority scopes. Account will be safely demoted to student and active sessions invalidated.`,
+      async (stepUpToken: string) => {
+        await revokeAdminAuthority({
+          userId: targetUser.id,
+          stepUpToken,
+        });
+        setSuccessMsg(`Revoked institutional role for ${targetUser.email}. Account demoted to student.`);
+        await fetchUsersAndDepts();
       },
     );
   }
@@ -144,7 +203,7 @@ export default function AdminUsersPage() {
         });
         setSuccessMsg(`Updated delegated permissions for ${permUser.email}. Sessions invalidated.`);
         setPermUser(null);
-        await fetchUsers();
+        await fetchUsersAndDepts();
       },
     );
   }
@@ -246,6 +305,31 @@ export default function AdminUsersPage() {
           </div>
         </div>
 
+        <div style={{ display: 'flex', gap: 'var(--spacing-3)', marginBottom: 'var(--spacing-4)', flexWrap: 'wrap' }}>
+          <input
+            type="text"
+            placeholder="Search by name, email, or department..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="input"
+            style={{ flex: 1, minWidth: '220px' }}
+          />
+          <select
+            value={filterRole}
+            onChange={(e) => setFilterRole(e.target.value)}
+            className="input"
+            style={{ width: 'auto' }}
+          >
+            <option value="all">All Roles</option>
+            <option value="staff_requested">Staff Requests Pending</option>
+            <option value="student">Students</option>
+            <option value="HOD">HODs</option>
+            <option value="Dean">Deans</option>
+            <option value="Higher Authority">Higher Authorities</option>
+            <option value="admin">Administrators</option>
+          </select>
+        </div>
+
         {loading ? (
           <div style={{ textAlign: 'center', padding: 'var(--spacing-8)' }}>
             <span style={{ color: 'var(--color-text-secondary)' }}>Loading verified institutional directory…</span>
@@ -265,33 +349,57 @@ export default function AdminUsersPage() {
                 <tr style={{ borderBottom: '2px solid var(--color-border)', color: 'var(--color-text-secondary)' }}>
                   <th style={{ padding: 'var(--spacing-3)' }}>User / Identity</th>
                   <th style={{ padding: 'var(--spacing-3)' }}>Current Role</th>
-                  <th style={{ padding: 'var(--spacing-3)' }}>Department</th>
+                  <th style={{ padding: 'var(--spacing-3)' }}>Department & Scopes</th>
                   <th style={{ padding: 'var(--spacing-3)' }}>Status</th>
                   <th style={{ padding: 'var(--spacing-3)' }}>Security Health</th>
                   <th style={{ padding: 'var(--spacing-3)', textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {users.map((u) => {
+                {users
+                  .filter((u) => {
+                    if (filterRole === 'staff_requested') return Boolean(u.staff_requested);
+                    if (filterRole !== 'all') return u.role === filterRole;
+                    return true;
+                  })
+                  .filter((u) => {
+                    if (!searchQuery.trim()) return true;
+                    const q = searchQuery.toLowerCase();
+                    return (
+                      u.name?.toLowerCase().includes(q) ||
+                      u.email.toLowerCase().includes(q) ||
+                      u.department?.toLowerCase().includes(q) ||
+                      u.department_code?.toLowerCase().includes(q)
+                    );
+                  })
+                  .map((u) => {
                   const isTargetOwner = Boolean(u.is_primary_owner);
                   const isTargetAdmin = u.role === 'admin';
                   const isSelf = u.id === currentUser?.id;
+                  const isStaff = ['HOD', 'Dean', 'Higher Authority'].includes(u.role);
 
                   return (
                     <tr key={u.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
                       <td style={{ padding: 'var(--spacing-3)' }}>
                         <div style={{ fontWeight: 600 }}>{u.name || 'Unnamed Identity'}</div>
                         <div style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-xs)' }}>{u.email}</div>
-                        {u.staff_requested && (
-                          <span className="badge badge-warning" style={{ marginTop: 'var(--spacing-1)', fontSize: '10px' }}>
-                            Staff Requested
-                          </span>
-                        )}
-                        {isTargetOwner && (
-                          <span className="badge badge-primary" style={{ marginTop: 'var(--spacing-1)', fontSize: '10px' }}>
-                            Primary Owner
-                          </span>
-                        )}
+                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: 'var(--spacing-1)' }}>
+                          {u.staff_requested && (
+                            <span className="badge badge-warning" style={{ fontSize: '10px' }}>
+                              Staff Request Pending
+                            </span>
+                          )}
+                          {u.is_verified_student && (
+                            <span className="badge badge-success" style={{ fontSize: '10px' }}>
+                              Roster Verified
+                            </span>
+                          )}
+                          {isTargetOwner && (
+                            <span className="badge badge-primary" style={{ fontSize: '10px' }}>
+                              Primary Owner
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td style={{ padding: 'var(--spacing-3)' }}>
                         <span className={`badge ${u.role === 'admin' ? 'badge-primary' : u.role === 'student' ? 'badge-info' : 'badge-warning'}`}>
@@ -299,7 +407,17 @@ export default function AdminUsersPage() {
                         </span>
                       </td>
                       <td style={{ padding: 'var(--spacing-3)' }}>
-                        {u.department || '—'}
+                        <div>{u.department || '—'}</div>
+                        {u.department_code && (
+                          <span className="badge badge-secondary" style={{ fontSize: '10px', marginTop: '2px' }}>
+                            Code: {u.department_code}
+                          </span>
+                        )}
+                        {Array.isArray(u.assigned_departments) && u.assigned_departments.length > 0 && (
+                          <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
+                            Scopes: {u.assigned_departments.join(', ')}
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: 'var(--spacing-3)' }}>
                         <span className={`badge ${u.account_status === 'active' ? 'badge-success' : 'badge-error'}`}>
@@ -311,7 +429,26 @@ export default function AdminUsersPage() {
                         <div>PIN: {u.action_pin_set ? '✅ Active' : '❌ Not Set'}</div>
                       </td>
                       <td style={{ padding: 'var(--spacing-3)', textAlign: 'right' }}>
-                        <div style={{ display: 'flex', gap: 'var(--spacing-2)', justifyContent: 'flex-end' }}>
+                        <div style={{ display: 'flex', gap: 'var(--spacing-2)', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                          {u.staff_requested && !isTargetOwner && !isSelf && (
+                            <>
+                              <button
+                                type="button"
+                                className="btn btn-primary btn-sm"
+                                onClick={() => handleApproveStaffRequest(u)}
+                              >
+                                Approve Role
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => handleRejectStaffRequest(u)}
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
+
                           {!isTargetOwner && !isTargetAdmin && !isSelf && (
                             <button
                               type="button"
@@ -319,11 +456,23 @@ export default function AdminUsersPage() {
                               onClick={() => {
                                 setEditingUser(u);
                                 setEditRole(u.role);
-                                setEditDept(u.department || '');
+                                setEditDeptCode(u.department_code || '');
+                                setEditDeptName(u.department || '');
                                 setEditStatus(u.account_status);
                               }}
                             >
                               Manage Role
+                            </button>
+                          )}
+
+                          {isStaff && !isTargetOwner && !isSelf && (
+                            <button
+                              type="button"
+                              className="btn btn-danger btn-sm"
+                              style={{ color: 'var(--color-danger, #e53e3e)' }}
+                              onClick={() => handleRevokeRole(u)}
+                            >
+                              Revoke Staff
                             </button>
                           )}
 
@@ -371,7 +520,7 @@ export default function AdminUsersPage() {
         >
           <div className="card" style={{ maxWidth: 500, width: '100%', background: '#fff' }}>
             <h3 style={{ fontSize: 'var(--font-size-xl)' }}>
-              Manage Account & Role
+              Manage Account & Role Governance
             </h3>
             <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
               Target: <strong>{editingUser.name || editingUser.email}</strong> ({editingUser.email})
@@ -397,16 +546,38 @@ export default function AdminUsersPage() {
 
               <div>
                 <label style={{ display: 'block', fontSize: 'var(--font-size-sm)', fontWeight: 600 }}>
-                  Department Assignment
+                  Institutional Department
                 </label>
-                <input
-                  type="text"
-                  value={editDept}
-                  onChange={(e) => setEditDept(e.target.value)}
-                  placeholder="e.g. Computer Science, Mechanical"
-                  required
-                  style={{ width: '100%', marginTop: 'var(--spacing-1)', padding: 'var(--spacing-2)' }}
-                />
+                {departments.length > 0 ? (
+                  <select
+                    value={editDeptCode}
+                    onChange={(e) => {
+                      const code = e.target.value;
+                      setEditDeptCode(code);
+                      const dept = departments.find(d => d.code === code);
+                      if (dept) setEditDeptName(dept.name);
+                    }}
+                    className="input"
+                    style={{ width: '100%', marginTop: 'var(--spacing-1)' }}
+                    required
+                  >
+                    <option value="">-- Select Canonical Department --</option>
+                    {departments.map((d) => (
+                      <option key={d.code} value={d.code}>
+                        {d.code} — {d.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={editDeptName}
+                    onChange={(e) => setEditDeptName(e.target.value)}
+                    placeholder="e.g. Computer Science and Engineering"
+                    required
+                    style={{ width: '100%', marginTop: 'var(--spacing-1)', padding: 'var(--spacing-2)' }}
+                  />
+                )}
               </div>
 
               <div>

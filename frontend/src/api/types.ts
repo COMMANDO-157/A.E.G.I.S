@@ -180,10 +180,13 @@ export interface AdminUser {
   readonly email: string;
   readonly name: string;
   readonly department: string;
+  readonly department_code?: string | null;
   readonly role: UserRole;
   readonly account_status: AccountStatus;
   readonly staff_requested: boolean;
   readonly is_primary_owner?: boolean;
+  readonly is_verified_student?: boolean;
+  readonly assigned_departments?: string[];
   readonly mfa_enrolled?: boolean;
   readonly action_pin_set?: boolean;
   readonly permissions?: DelegatedPermission[];

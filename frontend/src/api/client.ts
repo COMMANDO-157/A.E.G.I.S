@@ -459,6 +459,7 @@ export interface RoleAssignmentPayload {
   userId: string;
   role: string;
   department: string;
+  department_code?: string | undefined;
   account_status: string;
   stepUpToken: string;
 }
@@ -604,6 +605,15 @@ export async function assignAdminAuthority(
   const opts: RequestOptions = { method: 'POST', body: payload };
   if (signal !== undefined) opts.signal = signal;
   await request<{ ok: boolean }>('admin/authorities/assign', opts);
+}
+
+export async function revokeAdminAuthority(
+  payload: { userId: string; departmentCode?: string; role?: string; stepUpToken: string },
+  signal?: AbortSignal,
+): Promise<void> {
+  const opts: RequestOptions = { method: 'POST', body: payload };
+  if (signal !== undefined) opts.signal = signal;
+  await request<{ ok: boolean }>('admin/authorities/revoke', opts);
 }
 
 export async function importRosterBatch(

@@ -905,3 +905,262 @@ test('Regression: /api/auth/challenge issues valid cookie and preserves attribut
     else process.env.NODE_ENV = previousEnv;
   }
 });
+
+test('G09: Owner Governance — Staff role request, approval, department scoping, revocation and session invalidation', async () => {
+  const ownerUser = {
+    id: '00000000-0000-0000-0000-000000000001',
+    email: 'owner@campus.test',
+    name: 'Primary Owner',
+    role: 'admin',
+    account_status: 'active',
+    is_primary_owner: true,
+    session_hash: digest('owner_session_token_12345'),
+    mfa_enrolled: true,
+    action_pin_hash: 'mock_hash',
+    permissions: []
+  };
+
+  const studentUser = {
+    id: '11111111-1111-1111-1111-111111111111',
+    email: 'student.applicant@campus.test',
+    name: 'Applicant User',
+    role: 'student',
+    department: 'General',
+    department_code: null,
+    account_status: 'active',
+    staff_requested: true,
+    is_primary_owner: false,
+    session_hash: digest('student_session_token_12345')
+  };
+
+  const departmentsTable = [
+    { code: 'CSE', name: 'Computer Science and Engineering', active: true },
+    { code: 'MECH', name: 'Mechanical Engineering', active: true }
+  ];
+
+  const authorityAssignments = [];
+  const sessionDeletions = [];
+  const auditLogs = [];
+
+  const db = {
+    query: async (sql, values) => {
+      // 1. Step-up token validation
+      if (sql.includes('FROM step_up_tokens WHERE token_hash=')) {
+        return {
+          rows: [{
+            token_hash: values[0],
+            user_id: ownerUser.id,
+            purpose: 'admin_step_up',
+            session_hash: ownerUser.session_hash,
+            used: false,
+            expires_at: new Date(Date.now() + 600000)
+          }],
+          rowCount: 1
+        };
+      }
+      // 2. User directory query
+      if (sql.includes('FROM users ORDER BY created_at DESC')) {
+        return {
+          rows: [
+            { ...ownerUser, action_pin_set: true },
+            { ...studentUser, action_pin_set: false }
+          ],
+          rowCount: 2
+        };
+      }
+      if (sql.includes('SELECT permission FROM admin_permissions')) {
+        return { rows: [], rowCount: 0 };
+      }
+      if (sql.includes('SELECT department_code FROM authority_assignments WHERE user_id=$1 AND active=true')) {
+        const userAuths = authorityAssignments.filter(a => a.user_id === values[0] && a.active);
+        return { rows: userAuths.map(a => ({ department_code: a.department_code })), rowCount: userAuths.length };
+      }
+      // 3. User lookup by ID
+      if (sql.includes('SELECT * FROM users WHERE id=')) {
+        const u = values[0] === ownerUser.id ? ownerUser : values[0] === studentUser.id ? studentUser : values[0] === '22222222-2222-2222-2222-222222222222' ? { id: '22222222-2222-2222-2222-222222222222', role: 'admin', is_primary_owner: false } : null;
+        return { rows: u ? [u] : [], rowCount: u ? 1 : 0 };
+      }
+      // 4. Department lookup
+      if (sql.includes('FROM departments WHERE code=')) {
+        const code = values[0];
+        const match = departmentsTable.find(d => d.code === code && d.active);
+        return { rows: match ? [match] : [], rowCount: match ? 1 : 0 };
+      }
+      if (sql.includes('FROM departments ORDER BY code ASC')) {
+        return { rows: departmentsTable, rowCount: departmentsTable.length };
+      }
+      // 5. Update user role / department / status
+      if (sql.includes('UPDATE users SET role=$1,department=$2,department_code=$3,account_status=$4,staff_requested=false WHERE id=$5')) {
+        studentUser.role = values[0];
+        studentUser.department = values[1];
+        studentUser.department_code = values[2];
+        studentUser.account_status = values[3];
+        studentUser.staff_requested = false;
+        return { rows: [{ id: studentUser.id }], rowCount: 1 };
+      }
+      if (sql.includes('UPDATE users SET role=$1, department_code=NULL WHERE id=$2')) {
+        studentUser.role = values[0];
+        studentUser.department_code = null;
+        return { rows: [{ id: studentUser.id }], rowCount: 1 };
+      }
+      // 6. Authority assignments
+      if (sql.includes('INSERT INTO authority_assignments')) {
+        const existing = authorityAssignments.find(a => a.user_id === values[0] && a.department_code === values[2] && a.role === values[1]);
+        if (existing) {
+          existing.active = true;
+          existing.deactivated_at = null;
+        } else {
+          authorityAssignments.push({
+            user_id: values[0],
+            role: values[1],
+            department_code: values[2],
+            assigned_by: values[3],
+            active: true
+          });
+        }
+        return { rowCount: 1 };
+      }
+      if (sql.includes('UPDATE authority_assignments SET active=false')) {
+        for (const a of authorityAssignments) {
+          if (a.user_id === values[0]) {
+            a.active = false;
+            a.deactivated_at = new Date();
+          }
+        }
+        return { rowCount: 1 };
+      }
+      if (sql.includes('SELECT role, department_code FROM authority_assignments WHERE user_id=$1 AND active=true')) {
+        const activeRemaining = authorityAssignments.filter(a => a.user_id === values[0] && a.active);
+        return { rows: activeRemaining, rowCount: activeRemaining.length };
+      }
+      // 7. Session revocation
+      if (sql.includes('DELETE FROM sessions WHERE user_id=')) {
+        sessionDeletions.push(values[0]);
+        return { rowCount: 1 };
+      }
+      // 8. Audit logs
+      if (sql.includes('INSERT INTO audit_logs')) {
+        auditLogs.push({ actor_id: values[0], complaint_id: values[1], action: values[2], details: JSON.parse(values[3] || '{}') });
+        return { rowCount: 1 };
+      }
+      // 9. Owner portal grant check
+      if (sql.includes('FROM owner_portal_grants')) {
+        return { rows: [{ token_hash: 'valid' }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    }
+  };
+
+  const server = http.createServer(
+    createHandler(
+      { sessionUser: async () => ownerUser, logout: async () => {} },
+      { database: () => db, transaction: fn => fn(db) },
+      { consumeRateLimit: async () => ({ remaining: 100 }) }
+    )
+  );
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const origin = 'http://127.0.0.1:' + server.address().port;
+  const saved = {
+    APP_ORIGIN: process.env.APP_ORIGIN,
+    PRIMARY_OWNER_USER_ID: process.env.PRIMARY_OWNER_USER_ID,
+    PRIMARY_OWNER_EMAIL: process.env.PRIMARY_OWNER_EMAIL
+  };
+  process.env.APP_ORIGIN = origin;
+  process.env.PRIMARY_OWNER_USER_ID = ownerUser.id;
+  process.env.PRIMARY_OWNER_EMAIL = ownerUser.email;
+
+  try {
+    const ownerHeaders = {
+      Origin: origin,
+      'Content-Type': 'application/json',
+      'x-aegis-owner-grant': 'a'.repeat(43)
+    };
+
+    // Step 1: User Directory Listing
+    const dirRes = await fetch(origin + '/api/admin/users', { headers: ownerHeaders });
+    assert.equal(dirRes.status, 200);
+    const dirData = await dirRes.json();
+    assert.equal(dirData.users.length, 2);
+    const studentEntry = dirData.users.find(u => u.id === studentUser.id);
+    assert.equal(studentEntry.staff_requested, true);
+
+    // Step 2: Approve Staff Request into HOD of CSE
+    const approveRes = await fetch(origin + '/api/admin/roles', {
+      method: 'PATCH',
+      headers: ownerHeaders,
+      body: JSON.stringify({
+        userId: studentUser.id,
+        role: 'HOD',
+        department: 'Computer Science and Engineering',
+        department_code: 'CSE',
+        account_status: 'active',
+        stepUpToken: 'valid_step_up_token_1234567890abcdef'
+      })
+    });
+    assert.equal(approveRes.status, 200);
+    assert.equal(studentUser.role, 'HOD');
+    assert.equal(studentUser.department_code, 'CSE');
+    assert.equal(studentUser.staff_requested, false);
+    assert.ok(sessionDeletions.includes(studentUser.id), 'Sessions must be invalidated upon role change');
+    assert.ok(authorityAssignments.some(a => a.user_id === studentUser.id && a.department_code === 'CSE' && a.active), 'Authority assignment created for HOD');
+    assert.ok(auditLogs.some(l => l.action === 'ADMIN_ROLE_ASSIGNMENT' && l.details.role === 'HOD'), 'Audit log recorded for role assignment');
+
+    // Step 3: Administrator / Primary Owner cannot be altered via role endpoint
+    const otherAdminUser = {
+      id: '22222222-2222-2222-2222-222222222222',
+      email: 'delegated.admin@campus.test',
+      role: 'admin',
+      is_primary_owner: false
+    };
+    const adminAlterRes = await fetch(origin + '/api/admin/roles', {
+      method: 'PATCH',
+      headers: ownerHeaders,
+      body: JSON.stringify({
+        userId: otherAdminUser.id,
+        role: 'student',
+        department: 'General',
+        account_status: 'active',
+        stepUpToken: 'valid_step_up_token_1234567890abcdef'
+      })
+    });
+    assert.equal(adminAlterRes.status, 403, 'Administrator accounts cannot be altered via role endpoint');
+
+    // Step 4: Role Revocation (Demotion back to Student)
+    const revokeRes = await fetch(origin + '/api/admin/authorities/revoke', {
+      method: 'POST',
+      headers: ownerHeaders,
+      body: JSON.stringify({
+        userId: studentUser.id,
+        stepUpToken: 'valid_step_up_token_1234567890abcdef'
+      })
+    });
+    assert.equal(revokeRes.status, 200);
+    assert.equal(studentUser.role, 'student', 'User must be demoted to student when all authorities revoked');
+    assert.equal(studentUser.department_code, null);
+    assert.ok(authorityAssignments.every(a => a.user_id !== studentUser.id || !a.active), 'All authority assignments must be deactivated');
+    assert.ok(auditLogs.some(l => l.action === 'AUTHORITY_REVOKED'), 'Audit log recorded for authority revocation');
+
+    // Step 5: Account Suspension Flow
+    const suspendRes = await fetch(origin + '/api/admin/roles', {
+      method: 'PATCH',
+      headers: ownerHeaders,
+      body: JSON.stringify({
+        userId: studentUser.id,
+        role: 'student',
+        department: 'General',
+        account_status: 'suspended',
+        stepUpToken: 'valid_step_up_token_1234567890abcdef'
+      })
+    });
+    assert.equal(suspendRes.status, 200);
+    assert.equal(studentUser.account_status, 'suspended');
+    assert.ok(auditLogs.some(l => l.action === 'ADMIN_ROLE_ASSIGNMENT' && l.details.status === 'suspended'));
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+});
+

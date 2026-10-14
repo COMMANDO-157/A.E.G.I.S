@@ -758,9 +758,9 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
    if(path==='/api/admin/users'&&method==='GET') {
     requireAdminPermission(user, 'users.read');
     const users=(await database().query(
-     'SELECT id,email,name,department,role,account_status,staff_requested,is_primary_owner,mfa_enrolled,action_pin_hash IS NOT NULL AS action_pin_set,created_at FROM users ORDER BY created_at DESC LIMIT 100'
+     'SELECT id,email,name,department,department_code,role,account_status,staff_requested,is_primary_owner,is_verified_student,mfa_enrolled,action_pin_hash IS NOT NULL AS action_pin_set,created_at FROM users ORDER BY created_at DESC LIMIT 100'
     )).rows;
-    // Enrich admin users with permissions
+    // Enrich users with permissions and assigned departments
     for(const u of users) {
      if(u.role==='admin') {
       const permsResult=await database().query('SELECT permission FROM admin_permissions WHERE user_id=$1',[u.id]);
@@ -768,6 +768,8 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
      } else {
       u.permissions=[];
      }
+     const assignsResult=await database().query('SELECT department_code FROM authority_assignments WHERE user_id=$1 AND active=true',[u.id]);
+     u.assigned_departments=assignsResult.rows.map(r=>r.department_code);
     }
     return send(200, { users });
    }
@@ -857,7 +859,7 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
    // ─── Role Assignment ──────────────────────────────────────────────────────
    if(path==='/api/admin/roles'&&method==='PATCH') {
     const input=await body(req);
-    fieldsOnly(input,['userId','role','department','account_status','stepUpToken']);
+    fieldsOnly(input,['userId','role','department','department_code','account_status','stepUpToken']);
     if(!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(input.userId||'')||input.department?.length>120||input.userId===user.id||!['student',...STAFF].includes(input.role)||!['active','suspended'].includes(input.account_status)||typeof input.department!=='string'||!input.department.trim()) {
      fail(422,'Invalid role assignment. Admin grants require trusted bootstrap.');
     }
@@ -881,13 +883,34 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
      if(target.is_primary_owner) fail(403, 'Primary Owner cannot be altered.');
      if(target.role==='admin') fail(403, 'Administrator accounts cannot be altered via role endpoint.');
 
+     let deptCode = input.department_code ? input.department_code.trim().toUpperCase() : null;
+     if(!deptCode && input.role !== 'student') {
+      const matchDept = (await db.query('SELECT code, name FROM departments WHERE code=$1 OR name=$2 LIMIT 1', [input.department.trim().toUpperCase(), input.department.trim()])).rows[0];
+      if(matchDept) deptCode = matchDept.code;
+     }
+
      const res=await db.query(
-      'UPDATE users SET role=$1,department=$2,account_status=$3,staff_requested=false WHERE id=$4 AND role<>$5 RETURNING id',
-      [input.role,input.department.trim(),input.account_status,input.userId,'admin']
+      'UPDATE users SET role=$1,department=$2,department_code=$3,account_status=$4,staff_requested=false WHERE id=$5 AND role<>$6 RETURNING id',
+      [input.role,input.department.trim(),deptCode,input.account_status,input.userId,'admin']
      );
      if(!res.rowCount) fail(404,'Eligible account not found.');
+
+     // If demoted to student or suspended, deactivate all active authority assignments
+     if(input.role==='student' || input.account_status==='suspended') {
+      await db.query('UPDATE authority_assignments SET active=false, deactivated_at=now() WHERE user_id=$1 AND active=true', [input.userId]);
+     } else if(deptCode && ['HOD', 'Dean', 'Higher Authority'].includes(input.role)) {
+      // Sync authority assignment for staff role
+      await db.query(
+       `INSERT INTO authority_assignments(user_id, role, department_code, assigned_by) 
+        VALUES($1, $2, $3, $4) 
+        ON CONFLICT (user_id, department_code, role) 
+        DO UPDATE SET active=true, deactivated_at=NULL`,
+       [input.userId, input.role, deptCode, user.id]
+      );
+     }
+
      await db.query('DELETE FROM sessions WHERE user_id=$1',[input.userId]);
-     await audit(db,user,null,'ADMIN_ROLE_ASSIGNMENT',{userId:input.userId,role:input.role,status:input.account_status});
+     await audit(db,user,null,'ADMIN_ROLE_ASSIGNMENT',{userId:input.userId,role:input.role,department:input.department.trim(),departmentCode:deptCode,status:input.account_status});
      return res;
     });
     return send(200,{ok:Boolean(result.rowCount)});
@@ -950,6 +973,7 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
     const res = await transaction(async db => {
      const targetUser = (await db.query('SELECT * FROM users WHERE id=$1', [input.userId])).rows[0];
      if(!targetUser) fail(404, 'User not found.');
+     if(targetUser.is_primary_owner) fail(403, 'Primary Owner cannot be altered.');
      const dept = (await db.query('SELECT * FROM departments WHERE code=$1 AND active=true', [input.departmentCode.trim().toUpperCase()])).rows[0];
      if(!dept) fail(404, 'Active department not found.');
 
@@ -963,6 +987,50 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
      await db.query('UPDATE users SET role=$1, department_code=$2, department=$3 WHERE id=$4', [input.role, dept.code, dept.name, input.userId]);
      await db.query('DELETE FROM sessions WHERE user_id=$1', [input.userId]);
      await audit(db, user, null, 'AUTHORITY_ASSIGNED', { userId: input.userId, role: input.role, departmentCode: dept.code });
+     return { ok: true };
+    });
+    return send(200, res);
+   }
+
+   if(path==='/api/admin/authorities/revoke'&&method==='POST') {
+    requireAdminPermission(user, 'authorities.assign');
+    const input = await body(req);
+    fieldsOnly(input, ['userId', 'departmentCode', 'role', 'stepUpToken']);
+    if(!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(input.userId||'')) fail(422, 'Invalid userId.');
+
+    if(!input.stepUpToken) fail(403, 'Step-up authorization token is required for authority revocation.');
+    const validStepUp = await verifyStepUpToken(user.id, 'admin_step_up', input.stepUpToken, database(), user.session_hash);
+    if(!validStepUp) fail(403, 'Invalid or expired step-up authorization token.');
+
+    const res = await transaction(async db => {
+     const targetUser = (await db.query('SELECT * FROM users WHERE id=$1', [input.userId])).rows[0];
+     if(!targetUser) fail(404, 'User not found.');
+     if(targetUser.is_primary_owner) fail(403, 'Primary Owner cannot be altered.');
+
+     let query = 'UPDATE authority_assignments SET active=false, deactivated_at=now() WHERE user_id=$1 AND active=true';
+     const params = [input.userId];
+     if(input.departmentCode) {
+      params.push(input.departmentCode.trim().toUpperCase());
+      query += ` AND department_code=$${params.length}`;
+     }
+     if(input.role) {
+      params.push(input.role);
+      query += ` AND role=$${params.length}`;
+     }
+     await db.query(query, params);
+
+     // Check if user has any remaining active authority assignments
+     const remaining = (await db.query('SELECT role, department_code FROM authority_assignments WHERE user_id=$1 AND active=true ORDER BY assigned_at DESC LIMIT 1', [input.userId])).rows[0];
+     if(remaining) {
+      const matchDept = (await db.query('SELECT name FROM departments WHERE code=$1', [remaining.department_code])).rows[0];
+      await db.query('UPDATE users SET role=$1, department_code=$2, department=$3 WHERE id=$4', [remaining.role, remaining.department_code, matchDept?.name || targetUser.department, input.userId]);
+     } else if(targetUser.role !== 'admin') {
+      // Demote back to student role if no authority assignments remain
+      await db.query('UPDATE users SET role=$1, department_code=NULL WHERE id=$2', ['student', input.userId]);
+     }
+
+     await db.query('DELETE FROM sessions WHERE user_id=$1', [input.userId]);
+     await audit(db, user, null, 'AUTHORITY_REVOKED', { userId: input.userId, departmentCode: input.departmentCode || 'ALL', role: input.role || 'ALL' });
      return { ok: true };
     });
     return send(200, res);

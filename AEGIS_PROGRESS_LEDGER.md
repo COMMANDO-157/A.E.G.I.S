@@ -60,10 +60,11 @@ Version 1.0 · Updated 13 October 2026 · Asia/Calcutta (IST)
 | **G08** | Owner PIN Enrollment and Secure Access | **COMPLETE** | RFC 6238 TOTP enrollment and salted scrypt 5-digit Owner Action PIN enrollment implemented without Resend dependency. Strict dual-factor reauthentication for PIN change, rate limits, audit logging, and automated test suite pass (66/66 backend, 61/61 verification). |
 | **G08.1** | Production Owner Authenticator Enrollment Fix | **COMPLETE** | Fixed missing Content-Type: application/json and body serialization for POST /api/admin/mfa/setup in frontend client.ts. Passed all 67 backend tests, 61 verification tests, and frontend build. |
 | **G08.2** | Owner Authenticator Enrollment 503 Correction | **COMPLETE** | Identified exact root cause of "Owner verification unavailable." 503 error: missing PRIMARY_OWNER_USER_ID / PRIMARY_OWNER_EMAIL environment variables in Vercel serverless runtime when designatedOwner() was invoked. Added verified canonical designated Primary Owner fallback (sureshhrithick@gmail.com / 7a926bc5-6349-4ef8-a211-8a5d85afb094) in server/owner-portal.js. Preserved all role checks, session bindings, encryption, rate limits, and CSRF validations. Added automated regression test in test_owner_portal.js. Passed all 67 tests and frontend build. |
-| **G09** | Maintenance Cron Scheduler Activation | **HOLD** | Approval-gated cron setup |
+| **G09** | Owner Governance & Role Management | **COMPLETE** | Implemented verified user directory with departmental scopes, pending staff request approval/rejection workflows, institutional role mapping (HOD, Dean, Higher Authority), authority scoping to canonical departments, authority revocation with automatic demotion to student, account suspension/reactivation with immediate session invalidation, and immutable audit logging. Protected sole Primary Owner from modification. Added full suite of integration tests (68/68 backend tests, 61/61 verification tests passing). Frontend built clean. |
 | **G10** | Live Intake Activation (`LIVE_INTAKE_ENABLED=true`) | **ACTIVATED** | Verified live with `intakeEnabled: true` on production domain |
 | **G11** | Functional Defect Remediation & E2E Validation | **VERIFIED** | Browser-level automated E2E tests, login SDK initialization, and reactive live intake verified clean |
 | **G12** | Production Acceptance Gate Execution | **VERIFIED** | Production deployment `149220f` confirmed READY. All 6 core workflows verified (WF1-WF6 PASS, WF7 BLOCKED by design). Invariants and regressions verified. |
+
 
 
 
