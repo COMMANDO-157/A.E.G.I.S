@@ -43,6 +43,8 @@ function fixture(setup=false) {
    user.action_pin_failed_attempts++;if(user.action_pin_failed_attempts>=5)user.action_pin_locked_until=new Date(Date.now()+900000);
   } else if(sql.startsWith('UPDATE users SET owner_failed_attempts=0')) {user.owner_failed_attempts=0;user.owner_locked_until=null;}
   else if(sql.startsWith('UPDATE users SET action_pin_hash')) {user.action_pin_hash=v[0];user.action_pin_salt=v[1];user.action_pin_set_at=new Date();}
+  else if(sql.startsWith('UPDATE users SET mfa_secret_encrypted')) {user.mfa_secret_encrypted=v[0];user.mfa_enrolled=false;}
+  else if(sql.startsWith('UPDATE users SET mfa_enrolled=true')) {user.mfa_enrolled=true;user.mfa_enrolled_at=new Date();}
   else if(sql.startsWith('INSERT INTO owner_portal_grants')) grant={token_hash:v[0],user_id:v[2],session_hash:v[1],pin_set_at:user.action_pin_set_at,expires_at:new Date(Date.now()+600000)};
   else if(sql.startsWith('DELETE FROM owner_portal_grants')) grant=null;
   else if(sql.startsWith('SELECT g.token_hash FROM owner_portal_grants')) {
@@ -182,6 +184,61 @@ test('Direct owner/admin API requests cannot bypass entry, change the PIN, or re
   const cross=await fetch(origin+'/api/owner/entry/start',{method:'POST',headers:{Origin:'https://attacker.test','Content-Type':'application/json'},body:'{}'});
   assert.equal(cross.status,403);
  } finally {await new Promise(resolve=>server.close(resolve));}
+});
+
+
+test('First-time Owner authenticator enrollment flow via HTTP with CSRF and JSON validation',async()=>{
+ const f=fixture(true);
+ f.user.mfa_enrolled=false;
+ f.user.mfa_secret_encrypted=null;
+ const server=http.createServer(createHandler({sessionUser:async()=>f.user,logout:async()=>{}},{database:()=>f.db,transaction:f.deps.transaction},{consumeRateLimit:async()=>({})}));
+ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ const origin='http://127.0.0.1:'+server.address().port;
+ process.env.APP_ORIGIN=origin;
+ const post=(path,body={},headers={})=>fetch(origin+path,{
+  method:'POST',
+  headers:{Origin:origin,'Content-Type':'application/json',...headers},
+  body:typeof body==='string'?body:JSON.stringify(body)
+ });
+
+ try {
+  // 1. Missing Content-Type is rejected with 415 JSON requests required
+  const noContentType = await fetch(origin+'/api/admin/mfa/setup',{
+   method:'POST',
+   headers:{Origin:origin}
+  });
+  assert.equal(noContentType.status, 415);
+  const noCtJson = await noContentType.json();
+  assert.equal(noCtJson.error, 'JSON requests required.');
+
+  // 2. Untrusted origin is rejected with 403
+  const badOrigin = await fetch(origin+'/api/admin/mfa/setup',{
+   method:'POST',
+   headers:{Origin:'https://attacker.test','Content-Type':'application/json'},
+   body:'{}'
+  });
+  assert.equal(badOrigin.status, 403);
+
+  // 3. Valid setup request with Content-Type and empty JSON body succeeds
+  const setupRes = await post('/api/admin/mfa/setup', {});
+  assert.equal(setupRes.status, 200);
+  const setupData = await setupRes.json();
+  assert.ok(setupData.secret);
+  assert.ok(setupData.uri);
+  assert.ok(Array.isArray(setupData.recoveryCodes));
+  assert.equal(setupData.recoveryCodes.length, 8);
+
+  // 4. Verification with correct TOTP code succeeds
+  const totpCode = computeTotp(setupData.secret);
+  const verifyRes = await post('/api/admin/mfa/verify', { code: totpCode });
+  assert.equal(verifyRes.status, 200);
+  const verifyData = await verifyRes.json();
+  assert.equal(verifyData.verified, true);
+  assert.ok(verifyData.stepUpToken);
+  assert.equal(f.user.mfa_enrolled, true);
+ } finally {
+  await new Promise(resolve=>server.close(resolve));
+ }
 });
 
 test('Direct Owner PIN enrollment with TOTP sets salted hash and grants active owner entry',async()=>{

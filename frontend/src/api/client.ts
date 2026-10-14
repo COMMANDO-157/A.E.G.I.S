@@ -85,7 +85,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   const headers: Record<string, string> = {};
   if(ownerGrant) headers['X-Aegis-Owner-Grant']=ownerGrant;
-  if (body !== undefined) {
+  if (body !== undefined || !['GET', 'HEAD'].includes(method)) {
     headers['Content-Type'] = 'application/json';
   }
 
@@ -101,6 +101,8 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   if (body !== undefined) {
     requestInit.body = JSON.stringify(body);
+  } else if (!['GET', 'HEAD'].includes(method)) {
+    requestInit.body = '{}';
   }
 
   let response: Response;
@@ -434,7 +436,7 @@ export async function getEvidenceDownloadToken(
   evidenceId: string,
   signal?: AbortSignal,
 ): Promise<{ token: string; expiresInSeconds: number }> {
-  const opts: RequestOptions = { method: 'POST' };
+  const opts: RequestOptions = { method: 'POST', body: {} };
   if (signal !== undefined) opts.signal = signal;
   return request<{ token: string; expiresInSeconds: number }>(`complaints/${complaintId}/evidence/${evidenceId}/token`, opts);
 }
@@ -473,7 +475,7 @@ export async function assignRole(
 // ─── Stage 4.2: MFA & Step-Up Administration ──────────────────────────────────
 
 export async function setupMfa(signal?: AbortSignal): Promise<import('./types').MfaSetupResponse> {
-  const opts: RequestOptions = { method: 'POST' };
+  const opts: RequestOptions = { method: 'POST', body: {} };
   if (signal !== undefined) opts.signal = signal;
   return request<import('./types').MfaSetupResponse>('admin/mfa/setup', opts);
 }
