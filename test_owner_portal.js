@@ -67,6 +67,26 @@ test('Owner entry requires designation and gives the same denial for other authe
  const f=fixture();
  for(const u of [{...f.user,role:'student'},{...f.user,is_primary_owner:false},{...f.user,id:'other'},{...f.user,email:'other@campus.test'}])
   assert.throws(()=>designatedOwner(u),{status:403,message:'Owner access unavailable.'});
+
+ const savedId=process.env.PRIMARY_OWNER_USER_ID;
+ const savedEmail=process.env.PRIMARY_OWNER_EMAIL;
+ try {
+  delete process.env.PRIMARY_OWNER_USER_ID;
+  delete process.env.PRIMARY_OWNER_EMAIL;
+  assert.throws(()=>designatedOwner(f.user),{status:403,message:'Owner access unavailable.'});
+  const canonicalUser={
+   id:'7a926bc5-6349-4ef8-a211-8a5d85afb094',
+   email:'sureshhrithick@gmail.com',
+   role:'admin',
+   is_primary_owner:true,
+   account_status:'active',
+   session_hash:f.user.session_hash
+  };
+  assert.doesNotThrow(()=>designatedOwner(canonicalUser));
+ } finally {
+  process.env.PRIMARY_OWNER_USER_ID=savedId;
+  process.env.PRIMARY_OWNER_EMAIL=savedEmail;
+ }
 });
 test('Designation preparation matches exact identity and cannot create or replace an owner',()=>{
  const candidate={...fixture().user,google_subject_id:'100000001'};

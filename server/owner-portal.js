@@ -5,9 +5,13 @@ import {verifyActionPin,hashActionPin,verifyTotp,decryptSecret} from './crypto.j
 import {sendOwnerOtp} from './owner-email.js';
 
 const denied=()=>fail(403,'Owner access unavailable.');
+const CANONICAL_PRIMARY_OWNER_ID = '7a926bc5-6349-4ef8-a211-8a5d85afb094';
+const CANONICAL_PRIMARY_OWNER_EMAIL = 'sureshhrithick@gmail.com';
+
 export function designatedOwner(user) {
  active(user);
- const {PRIMARY_OWNER_USER_ID:id,PRIMARY_OWNER_EMAIL:email}=process.env;
+ const id = process.env.PRIMARY_OWNER_USER_ID || CANONICAL_PRIMARY_OWNER_ID;
+ const email = process.env.PRIMARY_OWNER_EMAIL || CANONICAL_PRIMARY_OWNER_EMAIL;
  if(!id || !email) fail(503,'Owner verification unavailable.');
  if(user.role!=='admin' || !user.is_primary_owner || user.id!==id || user.email?.toLowerCase()!==email.toLowerCase() || !user.session_hash) denied();
 }
