@@ -76,6 +76,9 @@ export function releaseOwnerGrant() {
 }
 export const startOwnerEntry = (pin?: string) => request<{challengeId: string; setup: boolean}>('owner/entry/start', {method:'POST',body:pin ? {pin} : {}});
 export const verifyOwnerEntry = (body: {challengeId: string; otp: string; pin?: string; totp?: string}) => request<{grant: string; expiresIn: number}>('owner/entry/verify',{method:'POST',body});
+export const setupOwnerPin = (body: {pin: string; totp: string}) => request<{grant: string; expiresIn: number}>('owner/pin/setup',{method:'POST',body});
+export const entryOwnerTotp = (body: {pin: string; totp: string}) => request<{grant: string; expiresIn: number}>('owner/entry/totp',{method:'POST',body});
+export const changeOwnerPin = (body: {currentPin: string; newPin: string; totp: string}) => request<{grant: string; expiresIn: number}>('owner/pin/change',{method:'POST',body});
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, signal } = options;

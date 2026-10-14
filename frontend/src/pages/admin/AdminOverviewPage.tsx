@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useLocale } from '@/context/LocaleContext';
-import { setupMfa, verifyMfa, setupActionPin, verifyActionPin } from '@/api/client';
+import { setupMfa, verifyMfa, setupActionPin, verifyActionPin, changeOwnerPin } from '@/api/client';
 import type { MfaSetupResponse } from '@/api/types';
 
 export default function AdminOverviewPage() {
@@ -25,6 +25,38 @@ export default function AdminOverviewPage() {
   const [pinSuccess, setPinSuccess] = useState(false);
   const [pinLoading, setPinLoading] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
+  // Owner PIN Change State
+  const [currentPin, setCurrentPin] = useState('');
+  const [newPin, setNewPin] = useState('');
+  const [confirmNewPin, setConfirmNewPin] = useState('');
+  const [ownerTotp, setOwnerTotp] = useState('');
+  const [ownerPinSuccess, setOwnerPinSuccess] = useState(false);
+  const [ownerPinLoading, setOwnerPinLoading] = useState(false);
+  const [ownerPinError, setOwnerPinError] = useState<string | null>(null);
+
+  async function handleOwnerChangePin(e: React.FormEvent) {
+    e.preventDefault();
+    setOwnerPinError(null);
+    setOwnerPinLoading(true);
+    try {
+      if (!/^\d{5}$/.test(currentPin)) throw new Error('Current PIN must be 5 digits.');
+      if (!/^\d{5}$/.test(newPin)) throw new Error('New PIN must be 5 digits.');
+      if (newPin !== confirmNewPin) throw new Error('New PIN and confirmation PIN do not match.');
+      if (!/^\d{6}$/.test(ownerTotp.trim())) throw new Error('Valid 6-digit Authenticator code required.');
+
+      await changeOwnerPin({ currentPin, newPin, totp: ownerTotp.trim() });
+      setOwnerPinSuccess(true);
+      setCurrentPin('');
+      setNewPin('');
+      setConfirmNewPin('');
+      setOwnerTotp('');
+    } catch (err: any) {
+      setOwnerPinError(err.message || 'Owner PIN change failed.');
+    } finally {
+      setOwnerPinLoading(false);
+    }
+  }
+
 
   async function handleStartMfaSetup() {
     setMfaError(null);
@@ -228,7 +260,77 @@ export default function AdminOverviewPage() {
               </div>
             )}
 
-            {user?.is_primary_owner ? <p>Your access PIN is managed through verified owner entry. Contact the trusted operator for recovery.</p> : <form onSubmit={handleSetPin} style={{ marginTop: 'var(--spacing-3)' }}>
+            {user?.is_primary_owner ? (
+              <div style={{ marginTop: 'var(--spacing-3)' }}>
+                <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-2)' }}>
+                  Change your personal 5-digit Owner Action PIN. Requires reauthentication with current PIN and fresh Authenticator code.
+                </p>
+                {ownerPinSuccess && (
+                  <div className="alert alert-success" style={{ marginBottom: 'var(--spacing-2)', fontSize: 'var(--font-size-xs)' }}>
+                    ✅ Owner Action PIN successfully changed.
+                  </div>
+                )}
+                {ownerPinError && (
+                  <div className="alert alert-error" style={{ marginBottom: 'var(--spacing-2)', fontSize: 'var(--font-size-xs)' }}>
+                    {ownerPinError}
+                  </div>
+                )}
+                <form onSubmit={handleOwnerChangePin} style={{ display: 'grid', gap: 'var(--spacing-2)' }}>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={5}
+                    pattern="\\d{5}"
+                    value={currentPin}
+                    onChange={(e) => setCurrentPin(e.target.value)}
+                    placeholder="Current 5-digit PIN"
+                    required
+                    style={{ width: '100%', padding: 'var(--spacing-2)', fontSize: 'var(--font-size-sm)' }}
+                  />
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={5}
+                    pattern="\\d{5}"
+                    value={newPin}
+                    onChange={(e) => setNewPin(e.target.value)}
+                    placeholder="New 5-digit PIN"
+                    required
+                    style={{ width: '100%', padding: 'var(--spacing-2)', fontSize: 'var(--font-size-sm)' }}
+                  />
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={5}
+                    pattern="\\d{5}"
+                    value={confirmNewPin}
+                    onChange={(e) => setConfirmNewPin(e.target.value)}
+                    placeholder="Confirm New 5-digit PIN"
+                    required
+                    style={{ width: '100%', padding: 'var(--spacing-2)', fontSize: 'var(--font-size-sm)' }}
+                  />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    pattern="\\d{6}"
+                    value={ownerTotp}
+                    onChange={(e) => setOwnerTotp(e.target.value)}
+                    placeholder="6-digit Authenticator Code"
+                    required
+                    style={{ width: '100%', padding: 'var(--spacing-2)', fontSize: 'var(--font-size-sm)' }}
+                  />
+                  <button
+                    type="submit"
+                    className="btn btn-primary btn-sm"
+                    disabled={ownerPinLoading}
+                    style={{ marginTop: 'var(--spacing-1)' }}
+                  >
+                    {ownerPinLoading ? 'Updating…' : 'Change Owner PIN'}
+                  </button>
+                </form>
+              </div>
+            ) : <form onSubmit={handleSetPin} style={{ marginTop: 'var(--spacing-3)' }}>
               <input
                 type="password"
                 inputMode="numeric"

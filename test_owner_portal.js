@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import {randomBytes} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
-import {beginOwnerEntry,finishOwnerEntry,requireOwnerGrant,designatedOwner} from './server/owner-portal.js';
+import {beginOwnerEntry,finishOwnerEntry,setupOwnerPin,entryOwnerTotp,changeOwnerPin,requireOwnerGrant,designatedOwner} from './server/owner-portal.js';
 import {sendOwnerOtp,checkOwnerEmailProvider} from './server/owner-email.js';
 import {hashActionPin,encryptSecret,generateTotpSecret,computeTotp} from './server/crypto.js';
 import {digest} from './server/auth.js';
@@ -183,6 +183,57 @@ test('Direct owner/admin API requests cannot bypass entry, change the PIN, or re
   assert.equal(cross.status,403);
  } finally {await new Promise(resolve=>server.close(resolve));}
 });
+
+test('Direct Owner PIN enrollment with TOTP sets salted hash and grants active owner entry',async()=>{
+ const f=fixture(true);
+ // Invalid PIN or TOTP format fails
+ await assert.rejects(setupOwnerPin(f.user,{pin:'1234',totp:'123456'},f.deps),{status:403});
+ await assert.rejects(setupOwnerPin(f.user,{pin:'12345',totp:'12345'},f.deps),{status:403});
+ // Bad TOTP code fails
+ await assert.rejects(setupOwnerPin(f.user,{pin:'12345',totp:'000000'},f.deps),{status:403});
+ assert.equal(f.user.action_pin_hash,null);
+ // Valid TOTP code successfully sets PIN
+ const result=await setupOwnerPin(f.user,{pin:'98765',totp:computeTotp(f.secret)},f.deps);
+ assert.match(result.grant,/^[A-Za-z0-9_-]{43}$/);
+ assert.ok(f.user.action_pin_hash);
+ assert.ok(f.user.action_pin_salt);
+ assert.ok(f.user.action_pin_set_at);
+ // Owner grant allows immediate access
+ await requireOwnerGrant(request(result.grant),f.user,f.db);
+ // Cannot setup PIN a second time once already set
+ await assert.rejects(setupOwnerPin(f.user,{pin:'11111',totp:computeTotp(f.secret)},f.deps),{status:403});
+});
+
+test('Dual-factor Owner Entry with PIN + TOTP verifies both factors without email dependency',async()=>{
+ const f=fixture();
+ // Wrong PIN fails
+ await assert.rejects(entryOwnerTotp(f.user,{pin:'00000',totp:computeTotp(f.secret)},f.deps),{status:403});
+ // Wrong TOTP fails
+ await assert.rejects(entryOwnerTotp(f.user,{pin:'54321',totp:'000000'},f.deps),{status:403});
+ // Both factors correct succeeds and issues grant
+ const result=await entryOwnerTotp(f.user,{pin:'54321',totp:computeTotp(f.secret)},f.deps);
+ assert.match(result.grant,/^[A-Za-z0-9_-]{43}$/);
+ await requireOwnerGrant(request(result.grant),f.user,f.db);
+});
+
+test('Owner PIN change requires reauthentication with current PIN and fresh TOTP',async()=>{
+ const f=fixture();
+ // Wrong current PIN fails
+ await assert.rejects(changeOwnerPin(f.user,{currentPin:'00000',newPin:'13579',totp:computeTotp(f.secret)},f.deps),{status:403});
+ // Wrong TOTP fails
+ await assert.rejects(changeOwnerPin(f.user,{currentPin:'54321',newPin:'13579',totp:'000000'},f.deps),{status:403});
+ // Invalid new PIN format fails
+ await assert.rejects(changeOwnerPin(f.user,{currentPin:'54321',newPin:'abc',totp:computeTotp(f.secret)},f.deps),{status:403});
+ // Correct reauth successfully changes PIN
+ const result=await changeOwnerPin(f.user,{currentPin:'54321',newPin:'13579',totp:computeTotp(f.secret)},f.deps);
+ assert.match(result.grant,/^[A-Za-z0-9_-]{43}$/);
+ // Can now enter with new PIN
+ const reEntry=await entryOwnerTotp(f.user,{pin:'13579',totp:computeTotp(f.secret)},f.deps);
+ assert.match(reEntry.grant,/^[A-Za-z0-9_-]{43}$/);
+ // Old PIN no longer works
+ await assert.rejects(entryOwnerTotp(f.user,{pin:'54321',totp:computeTotp(f.secret)},f.deps),{status:403});
+});
+
 test('Migration transaction wrappers are removed even after leading comments; checksums stay outside file commits',async()=>{
  for(const name of ['001_stage3.sql','002_security.sql','003_auth_v4_2.sql','004_institutional_roster.sql','005_password_auth.sql','006_owner_portal.sql']) {
   const raw=await readFile(new URL('./migrations/'+name,import.meta.url),'utf8');

@@ -98,3 +98,89 @@ export async function finishOwnerEntry(user,input,{transaction,limit}) {
  if(!result) denied();
  return {grant:token,expiresIn:600};
 }
+
+export async function setupOwnerPin(user,input,{transaction,limit}) {
+ designatedOwner(user);
+ await limit('owner:pin:setup:'+user.id,5,900);
+ if(typeof input.pin!=='string'||!/^\d{5}$/.test(input.pin)||typeof input.totp!=='string'||!/^\d{6}$/.test(input.totp)) denied();
+ const token=randomBytes(32).toString('base64url');
+ const result=await transaction(async tx=>{
+  const u=(await tx.query('SELECT * FROM users WHERE id=$1 FOR UPDATE',[user.id])).rows[0];
+  designatedOwner({...u,session_hash:user.session_hash});
+  if(locked(u)) return false;
+  if(u.action_pin_hash || !u.mfa_enrolled || !u.mfa_secret_encrypted) return false;
+  if(!verifyTotp(input.totp,decryptSecret(u.mfa_secret_encrypted))) {
+   await failure(tx,u);return false;
+  }
+  const {pinHash,pinSalt}=hashActionPin(input.pin);
+  await tx.query('UPDATE users SET action_pin_hash=$1,action_pin_salt=$2,action_pin_set_at=now(),owner_failed_attempts=0,owner_locked_until=NULL,action_pin_failed_attempts=0,action_pin_locked_until=NULL WHERE id=$3',[pinHash,pinSalt,user.id]);
+  await tx.query('DELETE FROM owner_portal_grants WHERE user_id=$1',[user.id]);
+  await tx.query(`INSERT INTO owner_portal_grants(token_hash,user_id,session_hash,pin_set_at,expires_at)
+  SELECT $1,id,$2,action_pin_set_at,now()+interval '10 minutes' FROM users WHERE id=$3
+  ON CONFLICT(user_id,session_hash) DO UPDATE SET token_hash=EXCLUDED.token_hash,pin_set_at=EXCLUDED.pin_set_at,expires_at=EXCLUDED.expires_at`,[digest(token),user.session_hash,user.id]);
+  await tx.query("INSERT INTO audit_logs(actor_id,action,details) VALUES($1,'OWNER_PIN_ENROLLED',$2)",[user.id,JSON.stringify({method:'totp_reauth'})]);
+  return true;
+ });
+ if(!result) denied();
+ return {grant:token,expiresIn:600};
+}
+
+export async function entryOwnerTotp(user,input,{transaction,limit}) {
+ designatedOwner(user);
+ await limit('owner:entry:totp:'+user.id,5,900);
+ if(typeof input.pin!=='string'||!/^\d{5}$/.test(input.pin)||typeof input.totp!=='string'||!/^\d{6}$/.test(input.totp)) denied();
+ const token=randomBytes(32).toString('base64url');
+ const result=await transaction(async tx=>{
+  const u=(await tx.query('SELECT * FROM users WHERE id=$1 FOR UPDATE',[user.id])).rows[0];
+  designatedOwner({...u,session_hash:user.session_hash});
+  if(locked(u)) return false;
+  if(!u.action_pin_hash || !u.mfa_enrolled || !u.mfa_secret_encrypted) return false;
+  if(!verifyTotp(input.totp,decryptSecret(u.mfa_secret_encrypted))) {
+   await failure(tx,u);return false;
+  }
+  if(!verifyActionPin(input.pin,u.action_pin_hash,u.action_pin_salt)) {
+   await failure(tx,u,true);return false;
+  }
+  await tx.query('DELETE FROM owner_portal_grants WHERE user_id=$1',[user.id]);
+  await tx.query('UPDATE users SET owner_failed_attempts=0,owner_locked_until=NULL,action_pin_failed_attempts=0,action_pin_locked_until=NULL WHERE id=$1',[user.id]);
+  await tx.query(`INSERT INTO owner_portal_grants(token_hash,user_id,session_hash,pin_set_at,expires_at)
+  SELECT $1,id,$2,action_pin_set_at,now()+interval '10 minutes' FROM users WHERE id=$3
+  ON CONFLICT(user_id,session_hash) DO UPDATE SET token_hash=EXCLUDED.token_hash,pin_set_at=EXCLUDED.pin_set_at,expires_at=EXCLUDED.expires_at`,[digest(token),user.session_hash,user.id]);
+  await tx.query("INSERT INTO audit_logs(actor_id,action,details) VALUES($1,'OWNER_PORTAL_ENTRY',$2)",[user.id,JSON.stringify({method:'pin_plus_totp'})]);
+  return true;
+ });
+ if(!result) denied();
+ return {grant:token,expiresIn:600};
+}
+
+export async function changeOwnerPin(user,input,{transaction,limit}) {
+ designatedOwner(user);
+ await limit('owner:pin:change:'+user.id,5,900);
+ if(typeof input.currentPin!=='string'||!/^\d{5}$/.test(input.currentPin)) denied();
+ if(typeof input.newPin!=='string'||!/^\d{5}$/.test(input.newPin)) denied();
+ if(typeof input.totp!=='string'||!/^\d{6}$/.test(input.totp)) denied();
+ const token=randomBytes(32).toString('base64url');
+ const result=await transaction(async tx=>{
+  const u=(await tx.query('SELECT * FROM users WHERE id=$1 FOR UPDATE',[user.id])).rows[0];
+  designatedOwner({...u,session_hash:user.session_hash});
+  if(locked(u)) return false;
+  if(!u.action_pin_hash || !u.mfa_enrolled || !u.mfa_secret_encrypted) return false;
+  if(!verifyTotp(input.totp,decryptSecret(u.mfa_secret_encrypted))) {
+   await failure(tx,u);return false;
+  }
+  if(!verifyActionPin(input.currentPin,u.action_pin_hash,u.action_pin_salt)) {
+   await failure(tx,u,true);return false;
+  }
+  const {pinHash,pinSalt}=hashActionPin(input.newPin);
+  await tx.query('UPDATE users SET action_pin_hash=$1,action_pin_salt=$2,action_pin_set_at=now(),owner_failed_attempts=0,owner_locked_until=NULL,action_pin_failed_attempts=0,action_pin_locked_until=NULL WHERE id=$3',[pinHash,pinSalt,user.id]);
+  await tx.query('DELETE FROM owner_portal_grants WHERE user_id=$1',[user.id]);
+  await tx.query(`INSERT INTO owner_portal_grants(token_hash,user_id,session_hash,pin_set_at,expires_at)
+  SELECT $1,id,$2,action_pin_set_at,now()+interval '10 minutes' FROM users WHERE id=$3
+  ON CONFLICT(user_id,session_hash) DO UPDATE SET token_hash=EXCLUDED.token_hash,pin_set_at=EXCLUDED.pin_set_at,expires_at=EXCLUDED.expires_at`,[digest(token),user.session_hash,user.id]);
+  await tx.query("INSERT INTO audit_logs(actor_id,action,details) VALUES($1,'OWNER_PIN_CHANGED',$2)",[user.id,JSON.stringify({reauth:'current_pin_and_totp'})]);
+  return true;
+ });
+ if(!result) denied();
+ return {grant:token,expiresIn:600};
+}
+

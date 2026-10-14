@@ -5,7 +5,7 @@ import {authorizeMaintenance,cleanupExpired} from './maintenance.js';
 import {runEscalationCycle} from './escalation-worker.js';
 import {cookie,digest} from './auth.js';
 import {intakeEnabled,institutionalDomains,production} from './config.js';
-import {designatedOwner,requireOwnerGrant,beginOwnerEntry,finishOwnerEntry} from './owner-portal.js';
+import {designatedOwner,requireOwnerGrant,beginOwnerEntry,finishOwnerEntry,setupOwnerPin,entryOwnerTotp,changeOwnerPin} from './owner-portal.js';
 import {sendPasswordResetEmail} from './owner-email.js';
 import {database,transaction} from './db.js';
 import {challenge,login,sessionUser,logout,checkOrigin,configured,issueStepUpToken,verifyStepUpToken,createSession,issuePasswordResetToken,verifyAndConsumePasswordResetToken} from './auth.js';
@@ -262,6 +262,19 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
    if(path==='/api/owner/entry/verify'&&method==='POST') {
     const input=await body(req);fieldsOnly(input,['challengeId','otp','pin','totp']);
     return send(200,await finishOwnerEntry(user,input,deps));
+   }
+   if(path==='/api/owner/entry/totp'&&method==='POST') {
+    const input=await body(req);fieldsOnly(input,['pin','totp']);
+    return send(200,await entryOwnerTotp(user,input,deps));
+   }
+   if(path==='/api/owner/pin/setup'&&method==='POST') {
+    const input=await body(req);fieldsOnly(input,['pin','totp']);
+    return send(200,await setupOwnerPin(user,input,deps));
+   }
+   if(path==='/api/owner/pin/change'&&method==='POST') {
+    await requireOwnerGrant(req,user,database());
+    const input=await body(req);fieldsOnly(input,['currentPin','newPin','totp']);
+    return send(200,await changeOwnerPin(user,input,deps));
    }
    if(path==='/api/owner/entry/exit'&&method==='POST') {
     const token=req.headers['x-aegis-owner-grant'];
