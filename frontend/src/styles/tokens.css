@@ -241,21 +241,107 @@
   --transition-normal: 200ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-slow:   300ms cubic-bezier(0.4, 0, 0.2, 1);
 
-  /* ─── Student Portal Tokens ──────────────────────────── */
+  /* ─── SANCTUARY Palette (Students & Complainants) ─────── */
+  --sanctuary-bg:            #FAF7F2;  /* warm ivory */
+  --sanctuary-surface:       #FFFFFF;  /* pure card surface */
+  --sanctuary-surface-subtle: #F4DDD2; /* soft peach */
+  --sanctuary-accent:        #C67D6D;  /* muted terracotta */
+  --sanctuary-accent-hover:  #B26A5A;  /* deeper terracotta */
+  --sanctuary-highlight:     #E6B76A;  /* gentle amber */
+  --sanctuary-text:          #49352F;  /* deep cocoa (10.2:1 against ivory) */
+  --sanctuary-text-muted:    #7D6B65;  /* soft cocoa */
+  --sanctuary-border:        #E8DDD5;  /* gentle warm border */
+  --sanctuary-border-focus:  #C67D6D;
+
+  /* ─── STEWARDSHIP Palette (Authorities & Owner Governance) ─ */
+  --stewardship-bg:            #F3F0EB;  /* warm stone */
+  --stewardship-surface:       #FFFFFF;  /* crisp card surface */
+  --stewardship-surface-subtle: #E8E4DD; /* soft stone */
+  --stewardship-accent:        #66516A;  /* muted plum */
+  --stewardship-accent-hover:  #523F56;  /* deeper plum */
+  --stewardship-neutral:       #B8A9A2;  /* soft taupe */
+  --stewardship-action:        #B57956;  /* restrained copper */
+  --stewardship-action-hover:  #9E6443;
+  --stewardship-text:          #302A33;  /* charcoal-plum (12.8:1 against stone) */
+  --stewardship-text-muted:    #635B67;  /* muted charcoal-plum */
+  --stewardship-border:        #DDD6CE;  /* structured border */
+  --stewardship-border-focus:  #66516A;
+
+  /* ─── Student Portal Tokens (Sanctuary Scoped) ───────── */
   --student-motto:       "Your Voice. Your Safety. Your Protection.";
-  --student-accent:      #147D78;  /* Trust Teal */
-  --student-accent-soft: #E6F4F3;
-  --student-bg-hero:     linear-gradient(135deg, #102A43 0%, #147D78 100%);
+  --student-accent:      var(--sanctuary-accent);
+  --student-accent-soft: var(--sanctuary-surface-subtle);
+  --student-bg-hero:     linear-gradient(135deg, #49352F 0%, #66516A 50%, #C67D6D 100%);
 
-  /* ─── Authority Portal Tokens ────────────────────────── */
+  /* ─── Authority Portal Tokens (Stewardship Scoped) ────── */
   --authority-motto:       "Assess. Protect. Resolve.";
-  --authority-accent:      #1B4F72;  /* Analytical Navy */
-  --authority-accent-soft: #EAF0F8;
-  --authority-surface-bar: #0C2236;
+  --authority-accent:      var(--stewardship-accent);
+  --authority-accent-soft: var(--stewardship-surface-subtle);
+  --authority-surface-bar: #302A33;
 
-  /* ─── Owner/Admin Portal Tokens ──────────────────────── */
+  /* ─── Owner/Admin Portal Tokens (Stewardship Scoped) ──── */
   --owner-motto:       "Govern. Secure. Oversee.";
-  --owner-accent:      #102A43;  /* Guardian Navy */
-  --owner-accent-soft: #E8EFF5;
-  --owner-badge-amber: #B87C17;
+  --owner-accent:      var(--stewardship-accent);
+  --owner-accent-soft: var(--stewardship-surface-subtle);
+  --owner-badge-amber: #B57956;
+}
+
+/* ─── Sanctuary Theme Scope (Applied to Student Views & Complainants) ─── */
+[data-theme="sanctuary"],
+.theme-sanctuary {
+  --color-bg-page:        var(--sanctuary-bg);
+  --color-bg-surface:     var(--sanctuary-surface);
+  --color-bg-subtle:      var(--sanctuary-surface-subtle);
+  --color-bg-muted:       #EFEAE2;
+  --color-surface-card:   var(--sanctuary-surface);
+  --color-surface-raised: #FAF5EE;
+
+  --color-text-primary:   var(--sanctuary-text);
+  --color-text-secondary: var(--sanctuary-text-muted);
+  --color-text-muted:     #8C7B75;
+  --color-text-link:      var(--sanctuary-accent);
+  --color-text-link-hover: var(--sanctuary-accent-hover);
+
+  --color-border-subtle:  #EDE6DF;
+  --color-border-default: var(--sanctuary-border);
+  --color-border-strong:  #CEBFB5;
+  --color-border-brand:   var(--sanctuary-accent);
+
+  --color-action-bg:        var(--sanctuary-accent);
+  --color-action-bg-hover:  var(--sanctuary-accent-hover);
+  --color-action-text:      #FFFFFF;
+  --color-action-border:    var(--sanctuary-accent-hover);
+
+  --color-focus-ring:       var(--sanctuary-highlight);
+  --radius-lg:              14px;
+  --radius-xl:              18px;
+}
+
+/* ─── Stewardship Theme Scope (Applied to Authority, Admin & Primary Owner) ─ */
+[data-theme="stewardship"],
+.theme-stewardship {
+  --color-bg-page:        var(--stewardship-bg);
+  --color-bg-surface:     var(--stewardship-surface);
+  --color-bg-subtle:      var(--stewardship-surface-subtle);
+  --color-bg-muted:       #E6E1D9;
+  --color-surface-card:   var(--stewardship-surface);
+  --color-surface-raised: #FAF8F5;
+
+  --color-text-primary:   var(--stewardship-text);
+  --color-text-secondary: var(--stewardship-text-muted);
+  --color-text-muted:     #78707C;
+  --color-text-link:      var(--stewardship-accent);
+  --color-text-link-hover: var(--stewardship-accent-hover);
+
+  --color-border-subtle:  #E8E3DB;
+  --color-border-default: var(--stewardship-border);
+  --color-border-strong:  #BCB2A7;
+  --color-border-brand:   var(--stewardship-accent);
+
+  --color-action-bg:        var(--stewardship-accent);
+  --color-action-bg-hover:  var(--stewardship-accent-hover);
+  --color-action-text:      #FFFFFF;
+  --color-action-border:    var(--stewardship-accent-hover);
+
+  --color-focus-ring:       var(--stewardship-action);
 }

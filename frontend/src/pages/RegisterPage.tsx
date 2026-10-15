@@ -69,7 +69,7 @@ export default function RegisterPage() {
       <section className={styles.section} aria-labelledby="form-heading">
         <PageContainer>
           <div style={{ maxWidth: '480px', margin: '0 auto', background: 'var(--color-surface-card)', padding: 'var(--spacing-8)', borderRadius: 'var(--radius-xl)', border: '1px solid var(--color-border-subtle)', boxShadow: 'var(--shadow-lg)' }}>
-            <h2 id="form-heading" style={{ fontSize: 'var(--font-size-xl)', color: 'var(--aegis-navy)', marginBottom: 'var(--spacing-2)', textAlign: 'center' }}>
+            <h2 id="form-heading" style={{ fontSize: 'var(--font-size-xl)', color: 'var(--color-text-primary)', marginBottom: 'var(--spacing-2)', textAlign: 'center' }}>
               Create Student Account
             </h2>
             <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)', textAlign: 'center', marginBottom: 'var(--spacing-6)' }}>

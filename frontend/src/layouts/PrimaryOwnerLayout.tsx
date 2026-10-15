@@ -49,7 +49,7 @@ export default function PrimaryOwnerLayout() {
   };
 
   return (
-    <div className={styles.shell}>
+    <div className={styles.shell} data-theme="stewardship">
       <a href="#main-content" className="skip-link">
         Skip to main content
       </a>

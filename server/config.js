@@ -26,3 +26,18 @@ export function institutionalDomains(env=process.env) {
  const raw = env.INSTITUTIONAL_EMAIL_DOMAINS || 'college.edu.in,autocoll.ac.in';
  return raw.split(',').map(d => d.trim().toLowerCase()).filter(Boolean);
 }
+
+export async function getActiveInstitutionalDomains(db, env=process.env) {
+ if(db && typeof db.query === 'function') {
+  try {
+   const res = await db.query("SELECT unnest(domains) AS domain FROM institutions WHERE active=true");
+   const dbDomains = res.rows.map(r => r.domain?.trim().toLowerCase()).filter(Boolean);
+   if(dbDomains.length > 0) {
+    return Array.from(new Set(dbDomains));
+   }
+  } catch {
+   // Table might not exist yet during initial migrations; fallback to config
+  }
+ }
+ return institutionalDomains(env);
+}

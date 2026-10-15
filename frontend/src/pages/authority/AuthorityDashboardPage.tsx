@@ -37,7 +37,7 @@ export default function AuthorityDashboardPage() {
           style={{
             fontSize: 'var(--font-size-2xl)',
             marginTop: 'var(--spacing-3)',
-            color: 'var(--aegis-navy)',
+            color: 'var(--color-text-primary)',
           }}
         >
           {t.authority.dashboardTitle}

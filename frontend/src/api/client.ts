@@ -643,3 +643,81 @@ export async function resolveRosterConflict(
   if (signal !== undefined) opts.signal = signal;
   return request<{ ok: boolean; conflictId: string; status: string }>(`admin/roster/conflicts/${conflictId}/resolve`, opts);
 }
+
+// ─── G09.1: Hybrid Institutional Verification & Owner Governance ─────────────
+
+export async function previewRosterBatch(
+  payload: { records: import('./types').RosterRecordInput[]; version?: string; institutionCode?: string },
+  signal?: AbortSignal,
+): Promise<import('./types').RosterPreviewResponse> {
+  const opts: RequestOptions = { method: 'POST', body: payload };
+  if (signal !== undefined) opts.signal = signal;
+  return request<import('./types').RosterPreviewResponse>('admin/roster/preview', opts);
+}
+
+export async function listOwnerInstitutions(
+  signal?: AbortSignal,
+): Promise<import('./types').InstitutionItem[]> {
+  const opts: RequestOptions = {};
+  if (signal !== undefined) opts.signal = signal;
+  const data = await request<{ institutions: import('./types').InstitutionItem[] }>('owner/institutions', opts);
+  return data.institutions;
+}
+
+export async function createOwnerInstitution(
+  payload: import('./types').CreateInstitutionInput,
+  signal?: AbortSignal,
+): Promise<import('./types').InstitutionItem> {
+  const opts: RequestOptions = { method: 'POST', body: payload };
+  if (signal !== undefined) opts.signal = signal;
+  const data = await request<{ institution: import('./types').InstitutionItem }>('owner/institutions', opts);
+  return data.institution;
+}
+
+export async function updateOwnerInstitution(
+  id: string,
+  payload: import('./types').UpdateInstitutionInput,
+  signal?: AbortSignal,
+): Promise<import('./types').InstitutionItem> {
+  const opts: RequestOptions = { method: 'PATCH', body: payload };
+  if (signal !== undefined) opts.signal = signal;
+  const data = await request<{ institution: import('./types').InstitutionItem }>(`owner/institutions/${id}`, opts);
+  return data.institution;
+}
+
+export async function listOwnerVerificationClaims(
+  params?: { status?: string; institutionId?: string; departmentCode?: string },
+  signal?: AbortSignal,
+): Promise<import('./types').VerificationClaimItem[]> {
+  const opts: RequestOptions = {};
+  if (signal !== undefined) opts.signal = signal;
+  const query = new URLSearchParams();
+  if (params?.status) query.set('status', params.status);
+  if (params?.institutionId) query.set('institutionId', params.institutionId);
+  if (params?.departmentCode) query.set('departmentCode', params.departmentCode);
+  const qs = query.toString();
+  const url = qs ? `owner/verification-claims?${qs}` : 'owner/verification-claims';
+  const data = await request<{ claims: import('./types').VerificationClaimItem[] }>(url, opts);
+  return data.claims;
+}
+
+export async function reviewOwnerVerificationClaim(
+  id: string,
+  payload: { decision: 'APPROVED' | 'REJECTED'; notes: string; identityEvidenceReference?: string | undefined; stepUpToken: string },
+  signal?: AbortSignal,
+): Promise<{ ok: boolean; decision: string; id: string }> {
+  const opts: RequestOptions = { method: 'POST', body: payload };
+  if (signal !== undefined) opts.signal = signal;
+  return request<{ ok: boolean; decision: string; id: string }>(`owner/verification-claims/${id}/review`, opts);
+}
+
+export async function revokeOwnerVerificationClaim(
+  id: string,
+  payload: { reason: string; stepUpToken: string },
+  signal?: AbortSignal,
+): Promise<{ ok: boolean; revoked: boolean; id: string }> {
+  const opts: RequestOptions = { method: 'POST', body: payload };
+  if (signal !== undefined) opts.signal = signal;
+  return request<{ ok: boolean; revoked: boolean; id: string }>(`owner/verification-claims/${id}/revoke`, opts);
+}
+

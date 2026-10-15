@@ -158,16 +158,16 @@ export const en = {
     title: 'Student Registration & Enrollment',
     subtitle:
       'How students are verified and onboarded to the A.E.G.I.S campus protection shield.',
-    processTitle: 'The 3-Step Verification Process',
-    step1: 'Step 1: Institutional Google Authentication',
+    processTitle: 'The 2-Path Verification Process',
+    step1: 'Path A: Institutional Google Account (Auto-Verified)',
     step1Desc:
-      'Sign in using your college-issued Google account. Personal email addresses are denied access to prevent unverified entries.',
-    step2: 'Step 2: Department & Academic Enrollment Mapping',
+      'Sign in with your official college-issued Google account. If your record is present in the institutional roster, your student identity is verified immediately.',
+    step2: 'Path B: Personal Google Account (Primary Owner Review)',
     step2Desc:
-      'Upon initial login, link your official roll number and academic department. This establishes your correct HOD jurisdiction.',
-    step3: 'Step 3: Verification & Anti-Retaliation Protection',
+      'Sign in with your verified personal Google account and enter your institutional register number. A pending verification claim is generated for Primary Owner governance review.',
+    step3: 'Verification & Anti-Retaliation Protection',
     step3Desc:
-      'Once verified, your account is authorized to access student resources. (Note: Incident submission remains disabled until verification is complete).',
+      'Grievance submission and student protections are conferred only after verification is complete (automatic for Path A, or upon Primary Owner approval for Path B).',
     rolesAdvisoryTitle: 'Important: Authority & Faculty Roles',
     rolesAdvisoryDesc:
       'Faculty, HOD, and Dean privileges cannot be self-selected or requested through student registration. Authority access is assigned strictly by the Institutional Administrator.',

@@ -4,7 +4,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, var(--aegis-navy-900) 0%, var(--aegis-navy) 60%, var(--aegis-teal-900) 100%);
+  background: linear-gradient(145deg, #302A33 0%, #49352F 60%, #66516A 100%);
   padding: var(--spacing-6) var(--spacing-4);
   position: relative;
 }
@@ -20,20 +20,20 @@
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-2);
-  color: var(--aegis-neutral-100);
+  color: #FAF7F2;
   text-decoration: none;
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   padding: var(--spacing-2) var(--spacing-3);
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.12);
   backdrop-filter: blur(8px);
   transition: background var(--transition-fast), color var(--transition-fast);
 }
 
 .backHomeLink:hover {
-  background: rgba(255, 255, 255, 0.16);
-  color: var(--aegis-neutral-0);
+  background: rgba(255, 255, 255, 0.22);
+  color: #FFFFFF;
 }
 
 .panel {
@@ -63,13 +63,13 @@
 .shield {
   font-size: 3rem;
   line-height: 1;
-  filter: drop-shadow(0 4px 8px rgba(20, 125, 120, 0.25));
+  filter: drop-shadow(0 4px 8px rgba(198, 125, 109, 0.35));
 }
 
 .title {
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-bold);
-  color: var(--aegis-navy);
+  color: var(--color-text-primary);
   letter-spacing: var(--letter-spacing-wide);
   margin: 0;
 }
@@ -84,12 +84,12 @@
 
 /* ─── Security Notice ─────────────────────────────────────── */
 .securityBanner {
-  background: var(--aegis-teal-50);
-  border: 1px solid var(--aegis-teal-200);
+  background: var(--sanctuary-surface-subtle);
+  border: 1px solid var(--sanctuary-border);
   border-radius: var(--radius-md);
   padding: var(--spacing-3) var(--spacing-4);
   font-size: var(--font-size-xs);
-  color: var(--aegis-teal-800);
+  color: var(--sanctuary-text);
   line-height: var(--line-height-relaxed);
   display: flex;
   align-items: flex-start;
@@ -157,7 +157,7 @@
 
 .tabActive {
   background: var(--color-surface-card);
-  color: var(--aegis-navy);
+  color: var(--sanctuary-text);
   font-weight: var(--font-weight-semibold);
   box-shadow: var(--shadow-sm);
 }
@@ -188,8 +188,8 @@
 
 .textInput:focus {
   outline: none;
-  border-color: var(--aegis-teal-500);
-  box-shadow: 0 0 0 2px rgba(20, 125, 120, 0.2);
+  border-color: var(--sanctuary-accent);
+  box-shadow: 0 0 0 2px rgba(198, 125, 109, 0.25);
 }
 
 .submitBtn {
@@ -197,7 +197,7 @@
   padding: var(--spacing-3);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
-  background: var(--aegis-teal-600);
+  background: var(--sanctuary-accent);
   color: white;
   border: none;
   border-radius: var(--radius-md);
@@ -207,7 +207,7 @@
 }
 
 .submitBtn:hover:not(:disabled) {
-  background: var(--aegis-teal-700);
+  background: var(--sanctuary-accent-hover);
 }
 
 .submitBtn:disabled {

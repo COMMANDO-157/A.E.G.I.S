@@ -4,7 +4,7 @@ import {consumeRateLimit} from './rate-limit.js';
 import {authorizeMaintenance,cleanupExpired} from './maintenance.js';
 import {runEscalationCycle} from './escalation-worker.js';
 import {cookie,digest} from './auth.js';
-import {intakeEnabled,institutionalDomains,production} from './config.js';
+import {intakeEnabled,institutionalDomains,getActiveInstitutionalDomains,production} from './config.js';
 import {designatedOwner,requireOwnerGrant,beginOwnerEntry,finishOwnerEntry,setupOwnerPin,entryOwnerTotp,changeOwnerPin} from './owner-portal.js';
 import {sendPasswordResetEmail} from './owner-email.js';
 import {database,transaction} from './db.js';
@@ -160,7 +160,7 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
 
    const normEmail = input.email.trim().toLowerCase();
    const domain = normEmail.split('@')[1];
-   const allowedDomains = institutionalDomains();
+   const allowedDomains = await getActiveInstitutionalDomains(database());
    if(allowedDomains.length>0 && !allowedDomains.includes(domain)) {
     fail(403, `Registration is restricted to approved institutional email domains (${allowedDomains.join(', ')}).`);
    }
@@ -281,6 +281,265 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
     if(typeof token==='string') await database().query('DELETE FROM owner_portal_grants WHERE user_id=$1 AND session_hash=$2 AND token_hash=$3',[user.id,user.session_hash,digest(token)]);
     return send(200,{ok:true});
    }
+   // ─── Owner Verification Governance Console ────────────────────────────────
+   if(path==='/api/owner/verification-claims'&&method==='GET') {
+    requirePrimaryOwner(user);
+    await requireOwnerGrant(req, user, database());
+
+    const instFilter = url.searchParams.get('institutionId');
+    const deptFilter = url.searchParams.get('departmentCode');
+    const statusFilter = url.searchParams.get('status') || 'PENDING';
+
+    const conditions = [];
+    const params = [];
+
+    if(statusFilter && statusFilter !== 'ALL') {
+     params.push(statusFilter);
+     conditions.push(`svr.status = $${params.length}`);
+    }
+    if(instFilter) {
+     params.push(instFilter);
+     conditions.push(`(svr.institution_id::text = $${params.length} OR inst.slug = $${params.length})`);
+    }
+    if(deptFilter) {
+     params.push(deptFilter.toUpperCase());
+     conditions.push(`sr.department_code = $${params.length}`);
+    }
+
+    const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+
+    const claims = (await database().query(`
+     SELECT svr.id, svr.user_id, svr.roster_id, svr.institution_id, svr.status, svr.claim_channel,
+            svr.notes, svr.identity_evidence_reference, svr.verification_method,
+            svr.created_at, svr.expires_at, svr.reviewed_at, svr.rejection_reason,
+            u.email AS user_email, u.name AS user_name, u.google_subject_id,
+            sr.register_number, sr.institutional_email AS roster_institutional_email,
+            sr.full_name AS roster_name, sr.department_code, sr.batch_year,
+            sr.approved_personal_email, sr.is_test_record,
+            sr.bound_user_id,
+            d.name AS department_name,
+            inst.name AS institution_name, inst.slug AS institution_slug,
+            CASE 
+              WHEN sr.bound_user_id IS NOT NULL AND sr.bound_user_id != svr.user_id THEN true 
+              ELSE false 
+            END AS has_binding_conflict
+     FROM student_verification_requests svr
+     JOIN student_rosters sr ON sr.id = svr.roster_id
+     LEFT JOIN departments d ON d.code = sr.department_code
+     LEFT JOIN institutions inst ON inst.id = svr.institution_id
+     JOIN users u ON u.id = svr.user_id
+     ${whereClause}
+     ORDER BY CASE WHEN svr.status='PENDING' THEN 1 ELSE 2 END, svr.created_at DESC
+     LIMIT 100
+    `, params)).rows;
+
+    return send(200, { claims });
+   }
+
+   if(path.match(/^\/api\/owner\/verification-claims\/([a-f0-9-]{36})\/review$/i)&&method==='POST') {
+    requirePrimaryOwner(user);
+    await requireOwnerGrant(req, user, database());
+    const claimId = path.split('/')[4];
+    const input = await body(req);
+    fieldsOnly(input, ['decision', 'notes', 'verificationMethod', 'identityEvidenceReference', 'stepUpToken']);
+    if(!['APPROVED', 'REJECTED'].includes(input.decision)) fail(422, 'decision must be APPROVED or REJECTED.');
+    if(typeof input.notes!=='string'||input.notes.trim().length < 10) fail(422, 'Owner review notes must contain at least 10 characters.');
+
+    if(!input.stepUpToken) fail(403, 'Step-up authorization token is required for Owner verification decisions.');
+    const validStepUp = await verifyStepUpToken(user.id, 'admin_step_up', input.stepUpToken, database(), user.session_hash);
+    if(!validStepUp) fail(403, 'Invalid or expired step-up authorization token.');
+
+    await transaction(async db => {
+     const claim = (await db.query(`
+      SELECT svr.*, sr.department_code, sr.register_number, sr.bound_user_id, sr.is_active AS roster_active,
+             u.email AS user_email, u.name AS user_name, u.google_subject_id
+      FROM student_verification_requests svr
+      JOIN student_rosters sr ON sr.id = svr.roster_id
+      JOIN users u ON u.id = svr.user_id
+      WHERE svr.id=$1 FOR UPDATE
+     `, [claimId])).rows[0];
+
+     if(!claim) fail(404, 'Verification claim not found.');
+     if(claim.status !== 'PENDING') fail(400, `Claim is already in status: ${claim.status}`);
+
+     if(input.decision === 'APPROVED') {
+      if(!claim.roster_active) fail(400, 'Cannot approve claim for an inactive roster record.');
+      if(claim.bound_user_id && claim.bound_user_id !== claim.user_id) {
+       fail(409, 'Conflict: Target roster record is already bound to another student identity.');
+      }
+
+      const method = input.verificationMethod || 'OWNER_INDEPENDENT_ROSTER_VERIFICATION';
+      const evidence = input.identityEvidenceReference?.trim() || null;
+
+      await db.query('UPDATE student_rosters SET bound_user_id=$1, updated_at=now() WHERE id=$2', [claim.user_id, claim.roster_id]);
+      const deptRow = (await db.query('SELECT name FROM departments WHERE code=$1', [claim.department_code])).rows[0];
+      await db.query(
+       'UPDATE users SET is_verified_student=true, roster_id=$1, department_code=$2, department=$3 WHERE id=$4',
+       [claim.roster_id, claim.department_code, deptRow?.name || claim.department_code, claim.user_id]
+      );
+      await db.query(
+       `UPDATE student_verification_requests
+        SET status='APPROVED', notes=$1, verification_method=$2, identity_evidence_reference=$3,
+            reviewed_by=$4, reviewed_at=now(), updated_at=now()
+        WHERE id=$5`,
+       [input.notes.trim(), method, evidence, user.id, claimId]
+      );
+      await audit(db, user, null, 'STUDENT_VERIFICATION_OWNER_APPROVED', {
+       claimId,
+       targetUserId: claim.user_id,
+       registerNumber: claim.register_number,
+       verificationMethod: method,
+       evidence
+      });
+     } else {
+      await db.query(
+       `UPDATE student_verification_requests
+        SET status='REJECTED', rejection_reason=$1, reviewed_by=$2, reviewed_at=now(), updated_at=now()
+        WHERE id=$3`,
+       [input.notes.trim(), user.id, claimId]
+      );
+      await audit(db, user, null, 'STUDENT_VERIFICATION_OWNER_REJECTED', {
+       claimId,
+       targetUserId: claim.user_id,
+       registerNumber: claim.register_number,
+       reason: input.notes.trim()
+      });
+     }
+    });
+
+    return send(200, { ok: true, decision: input.decision });
+   }
+
+   if(path.match(/^\/api\/owner\/verification-claims\/([a-f0-9-]{36})\/revoke$/i)&&method==='POST') {
+    requirePrimaryOwner(user);
+    await requireOwnerGrant(req, user, database());
+    const claimId = path.split('/')[4];
+    const input = await body(req);
+    fieldsOnly(input, ['reason', 'stepUpToken']);
+    if(typeof input.reason!=='string'||input.reason.trim().length < 10) {
+     fail(422, 'Revocation reason must contain at least 10 characters.');
+    }
+
+    if(!input.stepUpToken) fail(403, 'Step-up authorization token is required for verification revocation.');
+    const validStepUp = await verifyStepUpToken(user.id, 'admin_step_up', input.stepUpToken, database(), user.session_hash);
+    if(!validStepUp) fail(403, 'Invalid or expired step-up authorization token.');
+
+    await transaction(async db => {
+     const claim = (await db.query(`
+      SELECT svr.*, sr.register_number 
+      FROM student_verification_requests svr
+      JOIN student_rosters sr ON sr.id = svr.roster_id
+      WHERE svr.id=$1 FOR UPDATE
+     `, [claimId])).rows[0];
+
+     if(!claim) fail(404, 'Verification record not found.');
+     if(claim.status !== 'APPROVED') fail(400, 'Only approved verification claims can be revoked.');
+
+     // Unbind roster and reset user verification
+     await db.query('UPDATE student_rosters SET bound_user_id=NULL, updated_at=now() WHERE id=$1', [claim.roster_id]);
+     await db.query('UPDATE users SET is_verified_student=false, roster_id=NULL WHERE id=$1', [claim.user_id]);
+     await db.query(
+      `UPDATE student_verification_requests
+       SET status='REJECTED', rejection_reason=$1, updated_at=now()
+       WHERE id=$2`,
+      [`REVOKED: ${input.reason.trim()}`, claimId]
+     );
+
+     // Invalidate student sessions immediately
+     await db.query('DELETE FROM sessions WHERE user_id=$1', [claim.user_id]);
+     await audit(db, user, null, 'STUDENT_VERIFICATION_REVOKED', {
+      claimId,
+      targetUserId: claim.user_id,
+      registerNumber: claim.register_number,
+      reason: input.reason.trim()
+     });
+    });
+
+    return send(200, { ok: true, message: 'Student verification revoked and sessions invalidated.' });
+   }
+
+   // ─── Owner Institutional Configuration (requirePrimaryOwner + requireOwnerGrant) ──
+   if(path==='/api/owner/institutions'&&method==='GET') {
+    requirePrimaryOwner(user);
+    await requireOwnerGrant(req, user, database());
+    const res = await database().query('SELECT * FROM institutions ORDER BY created_at ASC');
+    return send(200, { institutions: res.rows });
+   }
+
+   if(path==='/api/owner/institutions'&&method==='POST') {
+    requirePrimaryOwner(user);
+    await requireOwnerGrant(req, user, database());
+    const input = await body(req);
+    fieldsOnly(input, ['slug', 'name', 'domains', 'supportedMethods', 'active']);
+    if(typeof input.slug!=='string'||!/^[a-z0-9_-]{2,50}$/.test(input.slug.trim())) {
+     fail(422, 'Valid institution identifier slug required (2-50 lowercase alphanumeric/hyphen/underscore).');
+    }
+    if(typeof input.name!=='string'||input.name.trim().length<2||input.name.trim().length>200) {
+     fail(422, 'Institution name must be between 2 and 200 characters.');
+    }
+    const domains = Array.isArray(input.domains)
+     ? input.domains.map(d => typeof d==='string'?d.trim().toLowerCase():'').filter(Boolean)
+     : [];
+    const supportedMethods = Array.isArray(input.supportedMethods) && input.supportedMethods.length > 0
+     ? input.supportedMethods.filter(m => ['INSTITUTIONAL_EMAIL', 'PERSONAL_GOOGLE_ROSTER'].includes(m))
+     : ['INSTITUTIONAL_EMAIL', 'PERSONAL_GOOGLE_ROSTER'];
+    const active = input.active !== undefined ? Boolean(input.active) : true;
+
+    const res = await transaction(async db => {
+     const existing = (await db.query('SELECT id FROM institutions WHERE slug=$1', [input.slug.trim()])).rows[0];
+     if(existing) fail(409, 'An institution with this slug already exists.');
+     const ins = await db.query(
+      `INSERT INTO institutions(slug, name, domains, supported_methods, active)
+       VALUES($1, $2, $3, $4, $5) RETURNING *`,
+      [input.slug.trim(), input.name.trim(), domains, supportedMethods, active]
+     );
+     await audit(db, user, null, 'INSTITUTION_CREATED', { institutionId: ins.rows[0].id, slug: input.slug.trim() });
+     return ins.rows[0];
+    });
+    return send(201, { institution: res });
+   }
+
+   if(path.match(/^\/api\/owner\/institutions\/([a-f0-9-]{36})$/i)&&method==='PATCH') {
+    requirePrimaryOwner(user);
+    await requireOwnerGrant(req, user, database());
+    const instId = path.split('/')[4];
+    const input = await body(req);
+    fieldsOnly(input, ['name', 'domains', 'supportedMethods', 'active']);
+
+    const res = await transaction(async db => {
+     const inst = (await db.query('SELECT * FROM institutions WHERE id=$1 FOR UPDATE', [instId])).rows[0];
+     if(!inst) fail(404, 'Institution not found.');
+
+     const updates = [];
+     const params = [instId];
+
+     if(typeof input.name==='string'&&input.name.trim().length>=2&&input.name.trim().length<=200) {
+      params.push(input.name.trim());
+      updates.push(`name=$${params.length}`);
+     }
+     if(Array.isArray(input.domains)) {
+      params.push(input.domains.map(d => typeof d==='string'?d.trim().toLowerCase():'').filter(Boolean));
+      updates.push(`domains=$${params.length}`);
+     }
+     if(Array.isArray(input.supportedMethods)&&input.supportedMethods.length>0) {
+      params.push(input.supportedMethods.filter(m => ['INSTITUTIONAL_EMAIL', 'PERSONAL_GOOGLE_ROSTER'].includes(m)));
+      updates.push(`supported_methods=$${params.length}`);
+     }
+     if(input.active!==undefined) {
+      params.push(Boolean(input.active));
+      updates.push(`active=$${params.length}`);
+     }
+
+     if(updates.length === 0) fail(422, 'No valid fields provided for update.');
+
+     updates.push('updated_at=now()');
+     const updated = (await db.query(`UPDATE institutions SET ${updates.join(', ')} WHERE id=$1 RETURNING *`, params)).rows[0];
+     await audit(db, user, null, 'INSTITUTION_UPDATED', { institutionId: instId, updates: input });
+     return updated;
+    });
+    return send(200, { institution: res });
+   }
+
    fail(404,'Endpoint not found.');
   }
 
@@ -1036,11 +1295,70 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
     return send(200, res);
    }
 
+   // ─── Roster Import Preview (roster.import) ────────────────────────────────
+   if(path==='/api/admin/roster/preview'&&method==='POST') {
+    requireAdminPermission(user, 'roster.import');
+    const input = await body(req);
+    fieldsOnly(input, ['records', 'version', 'institutionCode']);
+    if(!Array.isArray(input.records)||input.records.length===0) fail(422, 'records must be a non-empty array.');
+    if(input.records.length > 5000) fail(413, 'Batch exceeds maximum limit of 5000 rows.');
+
+    const validDepts = (await database().query('SELECT code FROM departments WHERE active=true')).rows.map(r=>r.code);
+    let validCount = 0;
+    let conflictCount = 0;
+    const errors = [];
+    const validSample = [];
+
+    for(let i = 0; i < input.records.length; i++) {
+     const row = input.records[i];
+     const reg = typeof row.registerNumber==='string'?row.registerNumber.trim().toUpperCase():'';
+     const email = typeof row.institutionalEmail==='string'?row.institutionalEmail.trim().toLowerCase():'';
+     const dept = typeof row.departmentCode==='string'?row.departmentCode.trim().toUpperCase():'';
+     let issue = null;
+
+     if(!/^[A-Za-z0-9]{6,30}$/.test(reg)) issue = 'Invalid register number format';
+     else if(!email.includes('@')) issue = 'Invalid email address';
+     else if(!validDepts.includes(dept)) issue = `Invalid department code: ${dept}`;
+
+     if(issue) {
+      conflictCount++;
+      errors.push({ row: i + 1, record: row, error: issue });
+     } else {
+      validCount++;
+      if(validSample.length < 50) {
+       validSample.push({
+        registerNumber: reg,
+        institutionalEmail: email,
+        fullName: row.fullName || '',
+        departmentCode: dept,
+        batchYear: row.batchYear || '',
+        degreeProgram: row.degreeProgram,
+        approvedPersonalEmail: row.approvedPersonalEmail,
+        isTestRecord: Boolean(row.isTestRecord)
+       });
+      }
+     }
+    }
+
+    return send(200, {
+     total: input.records.length,
+     validCount,
+     errorCount: conflictCount,
+     conflictCount,
+     validSample,
+     errors,
+     // Backwards compatibility aliases
+     previewSample: validSample,
+     estimatedValid: validCount,
+     estimatedConflicts: conflictCount
+    });
+   }
+
    // ─── Roster Import & Conflict Management (roster.import / roster.conflicts.manage)
    if(path==='/api/admin/roster/import'&&method==='POST') {
     requireAdminPermission(user, 'roster.import');
     const input = await body(req);
-    fieldsOnly(input, ['records', 'stepUpToken']);
+    fieldsOnly(input, ['records', 'stepUpToken', 'version', 'institutionCode']);
     if(!Array.isArray(input.records)||input.records.length===0) fail(422, 'records must be a non-empty array.');
     if(input.records.length > 5000) fail(413, 'Batch exceeds maximum limit of 5000 rows.');
 
@@ -1053,6 +1371,18 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
     let conflictsQuarantined = 0;
 
     await transaction(async db => {
+     let instId = null;
+     if(input.institutionCode) {
+      const instRow = (await db.query('SELECT id FROM institutions WHERE slug=$1', [input.institutionCode.trim()])).rows[0];
+      if(instRow) instId = instRow.id;
+     }
+     if(!instId) {
+      const defaultInst = (await db.query("SELECT id FROM institutions WHERE slug='default'")).rows[0];
+      instId = defaultInst?.id || null;
+     }
+
+     const validDepts = (await db.query('SELECT code FROM departments WHERE active=true')).rows.map(r=>r.code);
+
      for(const row of input.records) {
       const reg = typeof row.registerNumber==='string'?row.registerNumber.trim().toUpperCase():'';
       const email = typeof row.institutionalEmail==='string'?row.institutionalEmail.trim().toLowerCase():'';
@@ -1060,8 +1390,10 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
       const dept = typeof row.departmentCode==='string'?row.departmentCode.trim().toUpperCase():'';
       const batch = typeof row.batchYear==='string'?row.batchYear.trim():'';
       const degree = typeof row.degreeProgram==='string'?row.degreeProgram.trim():'B.Tech';
+      const approvedPersonal = typeof row.approvedPersonalEmail==='string'?row.approvedPersonalEmail.trim().toLowerCase():null;
+      const isTestRecord = Boolean(row.isTestRecord);
 
-      if(!/^[A-Za-z0-9]{6,30}$/.test(reg) || !email.includes('@') || name.length<2 || !dept) {
+      if(!/^[A-Za-z0-9]{6,30}$/.test(reg) || !email.includes('@') || name.length<2 || !dept || !validDepts.includes(dept)) {
        conflictsQuarantined++;
        await db.query(
         'INSERT INTO roster_import_conflicts(batch_id, register_number, institutional_email, department_code, conflict_type, raw_payload) VALUES($1, $2, $3, $4, $5, $6)',
@@ -1097,19 +1429,21 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
       }
 
       await db.query(
-       `INSERT INTO student_rosters(register_number, institutional_email, full_name, department_code, batch_year, degree_program)
-        VALUES($1, $2, $3, $4, $5, $6)
+       `INSERT INTO student_rosters(institution_id, register_number, institutional_email, full_name, department_code, batch_year, degree_program, approved_personal_email, is_test_record)
+        VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)
         ON CONFLICT (register_number) DO UPDATE SET
           institutional_email=EXCLUDED.institutional_email,
           full_name=EXCLUDED.full_name,
           department_code=EXCLUDED.department_code,
           batch_year=EXCLUDED.batch_year,
+          approved_personal_email=COALESCE(EXCLUDED.approved_personal_email, student_rosters.approved_personal_email),
+          is_test_record=EXCLUDED.is_test_record,
           updated_at=now()`,
-       [reg, email, name, dept, batch, degree]
+       [instId, reg, email, name, dept, batch, degree, approvedPersonal, isTestRecord]
       );
       importedCount++;
      }
-     await audit(db, user, null, 'ROSTER_BATCH_IMPORTED', { batchId, total: input.records.length, importedCount, conflictsQuarantined });
+     await audit(db, user, null, 'ROSTER_BATCH_IMPORTED', { batchId, total: input.records.length, importedCount, conflictsQuarantined, version: input.version || 'v1' });
     });
 
     return send(200, { batchId, totalProcessed: input.records.length, importedCount, conflictsQuarantined });
@@ -1188,7 +1522,7 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
   if(path==='/api/student/verification-request'&&method==='POST') {
    if(user.is_verified_student) fail(400, 'Student account is already verified.');
    const input = await body(req);
-   fieldsOnly(input, ['registerNumber', 'notes']);
+   fieldsOnly(input, ['registerNumber', 'notes', 'institutionSlug']);
    if(typeof input.registerNumber!=='string'||!/^[A-Za-z0-9]{6,30}$/.test(input.registerNumber.trim())) {
     fail(422, 'Valid register number is required (6-30 alphanumeric characters).');
    }
@@ -1204,9 +1538,22 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
     const userPending = await db.query("SELECT id FROM student_verification_requests WHERE user_id=$1 AND status='PENDING'", [user.id]);
     if(userPending.rowCount) fail(409, 'You already have an active pending verification request.');
 
+    // Resolve target institution
+    let institution = null;
+    if(input.institutionSlug) {
+     institution = (await db.query('SELECT * FROM institutions WHERE slug=$1 AND active=true', [input.institutionSlug.trim()])).rows[0];
+    }
+    if(!institution) {
+     institution = (await db.query("SELECT * FROM institutions WHERE slug='default' AND active=true")).rows[0];
+    }
+    const instId = institution?.id || null;
+
     // Lock and query target roster
     await db.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['claim:reg:' + reg]);
-    const roster = (await db.query('SELECT * FROM student_rosters WHERE register_number=$1 AND is_active=true FOR UPDATE', [reg])).rows[0];
+    const roster = (await db.query(
+     'SELECT * FROM student_rosters WHERE register_number=$1 AND is_active=true AND ($2::uuid IS NULL OR institution_id=$2) FOR UPDATE',
+     [reg, instId]
+    )).rows[0];
     
     // Anti-enumeration: if non-existent or already bound, return uniform failure message
     if(!roster || roster.bound_user_id) {
@@ -1218,16 +1565,18 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
      fail(409, 'A verification claim for this register number is already under review.');
     }
 
-    // Evaluate automatic verification condition:
-    // Email matches roster institutional_email AND domain is in trusted allowlist
     const emailNorm = user.email.trim().toLowerCase();
     const rosterEmailNorm = roster.institutional_email.trim().toLowerCase();
     const emailDomain = emailNorm.split('@')[1] || '';
-    const trusted = institutionalDomains();
+    const trusted = await getActiveInstitutionalDomains(db);
 
-    const canAutoApprove = (emailNorm === rosterEmailNorm) && trusted.includes(emailDomain);
+    // Path A: Provider-confirmed institutional email exact match on trusted domain
+    // Security Invariant: NEVER auto-approve a roster claim based on unverified or self-declared institutional email.
+    // Provider confirmation (e.g. Google OAuth login with email_verified: true, which sets google_subject_id) is mandatory.
+    const hasProviderConfirmedEmail = Boolean(user.google_subject_id);
+    const isPathA = hasProviderConfirmedEmail && (emailNorm === rosterEmailNorm) && trusted.includes(emailDomain);
 
-    if(canAutoApprove) {
+    if(isPathA) {
      // Automatic approval transaction
      await db.query('UPDATE student_rosters SET bound_user_id=$1, updated_at=now() WHERE id=$2', [user.id, roster.id]);
      const deptRow = (await db.query('SELECT name FROM departments WHERE code=$1', [roster.department_code])).rows[0];
@@ -1236,22 +1585,25 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
       [roster.id, roster.department_code, deptRow?.name||roster.department_code, user.id]
      );
      await db.query(
-      `INSERT INTO student_verification_requests(user_id, roster_id, status, claim_channel, notes, reviewed_at)
-       VALUES($1, $2, 'APPROVED', 'INSTITUTIONAL_OAUTH_EXACT', 'Auto-approved via verified institutional email match.', now())`,
-      [user.id, roster.id]
+      `INSERT INTO student_verification_requests(user_id, roster_id, institution_id, status, claim_channel, verification_method, notes, reviewed_at)
+       VALUES($1, $2, $3, 'APPROVED', 'INSTITUTIONAL_OAUTH_EXACT', 'INSTITUTIONAL_EMAIL_MATCH', 'Auto-approved via verified institutional email match.', now())`,
+      [user.id, roster.id, roster.institution_id || instId]
      );
-     await audit(db, user, null, 'STUDENT_VERIFIED_AUTO', { registerNumber: reg, email: user.email });
+     await audit(db, user, null, 'STUDENT_VERIFIED_AUTO', { registerNumber: reg, email: user.email, path: 'PATH_A' });
      return { status: 'APPROVED', registerNumber: reg, departmentCode: roster.department_code, autoApproved: true };
     } else {
-     // Manual verification claim requiring HOD review
+     // Path B: Personal Google Email (or manual verification) -> Pending claim requiring Owner Governance
+     const claimChannel = user.google_subject_id ? 'PERSONAL_GOOGLE_ROSTER' : 'STUDENT_MANUAL_CLAIM';
+     const notes = input.notes?.trim() || (user.google_subject_id ? 'Personal Google account verification claim pending Primary Owner governance.' : null);
+
      const reqRow = (await db.query(
-      `INSERT INTO student_verification_requests(user_id, roster_id, status, claim_channel, notes)
-       VALUES($1, $2, 'PENDING', 'STUDENT_MANUAL_CLAIM', $3)
+      `INSERT INTO student_verification_requests(user_id, roster_id, institution_id, status, claim_channel, notes)
+       VALUES($1, $2, $3, 'PENDING', $4, $5)
        RETURNING id, expires_at`,
-      [user.id, roster.id, input.notes?.trim()||null]
+      [user.id, roster.id, roster.institution_id || instId, claimChannel, notes]
      )).rows[0];
-     await audit(db, user, null, 'STUDENT_VERIFICATION_PENDING', { registerNumber: reg, requestId: reqRow.id });
-     return { status: 'PENDING', registerNumber: reg, departmentCode: roster.department_code, expiresAt: reqRow.expires_at };
+     await audit(db, user, null, 'STUDENT_VERIFICATION_PENDING', { registerNumber: reg, requestId: reqRow.id, channel: claimChannel, path: 'PATH_B' });
+     return { status: 'PENDING', registerNumber: reg, departmentCode: roster.department_code, expiresAt: reqRow.expires_at, path: 'PATH_B', autoApproved: false };
     }
    });
 
@@ -1321,6 +1673,11 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
     }
 
     if(input.decision === 'APPROVED') {
+      // Invariant: Personal Google claims (PERSONAL_GOOGLE_ROSTER) are restricted exclusively to Primary Owner governance.
+      if(vReq.claim_channel === 'PERSONAL_GOOGLE_ROSTER') {
+        fail(403, 'Personal Google student verification claims require Primary Owner governance review and dual-factor step-up.');
+      }
+
       // In-person or manual claim requires genuine institutional identity-check method and documented evidence reference
       const allowedMethods = ['IN_PERSON_COLLEGE_ID', 'PHYSICAL_OFFICE_VERIFICATION', 'DEPT_ACADEMIC_RECORD', 'FACULTY_ADVISOR_CONFIRMATION'];
       if(vReq.claim_channel === 'STUDENT_MANUAL_CLAIM') {

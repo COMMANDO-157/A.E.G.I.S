@@ -5,8 +5,8 @@
 
 /* ─── Hero Section ────────────────────────────────────────── */
 .hero {
-  background: linear-gradient(180deg, var(--aegis-navy-900) 0%, var(--aegis-navy) 60%, var(--aegis-navy-700) 100%);
-  color: var(--aegis-neutral-0);
+  background: linear-gradient(145deg, #302A33 0%, #49352F 50%, #66516A 100%);
+  color: #FAF7F2;
   padding-block: var(--spacing-16) var(--spacing-20);
   position: relative;
   overflow: hidden;
@@ -42,9 +42,9 @@
   gap: var(--spacing-2);
   padding: 6px var(--spacing-4);
   border-radius: var(--radius-full);
-  background: rgba(20, 125, 120, 0.25);
-  border: 1px solid var(--aegis-teal-300);
-  color: var(--aegis-teal-300);
+  background: rgba(198, 125, 109, 0.22);
+  border: 1px solid var(--sanctuary-accent);
+  color: #F4DDD2;
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
   letter-spacing: var(--letter-spacing-wider);
@@ -53,7 +53,7 @@
 .heroTitle {
   font-size: var(--font-size-5xl);
   font-weight: var(--font-weight-bold);
-  color: var(--aegis-neutral-0);
+  color: #FFFFFF;
   letter-spacing: var(--letter-spacing-tight);
   line-height: 1.1;
   margin: 0;
@@ -62,14 +62,14 @@
 .heroTagline {
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-semibold);
-  color: var(--aegis-teal-300);
+  color: #E6B76A;
   letter-spacing: var(--letter-spacing-normal);
   line-height: var(--line-height-tight);
 }
 
 .heroSubtitle {
   font-size: var(--font-size-lg);
-  color: var(--aegis-navy-100);
+  color: #F4DDD2;
   line-height: var(--line-height-relaxed);
   max-width: 680px;
 }
@@ -101,7 +101,7 @@
 
 .sectionTitle {
   font-size: var(--font-size-3xl);
-  color: var(--aegis-navy);
+  color: var(--color-text-primary);
   margin-bottom: var(--spacing-2);
 }
 
@@ -145,7 +145,7 @@
 .featureTitle {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
-  color: var(--aegis-navy);
+  color: var(--color-text-primary);
 }
 
 .featureText {
@@ -178,9 +178,9 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: var(--aegis-teal-50);
-  border: 2px solid var(--aegis-teal-500);
-  color: var(--aegis-teal-700);
+  background: var(--sanctuary-surface-subtle);
+  border: 2px solid var(--sanctuary-accent);
+  color: var(--sanctuary-accent-hover);
   font-weight: var(--font-weight-bold);
   font-size: var(--font-size-sm);
   display: flex;
@@ -190,8 +190,8 @@
 
 /* ─── Confidentiality Banner ──────────────────────────────── */
 .confidentialityCard {
-  background: linear-gradient(to right, #FFFFFF, var(--aegis-teal-50));
-  border: 1.5px solid var(--aegis-teal-200);
+  background: linear-gradient(135deg, #FFFFFF 0%, var(--sanctuary-surface-subtle) 100%);
+  border: 1.5px solid var(--sanctuary-border);
   border-radius: var(--radius-xl);
   padding: var(--spacing-10);
   display: flex;

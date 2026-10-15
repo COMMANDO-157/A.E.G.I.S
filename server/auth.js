@@ -2,7 +2,7 @@ import {randomBytes,createHash} from 'node:crypto';
 import {OAuth2Client} from 'google-auth-library';
 import {database,transaction} from './db.js';
 import {fail,active} from './policy.js';
-import {appOrigin,configured,production,institutionalDomains} from './config.js';
+import {appOrigin,configured,production,institutionalDomains,getActiveInstitutionalDomains} from './config.js';
 export {configured} from './config.js';
 export const digest=value=>createHash('sha256').update(value).digest('hex');
 export function cookies(req) {
@@ -81,7 +81,7 @@ export async function login(req,res,credential) {
   if(user.role === 'student' && !user.is_verified_student) {
    const emailNorm = user.email.trim().toLowerCase();
    const emailDomain = emailNorm.split('@')[1] || '';
-   const trusted = institutionalDomains();
+   const trusted = await getActiveInstitutionalDomains(db);
    if(trusted.includes(emailDomain)) {
     const matchingRoster = (await db.query(
      'SELECT sr.*, d.name AS dept_name FROM student_rosters sr LEFT JOIN departments d ON d.code=sr.department_code WHERE lower(sr.institutional_email)=$1 AND sr.is_active=true AND (sr.bound_user_id IS NULL OR sr.bound_user_id=$2)',

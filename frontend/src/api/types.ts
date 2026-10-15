@@ -329,8 +329,88 @@ export interface AdminAuthorityAssignmentItem {
   readonly assigned_at: string;
 }
 
+// ─── Stage 5.5B / G09.1: Hybrid Institutional Verification ────────────────
+export interface InstitutionItem {
+  readonly id: string;
+  readonly slug: string;
+  readonly name: string;
+  readonly active: boolean;
+  readonly domains: string[];
+  readonly supported_methods: string[];
+  readonly created_at: string;
+  readonly updated_at: string;
+}
+
+export interface CreateInstitutionInput {
+  slug: string;
+  name: string;
+  domains: string[];
+  supportedMethods?: string[];
+  active?: boolean;
+  stepUpToken?: string;
+}
+
+export interface UpdateInstitutionInput {
+  name?: string;
+  domains?: string[];
+  supportedMethods?: string[];
+  active?: boolean;
+  stepUpToken?: string;
+}
+
+export interface VerificationClaimItem {
+  readonly id: string;
+  readonly user_id: string;
+  readonly roster_id: string;
+  readonly status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRED';
+  readonly claim_channel: string;
+  readonly notes: string | null;
+  readonly identity_evidence_reference: string | null;
+  readonly created_at: string;
+  readonly expires_at: string;
+  readonly user_email: string;
+  readonly user_name: string;
+  readonly register_number: string;
+  readonly institutional_email: string;
+  readonly roster_name: string;
+  readonly department_code: string;
+  readonly batch_year: string;
+  readonly department_name: string;
+  readonly approved_personal_email?: string | null;
+  readonly is_test_record?: boolean;
+  readonly institution_id?: string | null;
+  readonly institution_name?: string | null;
+  readonly institution_slug?: string | null;
+  readonly binding_conflict?: boolean;
+  readonly bound_to_other_user?: boolean;
+  readonly bound_to_other_roster?: boolean;
+}
+
+export interface RosterPreviewResponse {
+  readonly total: number;
+  readonly validCount: number;
+  readonly errorCount: number;
+  readonly conflictCount: number;
+  readonly validSample: Array<{
+    registerNumber: string;
+    institutionalEmail: string;
+    fullName: string;
+    departmentCode: string;
+    batchYear: string;
+    degreeProgram?: string;
+    approvedPersonalEmail?: string;
+    isTestRecord?: boolean;
+  }>;
+  readonly errors: Array<{
+    row: number;
+    record: any;
+    error: string;
+  }>;
+}
+
 // ─── API Error ────────────────────────────────────────────────────────────────
 
 export interface ApiError {
   readonly error: string;
 }
+

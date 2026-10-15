@@ -61,7 +61,7 @@ export default function StudentDashboardPage() {
         setClaimSuccessMsg(`Institutional verification confirmed automatically! Register number ${res.registerNumber} bound to your account.`);
         await refreshUser();
       } else {
-        setClaimSuccessMsg(`Verification request submitted for ${res.registerNumber}. Your claim is pending manual HOD review.`);
+        setClaimSuccessMsg(`Verification request submitted for ${res.registerNumber}. Your claim is pending review by the Primary Owner under institutional governance.`);
       }
 
       const refreshed = await getStudentVerificationStatus();
@@ -82,13 +82,13 @@ export default function StudentDashboardPage() {
   return (
     <div className="container" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-6)' }}>
       {/* Welcome Banner */}
-      <section className="card" style={{ borderColor: 'var(--aegis-teal-300)', background: 'linear-gradient(to right, #FFFFFF, var(--aegis-teal-50))' }}>
+      <section className="card" style={{ borderColor: 'var(--sanctuary-border)', background: 'linear-gradient(135deg, #FFFFFF 0%, var(--sanctuary-surface-subtle) 100%)', borderRadius: 'var(--radius-xl)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 'var(--spacing-4)' }}>
           <div>
             <span className="badge badge-primary" style={{ marginBottom: 'var(--spacing-2)' }}>
               {t.student.badge}
             </span>
-            <h1 style={{ fontSize: 'var(--font-size-2xl)', color: 'var(--aegis-navy)', marginBottom: 'var(--spacing-1)' }}>
+            <h1 style={{ fontSize: 'var(--font-size-2xl)', color: 'var(--color-text-primary)', marginBottom: 'var(--spacing-1)' }}>
               {t.student.welcomeBack}, {user?.name ?? t.roles.student}
             </h1>
             <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
@@ -121,8 +121,9 @@ export default function StudentDashboardPage() {
         <section
           className="card"
           style={{
-            borderColor: pendingRequest ? 'var(--aegis-gold-400)' : 'var(--aegis-teal-400)',
-            backgroundColor: pendingRequest ? '#FFFBEB' : '#F0FDFA',
+            borderColor: pendingRequest ? 'var(--sanctuary-highlight)' : 'var(--sanctuary-border)',
+            backgroundColor: pendingRequest ? 'var(--sanctuary-surface-subtle)' : '#FFFFFF',
+            borderRadius: 'var(--radius-xl)',
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 'var(--spacing-4)' }}>
@@ -130,13 +131,13 @@ export default function StudentDashboardPage() {
               <span className={`badge ${pendingRequest ? 'badge-warning' : 'badge-primary'}`} style={{ marginBottom: 'var(--spacing-2)' }}>
                 {pendingRequest ? 'Review in Progress' : 'Action Required'}
               </span>
-              <h2 style={{ fontSize: 'var(--font-size-lg)', color: 'var(--aegis-navy)', marginBottom: 'var(--spacing-1)' }}>
+              <h2 style={{ fontSize: 'var(--font-size-lg)', color: 'var(--color-text-primary)', marginBottom: 'var(--spacing-1)' }}>
                 {pendingRequest ? 'Verification Claim Pending Review' : 'Verify Your Institutional Student Identity'}
               </h2>
               <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
                 {pendingRequest
-                  ? `Your claim for register number ${pendingRequest.register_number} (${pendingRequest.department_name}) was submitted on ${new Date(pendingRequest.created_at).toLocaleDateString()} and expires on ${new Date(pendingRequest.expires_at).toLocaleDateString()}. An authorized departmental officer will review your institutional identity.`
-                  : 'Grievance filing requires a verified institutional register number linked to your student account. If your Google login uses your official college email, your verification is approved automatically.'}
+                  ? `Your claim for register number ${pendingRequest.register_number} (${pendingRequest.department_name}) was submitted on ${new Date(pendingRequest.created_at).toLocaleDateString()} and expires on ${new Date(pendingRequest.expires_at).toLocaleDateString()}. Path B enrollment requires explicit Primary Owner approval before student protections and grievance filing are activated.`
+                  : 'Grievance filing requires a verified institutional register number linked to your student account. Path A (institutional email match) verifies immediately; Path B (personal Google account) requires Primary Owner approval.'}
               </p>
             </div>
             {!pendingRequest && (
