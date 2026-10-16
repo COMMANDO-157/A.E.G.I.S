@@ -1,3 +1,4 @@
+import { intakeState, type IntakeState } from '@/utils/intake';
 /**
  * A.E.G.I.S 4.0 — Student Incident Reporting Form
  * WP-4.1.5 & WP-4.3
@@ -15,7 +16,8 @@ export default function StudentReportPage() {
   const { t } = useLocale();
   const navigate = useNavigate();
 
-  const [intakeActive, setIntakeActive] = useState<boolean>(false);
+  const [intake, setIntake] = useState<IntakeState>('loading');
+  const intakeActive = intake === 'enabled';
   const [loadingConfig, setLoadingConfig] = useState<boolean>(true);
 
   // Form State
@@ -39,10 +41,10 @@ export default function StudentReportPage() {
       try {
         const config = await getConfig();
         if (active) {
-          setIntakeActive(config.intakeEnabled);
+          setIntake(intakeState(config));
         }
       } catch {
-        if (active) setIntakeActive(false);
+        if (active) setIntake('unavailable');
       } finally {
         if (active) setLoadingConfig(false);
       }
@@ -54,9 +56,10 @@ export default function StudentReportPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!intakeActive || loadingConfig) { setError(t.phase1.intakeUnknown); return; }
 
     if (description.trim().length < 20) {
-      setError('Please provide at least 20 characters in the description.');
+      setError(t.phase1.descriptionShort);
       return;
     }
 
@@ -133,14 +136,16 @@ export default function StudentReportPage() {
             style={{ marginTop: 'var(--spacing-4)' }}
           >
             <div>
-              <strong>{t.student.reportingDisabledAlertTitle}</strong>
+              <strong>{intake === 'unavailable' ? t.phase1.intakeUnavailable : intake === 'unknown' ? t.phase1.intakeUnknown : t.phase1.intakeDisabled}</strong>
               <p>
-                {t.student.reportingDisabledAlertDesc}
+                {t.phase1.privacy}
               </p>
             </div>
           </div>
         )}
 
+        {loadingConfig && <p role="status">{t.phase1.intakeLoading}</p>}
+        <p>{t.phase1.privacy}</p>
         {error && (
           <div className="alert alert-error" style={{ marginTop: 'var(--spacing-4)' }}>
             <span>{error}</span>
@@ -250,8 +255,8 @@ export default function StudentReportPage() {
                   style={{ width: '100%', marginTop: 'var(--spacing-1)' }}
                   required
                 >
-                  <option value="confidential">Confidential (Visible only to authorized institutional officers)</option>
-                  <option value="anonymous">Anonymous (Identity withheld from case records)</option>
+                  <option value="confidential">{t.phase1.confidential}</option>
+                  <option value="anonymous">{t.phase1.anonymous}</option>
                   <option value="standard">Standard Institutional Record</option>
                 </select>
               </div>
@@ -324,7 +329,7 @@ export default function StudentReportPage() {
                 <button
                   type="submit"
                   className="btn btn-primary"
-                  disabled={submitting || (!intakeActive && !loadingConfig) || !user?.is_verified_student}
+                  disabled={submitting || !intakeActive || loadingConfig || !user?.is_verified_student}
                 >
                   {submitting ? 'Submitting Report…' : !user?.is_verified_student ? 'Verification Required' : intakeActive ? 'Submit Official Grievance' : 'Intake Paused (Simulation Only)'}
                 </button>

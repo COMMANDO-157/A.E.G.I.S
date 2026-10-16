@@ -321,3 +321,10 @@
     border-radius: var(--radius-lg);
   }
 }
+
+.panel { min-width:0; }
+.signIn { display:grid; gap:var(--spacing-3); width:100%; }
+.title, .subtitle, .inputLabel { color:var(--color-text-primary); }
+.forgotLink, .registerLink { color:var(--color-text-link); }
+.submitBtn { background:var(--color-action-bg); color:var(--color-action-text); }
+.submitBtn:hover:not(:disabled) { background:var(--color-action-bg-hover); }

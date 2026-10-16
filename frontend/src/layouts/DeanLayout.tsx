@@ -79,7 +79,7 @@ export default function DeanLayout() {
             <span className={styles.brandMark} aria-hidden="true">🛡️</span>
             <span className={styles.brandText}>{t.app.name}</span>
           </Link>
-          <span className={styles.brandPortal} style={{ background: 'var(--aegis-navy-800)', color: 'white' }}>
+          <span className={styles.brandPortal} style={{ background: 'var(--stewardship-accent)', color: 'white' }}>
             DEAN OF STUDENTS
           </span>
           <span className={styles.motto}>Tier 2 Campus-Wide Oversight</span>

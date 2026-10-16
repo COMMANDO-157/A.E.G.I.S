@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useId } from 'react';
+import React, { useEffect, useRef, useId, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useLocale } from '@/context/LocaleContext';
 import styles from './Dialog.module.css';
 
 export interface DialogProps {
@@ -21,6 +22,8 @@ export function Dialog({
   footer,
   closeOnOverlayClick = true,
 }: DialogProps) {
+  const { t } = useLocale();
+  const [theme, setTheme] = useState<string | undefined>();
   const panelRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
   const titleId = useId();
@@ -31,6 +34,7 @@ export function Dialog({
     if (!isOpen) return;
 
     previousActiveElement.current = document.activeElement as HTMLElement | null;
+    setTheme(previousActiveElement.current?.closest('[data-theme]')?.getAttribute('data-theme') || undefined);
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
@@ -51,6 +55,8 @@ export function Dialog({
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      const dialogs = Array.from(document.querySelectorAll<HTMLElement>('[role=dialog]')).filter(el => el.getClientRects().length > 0);
+      if (dialogs[dialogs.length - 1] !== panelRef.current) return;
       if (e.key === 'Escape') {
         e.preventDefault();
         onClose();
@@ -61,10 +67,11 @@ export function Dialog({
         const focusable = panelRef.current.querySelectorAll<HTMLElement>(
           'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
         );
-        if (focusable.length === 0) return;
+        const available = Array.from(focusable).filter(el => !el.matches(':disabled,[hidden]') && el.getClientRects().length > 0);
+        if (available.length === 0) { e.preventDefault(); panelRef.current.focus(); return; }
 
-        const firstElement = focusable[0];
-        const lastElement = focusable[focusable.length - 1];
+        const firstElement = available[0];
+        const lastElement = available[available.length - 1];
 
         if (e.shiftKey) {
           if (document.activeElement === firstElement || document.activeElement === panelRef.current) {
@@ -72,7 +79,7 @@ export function Dialog({
             lastElement?.focus();
           }
         } else {
-          if (document.activeElement === lastElement) {
+          if (document.activeElement === lastElement || document.activeElement === panelRef.current) {
             e.preventDefault();
             firstElement?.focus();
           }
@@ -88,6 +95,7 @@ export function Dialog({
 
   return createPortal(
     <div
+      data-theme={theme}
       className={styles.overlay}
       onClick={(e) => {
         if (closeOnOverlayClick && e.target === e.currentTarget) {
@@ -112,7 +120,7 @@ export function Dialog({
             type="button"
             className={styles.closeButton}
             onClick={onClose}
-            aria-label="Close dialog"
+            aria-label={t.phase1.close}
           >
             ✕
           </button>

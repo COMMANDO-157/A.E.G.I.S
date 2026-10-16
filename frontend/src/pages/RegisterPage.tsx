@@ -49,6 +49,7 @@ export default function RegisterPage() {
 
   return (
     <div className={styles.page}>
+      <p><Link className="btn btn-primary" to="/login">{t.phase1.google}</Link></p>
       {/* ─── Hero Section ────────────────────────────────────────── */}
       <section className={styles.hero} aria-labelledby="register-hero-title">
         <div className={styles.heroInner}>
@@ -70,10 +71,10 @@ export default function RegisterPage() {
         <PageContainer>
           <div style={{ maxWidth: '480px', margin: '0 auto', background: 'var(--color-surface-card)', padding: 'var(--spacing-8)', borderRadius: 'var(--radius-xl)', border: '1px solid var(--color-border-subtle)', boxShadow: 'var(--shadow-lg)' }}>
             <h2 id="form-heading" style={{ fontSize: 'var(--font-size-xl)', color: 'var(--color-text-primary)', marginBottom: 'var(--spacing-2)', textAlign: 'center' }}>
-              Create Student Account
+              {t.phase1.accountCreate}
             </h2>
             <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)', textAlign: 'center', marginBottom: 'var(--spacing-6)' }}>
-              Restricted to verified campus students. Faculty & administration are provisioned separately.
+              {t.phase1.registrationHelp}
             </p>
 
             {error && (
@@ -84,10 +85,10 @@ export default function RegisterPage() {
 
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-4)' }}>
               <div>
-                <label style={{ display: 'block', fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '4px' }}>
-                  Full Legal Name
+                <label htmlFor="register-name" style={{ display: 'block', fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '4px' }}>
+                  {t.phase1.name}
                 </label>
-                <input
+                <input id="register-name"
                   type="text"
                   required
                   value={name}
@@ -98,10 +99,10 @@ export default function RegisterPage() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '4px' }}>
-                  Institutional Email
+                <label htmlFor="register-email" style={{ display: 'block', fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '4px' }}>
+                  {t.phase1.email}
                 </label>
-                <input
+                <input id="register-email"
                   type="email"
                   required
                   value={email}
@@ -112,10 +113,10 @@ export default function RegisterPage() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '4px' }}>
-                  Academic Department
+                <label htmlFor="register-department" style={{ display: 'block', fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '4px' }}>
+                  {t.phase1.department}
                 </label>
-                <input
+                <input id="register-department"
                   type="text"
                   required
                   value={department}
@@ -126,10 +127,10 @@ export default function RegisterPage() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '4px' }}>
-                  Password
+                <label htmlFor="register-password" style={{ display: 'block', fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '4px' }}>
+                  {t.phase1.password}
                 </label>
-                <input
+                <input id="register-password"
                   type="password"
                   required
                   value={password}
@@ -140,7 +141,7 @@ export default function RegisterPage() {
               </div>
 
               <Button type="submit" variant="primary" size="md" disabled={loading} style={{ marginTop: 'var(--spacing-2)' }}>
-                {loading ? 'Creating Student Account…' : 'Register Student Account'}
+                {loading ? t.phase1.busy : t.phase1.create}
               </Button>
             </form>
 

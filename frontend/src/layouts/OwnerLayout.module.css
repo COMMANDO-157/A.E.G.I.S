@@ -7,7 +7,7 @@
 
 /* ─── Header ─────────────────────────────────────────────── */
 .header {
-  background: var(--aegis-navy-900);
+  background: var(--stewardship-text);
   position: sticky;
   top: 0;
   z-index: var(--z-sticky);
@@ -56,8 +56,8 @@
 .brandPortal {
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
-  color: var(--aegis-teal-300);
-  background: rgba(45, 179, 171, 0.12);
+  color: var(--stewardship-bg);
+  background: rgba(184, 169, 162, 0.18);
   padding: 2px var(--spacing-2);
   border-radius: var(--radius-full);
   letter-spacing: var(--letter-spacing-wide);
@@ -65,7 +65,7 @@
 
 .motto {
   font-size: 11px;
-  color: var(--aegis-navy-300);
+  color: var(--stewardship-neutral);
   letter-spacing: var(--letter-spacing-wide);
   font-weight: var(--font-weight-medium);
 }
@@ -81,7 +81,7 @@
   padding: var(--spacing-2) var(--spacing-3);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
-  color: var(--aegis-navy-200);
+  color: var(--stewardship-bg);
   text-decoration: none;
   border-radius: var(--radius-md);
   transition:
@@ -95,8 +95,8 @@
 }
 
 .navActive {
-  color: var(--aegis-teal-300);
-  background: rgba(45, 179, 171, 0.12);
+  color: var(--stewardship-bg);
+  background: rgba(184, 169, 162, 0.18);
   font-weight: var(--font-weight-semibold);
 }
 
@@ -116,7 +116,7 @@
 
 .userEmail {
   font-size: var(--font-size-sm);
-  color: var(--aegis-navy-200);
+  color: var(--stewardship-bg);
   max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -168,4 +168,10 @@
   .mainInner {
     padding-inline: var(--spacing-4);
   }
+}
+
+@media (max-width:768px) {
+ .headerInner { flex-wrap:wrap; gap:var(--spacing-3); }
+ .userMenu { flex-wrap:wrap; min-width:0; max-width:100%; }
+ .brandGroup { min-width:0; }
 }

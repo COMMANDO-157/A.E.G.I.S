@@ -79,7 +79,7 @@ export default function HodLayout() {
             <span className={styles.brandMark} aria-hidden="true">🛡️</span>
             <span className={styles.brandText}>{t.app.name}</span>
           </Link>
-          <span className={styles.brandPortal} style={{ background: 'var(--aegis-teal-700)', color: 'white' }}>
+          <span className={styles.brandPortal} style={{ background: 'var(--stewardship-accent)', color: 'white' }}>
             HEAD OF DEPARTMENT
           </span>
           <span className={styles.motto}>Tier 1 Departmental Jurisdiction</span>

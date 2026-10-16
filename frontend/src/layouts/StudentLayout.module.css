@@ -50,7 +50,7 @@
 .brandText {
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-bold);
-  color: var(--aegis-navy);
+  color: var(--color-text-primary);
   letter-spacing: var(--letter-spacing-wider);
 }
 
@@ -183,4 +183,10 @@
   .breadcrumbsContainer {
     padding-inline: var(--spacing-4);
   }
+}
+
+@media (max-width:768px) {
+ .headerInner { flex-wrap:wrap; gap:var(--spacing-3); }
+ .userMenu { flex-wrap:wrap; min-width:0; max-width:100%; }
+ .brandGroup { min-width:0; }
 }

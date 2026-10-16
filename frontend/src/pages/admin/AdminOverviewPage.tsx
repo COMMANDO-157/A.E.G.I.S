@@ -149,7 +149,7 @@ export default function AdminOverviewPage() {
         <h1
           style={{
             fontSize: 'var(--font-size-2xl)',
-            color: 'var(--aegis-navy)',
+            color: 'var(--color-text-primary)',
             marginTop: 'var(--spacing-3)',
           }}
         >

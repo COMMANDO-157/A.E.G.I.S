@@ -485,7 +485,7 @@ function mockHttp(env, options = {}) {
   return { req, res, handler };
 }
 
-test('G09.1 — Path A: Institutional Email Auto-Approval (Deterministic In-Memory)', async () => {
+test('G09.2 — Stored Google subject alone cannot auto-approve an institutional claim', async () => {
   const env = createMockEnvironment();
 
   // Authoritative Roster
@@ -526,14 +526,14 @@ test('G09.1 — Path A: Institutional Email Auto-Approval (Deterministic In-Memo
   await handler(req, res);
   assert.equal(res.statusCode, 201);
   const data = res.json();
-  assert.equal(data.status, 'APPROVED');
-  assert.equal(data.autoApproved, true);
+  assert.equal(data.status, 'PENDING');
+  assert.equal(data.autoApproved, false);
   assert.equal(data.registerNumber, regNo);
 
-  // Assert user is immediately verified in memory
+  // No elevation from a stored subject or self-declared email.
   const updatedUser = env.store.users.get(studentUser.id);
-  assert.equal(updatedUser.is_verified_student, true);
-  assert.ok(updatedUser.roster_id);
+  assert.equal(updatedUser.is_verified_student, false);
+  assert.equal(updatedUser.roster_id, null);
 });
 
 test('G09.1 — Path B: Personal Google Account Enrollment & Grievance Blocker', async () => {
@@ -956,6 +956,26 @@ test('Security Invariant: Authority (HOD) cannot approve PERSONAL_GOOGLE_ROSTER 
   await handler(req, res);
   // Must fail with 403 Forbidden!
   assert.equal(res.statusCode, 403);
-  assert.match(res.json().error, /Personal Google student verification claims require Primary Owner governance review/);
+  assert.match(res.json().error, /Administrator access required/);
 });
 
+
+
+test('G09.2 Owner approval rejects expired, missing-expiry and evidence-free claims without binding', async()=>{
+ for(const scenario of ['expired','missing','evidence']) {
+  const env=createMockEnvironment();const rosterId=randomUUID();const userId=randomUUID();const claimId=randomUUID();
+  env.store.studentRosters.set('22CS777',{id:rosterId,register_number:'22CS777',institutional_email:'target@college.edu.in',department_code:'CSE',active:true,bound_user_id:null});
+  env.store.users.set(userId,{id:userId,email:'target@gmail.com',name:'Target',role:'student',account_status:'active',is_verified_student:false,roster_id:null});
+  env.store.verificationRequests.set(claimId,{id:claimId,user_id:userId,roster_id:rosterId,status:'PENDING',claim_channel:'PERSONAL_GOOGLE_ROSTER',expires_at:scenario==='expired'?new Date(0):scenario==='missing'?null:new Date(Date.now()+3600000)});
+  const token=await issueStepUpToken(OWNER_ID,'admin_step_up',env.mockDb,env.ownerUser.session_hash);
+  const req=mockHttp(env,{method:'POST',url:'/api/owner/verification-claims/'+claimId+'/review',body:{decision:'APPROVED',notes:'Independent enrollment review attempted',stepUpToken:token,...(scenario==='evidence'?{}:{identityEvidenceReference:'REGISTRAR-2026-19'})},user:env.ownerUser,headers:{'x-aegis-owner-grant':env.grantToken}});
+  await req.handler(req.req,req.res);assert.equal(req.res.statusCode,scenario==='evidence'?422:400);
+  assert.equal(env.store.users.get(userId).is_verified_student,false);assert.equal(env.store.studentRosters.get('22CS777').bound_user_id,null);
+ }
+});
+test('G09.2 HOD and Dean titles alone cannot list enrollment claims',async()=>{
+ for(const role of ['HOD','Dean','Higher Authority']){
+  const env=createMockEnvironment();const req=mockHttp(env,{method:'GET',url:'/api/authority/students/requests',user:{id:randomUUID(),role,account_status:'active',permissions:[]}});
+  await req.handler(req.req,req.res);assert.equal(req.res.statusCode,403);
+ }
+});

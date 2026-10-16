@@ -1,3 +1,5 @@
+import { Dialog } from '@/components/ui/Dialog';
+import { useLocale } from '@/context/LocaleContext';
 import React, { useState } from 'react';
 import { performStepUp } from '@/api/client';
 
@@ -13,9 +15,10 @@ export function StepUpModal({
   isOpen,
   onClose,
   onSuccess,
-  title = 'Privileged Dual-Factor Authorization Required',
-  description = 'Sensitive administrative operations strictly require concurrent fresh verification of your 6-digit TOTP MFA code and 5-digit Action PIN.',
+  title,
+  description,
 }: StepUpModalProps) {
+  const {t}=useLocale();
   const [pin, setPin] = useState('');
   const [mfaCode, setMfaCode] = useState('');
   const [loading, setLoading] = useState(false);
@@ -29,11 +32,11 @@ export function StepUpModal({
 
     const trimmedMfa = mfaCode.trim();
     if (!/^\d{6}$/.test(trimmedMfa)) {
-      setError('MFA code must be exactly 6 digits.');
+      setError(t.phase1.badTotp);
       return;
     }
     if (!/^\d{5}$/.test(pin)) {
-      setError('Action PIN must be exactly 5 digits.');
+      setError(t.phase1.badPin);
       return;
     }
 
@@ -52,7 +55,7 @@ export function StepUpModal({
         throw new Error('Dual-factor verification failed to issue authorization token.');
       }
     } catch (err: any) {
-      setError(err.message || 'Authorization failed.');
+      setError(t.phase1.error);
       // Keep inputs or clear pin on failure for security
       setPin('');
     } finally {
@@ -68,56 +71,9 @@ export function StepUpModal({
   }
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="step-up-title"
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.65)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 9999,
-        padding: 'var(--spacing-4)',
-      }}
-    >
-      <div
-        className="card"
-        style={{
-          maxWidth: 480,
-          width: '100%',
-          backgroundColor: 'var(--color-bg-surface, #ffffff)',
-          boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span className="badge badge-warning">Dual-Factor Step-Up Gate</span>
-          <button
-            type="button"
-            onClick={handleClose}
-            aria-label="Close step-up dialog"
-            style={{
-              background: 'none',
-              border: 'none',
-              fontSize: 'var(--font-size-lg)',
-              cursor: 'pointer',
-              color: 'var(--color-text-secondary)',
-            }}
-          >
-            ✕
-          </button>
-        </div>
-
-        <h2 id="step-up-title" style={{ fontSize: 'var(--font-size-xl)', marginTop: 'var(--spacing-2)' }}>
-          {title}
-        </h2>
+    <Dialog isOpen={isOpen} onClose={handleClose} title={title || t.phase1.stepUpTitle} description={description || t.phase1.stepUpHelp}>
         <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)', marginTop: 'var(--spacing-1)' }}>
-          {description}
+          {description || t.phase1.stepUpHelp}
         </p>
 
         {error && (
@@ -132,7 +88,7 @@ export function StepUpModal({
               htmlFor="stepup-mfa-input"
               style={{ display: 'block', fontSize: 'var(--font-size-sm)', fontWeight: 600 }}
             >
-              1. Enter 6-Digit Authenticator (TOTP) Code
+              {t.phase1.totp}
             </label>
             <input
               id="stepup-mfa-input"
@@ -164,7 +120,7 @@ export function StepUpModal({
               htmlFor="stepup-pin-input"
               style={{ display: 'block', fontSize: 'var(--font-size-sm)', fontWeight: 600 }}
             >
-              2. Enter 5-Digit Action PIN
+              {t.phase1.pin}
             </label>
             <input
               id="stepup-pin-input"
@@ -192,14 +148,13 @@ export function StepUpModal({
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--spacing-3)', marginTop: 'var(--spacing-5)' }}>
             <button type="button" className="btn btn-secondary" onClick={handleClose} disabled={loading}>
-              Cancel
+              {t.phase1.cancel}
             </button>
             <button type="submit" className="btn btn-primary" disabled={loading}>
-              {loading ? 'Verifying Factors…' : 'Authorize Action'}
+              {loading ? t.phase1.busy : t.phase1.authorize}
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Dialog>
   );
 }

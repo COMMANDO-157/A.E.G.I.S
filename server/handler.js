@@ -1,9 +1,10 @@
+import {validateGoogleClaims,linkConfirmedGoogleAccount,requireCurrentClaim,requireVerificationEvidence} from './google-identity.js';
 import {randomUUID} from 'node:crypto';
 import {OAuth2Client} from 'google-auth-library';
 import {consumeRateLimit} from './rate-limit.js';
 import {authorizeMaintenance,cleanupExpired} from './maintenance.js';
 import {runEscalationCycle} from './escalation-worker.js';
-import {cookie,digest} from './auth.js';
+import {cookie,digest,cookies} from './auth.js';
 import {intakeEnabled,institutionalDomains,getActiveInstitutionalDomains,production} from './config.js';
 import {designatedOwner,requireOwnerGrant,beginOwnerEntry,finishOwnerEntry,setupOwnerPin,entryOwnerTotp,changeOwnerPin} from './owner-portal.js';
 import {sendPasswordResetEmail} from './owner-email.js';
@@ -352,7 +353,7 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
     await transaction(async db => {
      const claim = (await db.query(`
       SELECT svr.*, sr.department_code, sr.register_number, sr.bound_user_id, sr.is_active AS roster_active,
-             u.email AS user_email, u.name AS user_name, u.google_subject_id
+             u.email AS user_email, u.name AS user_name, u.google_subject_id, u.roster_id AS current_roster_id
       FROM student_verification_requests svr
       JOIN student_rosters sr ON sr.id = svr.roster_id
       JOIN users u ON u.id = svr.user_id
@@ -361,15 +362,17 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
 
      if(!claim) fail(404, 'Verification claim not found.');
      if(claim.status !== 'PENDING') fail(400, `Claim is already in status: ${claim.status}`);
+     requireCurrentClaim(claim);
+     if(claim.user_id===user.id) fail(403,'Self-verification is prohibited.');
 
      if(input.decision === 'APPROVED') {
       if(!claim.roster_active) fail(400, 'Cannot approve claim for an inactive roster record.');
+      if(claim.current_roster_id && claim.current_roster_id!==claim.roster_id) fail(409,'Existing student roster binding requires independent reconciliation, not reassignment.');
       if(claim.bound_user_id && claim.bound_user_id !== claim.user_id) {
        fail(409, 'Conflict: Target roster record is already bound to another student identity.');
       }
 
-      const method = input.verificationMethod || 'OWNER_INDEPENDENT_ROSTER_VERIFICATION';
-      const evidence = input.identityEvidenceReference?.trim() || null;
+      const {method,evidence} = requireVerificationEvidence(input);
 
       await db.query('UPDATE student_rosters SET bound_user_id=$1, updated_at=now() WHERE id=$2', [claim.user_id, claim.roster_id]);
       const deptRow = (await db.query('SELECT name FROM departments WHERE code=$1', [claim.department_code])).rows[0];
@@ -573,18 +576,17 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
    if(!payload?.sub||!payload.email||payload.email_verified!==true) {
      fail(401,'Google identity or verified email required.');
    }
-   const conflicting=(await database().query('SELECT id FROM users WHERE google_subject_id=$1 AND id<>$2',[payload.sub,user.id])).rows[0];
-   if(conflicting) {
-     fail(409,'This Google account is already linked to another institutional user.');
-   }
+   validateGoogleClaims(payload,process.env.GOOGLE_CLIENT_ID);
+   const linkNonce=cookies(req).aegis_challenge;
+   if(!linkNonce || payload.nonce!==linkNonce) fail(401,'A fresh Google challenge is required to link this account.');
    const updated=await transaction(async db=>{
-     const res=await db.query(
-       'UPDATE users SET google_subject_id=$1 WHERE id=$2 RETURNING *',
-       [payload.sub,user.id]
-     );
-     await audit(db,user,null,'GOOGLE_ACCOUNT_LINKED',{sub:payload.sub,email:payload.email});
-     return res.rows[0];
+     const consumed=await db.query('DELETE FROM auth_challenges WHERE token_hash=$1 AND expires_at>now() RETURNING token_hash',[digest(linkNonce)]);
+     if(!consumed.rowCount) fail(401,'Google linking challenge expired or already used.');
+     const linked=await linkConfirmedGoogleAccount(db,user.id,payload);
+     await audit(db,user,null,'GOOGLE_ACCOUNT_LINKED');
+     return linked;
    });
+   res.setHeader('Set-Cookie',cookie('aegis_challenge','',0));
    return send(200,{user:userView(updated),ok:true});
   }
   if(path==='/api/complaints'&&method==='GET') {
@@ -1532,7 +1534,7 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
 
    const result = await transaction(async db => {
     // Expiry maintenance pass: expire requests past 7 days
-    await db.query("UPDATE student_verification_requests SET status='EXPIRED', updated_at=now() WHERE status='PENDING' AND expires_at < now()");
+    await db.query("UPDATE student_verification_requests SET status='EXPIRED', updated_at=now() WHERE status='PENDING' AND expires_at <= now()");
 
     // Check existing pending request for this user
     const userPending = await db.query("SELECT id FROM student_verification_requests WHERE user_id=$1 AND status='PENDING'", [user.id]);
@@ -1543,10 +1545,12 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
     if(input.institutionSlug) {
      institution = (await db.query('SELECT * FROM institutions WHERE slug=$1 AND active=true', [input.institutionSlug.trim()])).rows[0];
     }
+    if(input.institutionSlug && !institution) fail(422,'Institution is not eligible for verification.');
     if(!institution) {
-     institution = (await db.query("SELECT * FROM institutions WHERE slug='default' AND active=true")).rows[0];
+     institution = (await db.query('SELECT * FROM institutions WHERE slug=$1 AND active=true',['default'])).rows[0];
     }
-    const instId = institution?.id || null;
+    if(!institution) fail(503,'An active authoritative institution is required for enrollment review.');
+    const instId = institution.id;
 
     // Lock and query target roster
     await db.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['claim:reg:' + reg]);
@@ -1565,33 +1569,9 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
      fail(409, 'A verification claim for this register number is already under review.');
     }
 
-    const emailNorm = user.email.trim().toLowerCase();
-    const rosterEmailNorm = roster.institutional_email.trim().toLowerCase();
-    const emailDomain = emailNorm.split('@')[1] || '';
-    const trusted = await getActiveInstitutionalDomains(db);
-
-    // Path A: Provider-confirmed institutional email exact match on trusted domain
-    // Security Invariant: NEVER auto-approve a roster claim based on unverified or self-declared institutional email.
-    // Provider confirmation (e.g. Google OAuth login with email_verified: true, which sets google_subject_id) is mandatory.
-    const hasProviderConfirmedEmail = Boolean(user.google_subject_id);
-    const isPathA = hasProviderConfirmedEmail && (emailNorm === rosterEmailNorm) && trusted.includes(emailDomain);
-
-    if(isPathA) {
-     // Automatic approval transaction
-     await db.query('UPDATE student_rosters SET bound_user_id=$1, updated_at=now() WHERE id=$2', [user.id, roster.id]);
-     const deptRow = (await db.query('SELECT name FROM departments WHERE code=$1', [roster.department_code])).rows[0];
-     await db.query(
-      'UPDATE users SET is_verified_student=true, roster_id=$1, department_code=$2, department=$3 WHERE id=$4',
-      [roster.id, roster.department_code, deptRow?.name||roster.department_code, user.id]
-     );
-     await db.query(
-      `INSERT INTO student_verification_requests(user_id, roster_id, institution_id, status, claim_channel, verification_method, notes, reviewed_at)
-       VALUES($1, $2, $3, 'APPROVED', 'INSTITUTIONAL_OAUTH_EXACT', 'INSTITUTIONAL_EMAIL_MATCH', 'Auto-approved via verified institutional email match.', now())`,
-      [user.id, roster.id, roster.institution_id || instId]
-     );
-     await audit(db, user, null, 'STUDENT_VERIFIED_AUTO', { registerNumber: reg, email: user.email, path: 'PATH_A' });
-     return { status: 'APPROVED', registerNumber: reg, departmentCode: roster.department_code, autoApproved: true };
-    } else {
+    // Existing subject IDs do not prove ownership of users.email. Only a fresh
+    // validated Google login may auto-match a roster; session claims stay pending.
+    {
      // Path B: Personal Google Email (or manual verification) -> Pending claim requiring Owner Governance
      const claimChannel = user.google_subject_id ? 'PERSONAL_GOOGLE_ROSTER' : 'STUDENT_MANUAL_CLAIM';
      const notes = input.notes?.trim() || (user.google_subject_id ? 'Personal Google account verification claim pending Primary Owner governance.' : null);
@@ -1612,7 +1592,7 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
 
   // ─── Authority Department-Scoped Student Verification Console ──────────────
   if(path==='/api/authority/students/requests'&&method==='GET') {
-   if(!STAFF.includes(user.role) && user.role!=='admin') fail(403, 'Authority clearance required.');
+   requireAdminPermission(user, 'department.students.verify');
 
    let deptClause = 'TRUE';
    let params = [];
@@ -1643,24 +1623,27 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
   }
 
   if(path.match(/^\/api\/authority\/students\/requests\/([a-f0-9-]{36})\/review$/i)&&method==='POST') {
-   if(!STAFF.includes(user.role) && user.role!=='admin') fail(403, 'Authority clearance required.');
+   requireAdminPermission(user, 'department.students.verify');
    const requestId = path.split('/')[5];
    const input = await body(req);
-   fieldsOnly(input, ['decision', 'notes', 'identityEvidenceReference', 'verificationMethod']);
+   fieldsOnly(input, ['decision', 'notes', 'identityEvidenceReference', 'verificationMethod', 'stepUpToken']);
+   if(!input.stepUpToken || !await verifyStepUpToken(user.id,'admin_step_up',input.stepUpToken,database(),user.session_hash)) fail(403,'Fresh dual-factor step-up is required for verification decisions.');
    if(!['APPROVED', 'REJECTED'].includes(input.decision)) fail(422, 'decision must be APPROVED or REJECTED.');
    if(typeof input.notes!=='string'||input.notes.trim().length < 15) fail(422, 'Reviewer notes must contain at least 15 characters.');
 
    await transaction(async db => {
     const vReq = (await db.query(`
-     SELECT svr.*, sr.department_code, sr.register_number 
+     SELECT svr.*, sr.department_code, sr.register_number, sr.bound_user_id, sr.is_active AS roster_active, u.roster_id AS current_roster_id
      FROM student_verification_requests svr
      JOIN student_rosters sr ON sr.id = svr.roster_id
+     JOIN users u ON u.id = svr.user_id
      WHERE svr.id=$1 FOR UPDATE
     `, [requestId])).rows[0];
 
     if(!vReq) fail(404, 'Verification request not found.');
     if(vReq.status !== 'PENDING') fail(400, `Request is already in state: ${vReq.status}`);
-    if(new Date(vReq.expires_at).getTime() < Date.now()) fail(400, 'Verification request has expired.');
+    requireCurrentClaim(vReq);
+    if(vReq.user_id===user.id) fail(403,'Self-verification is prohibited.');
 
     // Enforce department scoping for HOD
     if(user.role === 'HOD') {
@@ -1678,6 +1661,9 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
         fail(403, 'Personal Google student verification claims require Primary Owner governance review and dual-factor step-up.');
       }
 
+      if(vReq.current_roster_id && vReq.current_roster_id!==vReq.roster_id) fail(409,'Existing student roster binding requires independent reconciliation, not reassignment.');
+      if(!vReq.roster_active || (vReq.bound_user_id && vReq.bound_user_id!==vReq.user_id)) fail(409,'Roster record is inactive or has a conflicting identity binding.');
+      requireVerificationEvidence(input);
       // In-person or manual claim requires genuine institutional identity-check method and documented evidence reference
       const allowedMethods = ['IN_PERSON_COLLEGE_ID', 'PHYSICAL_OFFICE_VERIFICATION', 'DEPT_ACADEMIC_RECORD', 'FACULTY_ADVISOR_CONFIRMATION'];
       if(vReq.claim_channel === 'STUDENT_MANUAL_CLAIM') {

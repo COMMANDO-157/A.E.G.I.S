@@ -123,18 +123,6 @@ export default function App() {
               </Route>
             </Route>
 
-            {/* 1. Protected Student Portal (/student) */}
-            <Route element={<StudentRoute />}>
-              <Route path="/student" element={<StudentLayout />}>
-                <Route index element={<StudentDashboardPage />} />
-                <Route path="dashboard" element={<Navigate to="/student" replace />} />
-                <Route path="report" element={<StudentReportPage />} />
-                <Route path="track" element={<StudentTrackPage />} />
-                <Route path="cases" element={<Navigate to="/student/track" replace />} />
-                <Route path="profile" element={<Navigate to="/student" replace />} />
-              </Route>
-            </Route>
-
             {/* 2. Protected Head of Department Portal (/hod) */}
             <Route element={<HodRoute />}>
               <Route path="/hod" element={<HodLayout />}>

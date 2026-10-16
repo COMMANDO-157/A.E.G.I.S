@@ -16,7 +16,7 @@
 .title {
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-semibold);
-  color: var(--aegis-navy);
+  color: var(--color-text-primary);
   letter-spacing: var(--letter-spacing-tight);
 }
 

@@ -1,8 +1,15 @@
+import { StepUpModal } from '@/components/admin/StepUpModal';
+import { useAuth } from '@/context/AuthContext';
+import { useLocale } from '@/context/LocaleContext';
 import { useState, useEffect, useCallback } from 'react';
 import { listAuthorityStudentRequests, reviewAuthorityStudentRequest } from '@/api/client';
 import type { AuthorityStudentRequestItem } from '@/api/types';
 
 export default function AuthorityStudentsPage() {
+  const {user}=useAuth();
+  const {t}=useLocale();
+  const [stepUpOpen,setStepUpOpen]=useState(false);
+  const canVerify=user?.role==='admin' && Boolean(user.is_primary_owner || user.permissions?.includes('department.students.verify'));
   const [requests, setRequests] = useState<AuthorityStudentRequestItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,8 +38,8 @@ export default function AuthorityStudentsPage() {
   }, []);
 
   useEffect(() => {
-    fetchRequests();
-  }, [fetchRequests]);
+    if(canVerify) fetchRequests();
+  }, [fetchRequests,canVerify]);
 
   async function handleReviewSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -54,11 +61,17 @@ export default function AuthorityStudentsPage() {
       }
     }
 
+    setStepUpOpen(true);
+  }
+
+  async function completeReview(stepUpToken:string) {
+    if(!selectedReq)return;
     setSubmitting(true);
     setError(null);
     try {
       await reviewAuthorityStudentRequest(selectedReq.id, {
         decision,
+        stepUpToken,
         notes: reviewNotes.trim(),
         identityEvidenceReference: decision === 'APPROVED' && evidenceRef.trim() ? evidenceRef.trim() : undefined,
         verificationMethod: decision === 'APPROVED' && selectedReq.claim_channel === 'STUDENT_MANUAL_CLAIM' ? verificationMethod : undefined,
@@ -81,8 +94,10 @@ export default function AuthorityStudentsPage() {
     return r.status === filterStatus;
   });
 
+  if(!canVerify) return <p role="status">{t.phase1.verificationAccessDenied}</p>;
   return (
     <main style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-6)' }}>
+      <StepUpModal isOpen={stepUpOpen} onClose={()=>setStepUpOpen(false)} onSuccess={token=>{void completeReview(token);}} />
       <header>
         <span className="badge badge-navy">Student Identity Governance</span>
         <h1 style={{ fontSize: 'var(--font-size-2xl)', marginTop: 'var(--spacing-2)' }}>
@@ -99,7 +114,7 @@ export default function AuthorityStudentsPage() {
           <div>
             <strong>Strict Department Scoping & Evidence Invariant</strong>
             <p style={{ marginTop: 'var(--spacing-1)', fontSize: 'var(--font-size-sm)' }}>
-              Head of Department authorities can only view and approve claims within their assigned departments.
+              {t.phase1.verificationAccessDenied}
               Manual claims require independently verified identity evidence (such as physical ID presentation or verified departmental records).
             </p>
           </div>

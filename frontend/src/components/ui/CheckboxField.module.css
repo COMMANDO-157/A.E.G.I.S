@@ -16,7 +16,7 @@
   height: 18px;
   margin-top: 2px;
   flex-shrink: 0;
-  accent-color: var(--aegis-teal-500);
+  accent-color: var(--color-action-bg);
   cursor: inherit;
   border-radius: var(--radius-sm);
   border: 1.5px solid var(--color-border-default);

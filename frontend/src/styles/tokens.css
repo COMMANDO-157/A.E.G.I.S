@@ -227,6 +227,7 @@
   --z-dropdown: 30;
   --z-sticky:   40;
   --z-modal:    50;
+  --z-dialog:   10000; /* above legacy review overlays during step-up */
   --z-toast:    60;
 
   /* ─── Layout Primitives ──────────────────────────────── */
@@ -246,10 +247,13 @@
   --sanctuary-surface:       #FFFFFF;  /* pure card surface */
   --sanctuary-surface-subtle: #F4DDD2; /* soft peach */
   --sanctuary-accent:        #C67D6D;  /* muted terracotta */
+  --sanctuary-action:        #914C3D;
+  --sanctuary-action-hover:  #783D31;
+  --sanctuary-control-border: #937B6F;
   --sanctuary-accent-hover:  #B26A5A;  /* deeper terracotta */
   --sanctuary-highlight:     #E6B76A;  /* gentle amber */
   --sanctuary-text:          #49352F;  /* deep cocoa (10.2:1 against ivory) */
-  --sanctuary-text-muted:    #7D6B65;  /* soft cocoa */
+  --sanctuary-text-muted:    #705D56;  /* soft cocoa */
   --sanctuary-border:        #E8DDD5;  /* gentle warm border */
   --sanctuary-border-focus:  #C67D6D;
 
@@ -269,7 +273,7 @@
 
   /* ─── Student Portal Tokens (Sanctuary Scoped) ───────── */
   --student-motto:       "Your Voice. Your Safety. Your Protection.";
-  --student-accent:      var(--sanctuary-accent);
+  --student-accent:      var(--sanctuary-action);
   --student-accent-soft: var(--sanctuary-surface-subtle);
   --student-bg-hero:     linear-gradient(135deg, #49352F 0%, #66516A 50%, #C67D6D 100%);
 
@@ -298,21 +302,21 @@
 
   --color-text-primary:   var(--sanctuary-text);
   --color-text-secondary: var(--sanctuary-text-muted);
-  --color-text-muted:     #8C7B75;
-  --color-text-link:      var(--sanctuary-accent);
-  --color-text-link-hover: var(--sanctuary-accent-hover);
+  --color-text-muted:     #705D56;
+  --color-text-link:      var(--sanctuary-action);
+  --color-text-link-hover: var(--sanctuary-action-hover);
 
   --color-border-subtle:  #EDE6DF;
-  --color-border-default: var(--sanctuary-border);
+  --color-border-default: var(--sanctuary-control-border);
   --color-border-strong:  #CEBFB5;
   --color-border-brand:   var(--sanctuary-accent);
 
-  --color-action-bg:        var(--sanctuary-accent);
-  --color-action-bg-hover:  var(--sanctuary-accent-hover);
+  --color-action-bg:        var(--sanctuary-action);
+  --color-action-bg-hover:  var(--sanctuary-action-hover);
   --color-action-text:      #FFFFFF;
-  --color-action-border:    var(--sanctuary-accent-hover);
+  --color-action-border:    var(--sanctuary-action-hover);
 
-  --color-focus-ring:       var(--sanctuary-highlight);
+  --color-focus-ring:       var(--sanctuary-action);
   --radius-lg:              14px;
   --radius-xl:              18px;
 }
@@ -320,6 +324,10 @@
 /* ─── Stewardship Theme Scope (Applied to Authority, Admin & Primary Owner) ─ */
 [data-theme="stewardship"],
 .theme-stewardship {
+  --color-surface-primary: var(--stewardship-text);
+  --color-surface-secondary: var(--stewardship-accent-hover);
+  --color-nav-bg: var(--stewardship-text);
+  --color-nav-text: var(--stewardship-bg);
   --color-bg-page:        var(--stewardship-bg);
   --color-bg-surface:     var(--stewardship-surface);
   --color-bg-subtle:      var(--stewardship-surface-subtle);
@@ -329,12 +337,12 @@
 
   --color-text-primary:   var(--stewardship-text);
   --color-text-secondary: var(--stewardship-text-muted);
-  --color-text-muted:     #78707C;
+  --color-text-muted:     #635B67;
   --color-text-link:      var(--stewardship-accent);
   --color-text-link-hover: var(--stewardship-accent-hover);
 
   --color-border-subtle:  #E8E3DB;
-  --color-border-default: var(--stewardship-border);
+  --color-border-default: #86798A;
   --color-border-strong:  #BCB2A7;
   --color-border-brand:   var(--stewardship-accent);
 
@@ -343,5 +351,5 @@
   --color-action-text:      #FFFFFF;
   --color-action-border:    var(--stewardship-accent-hover);
 
-  --color-focus-ring:       var(--stewardship-action);
+  --color-focus-ring:       var(--stewardship-accent);
 }

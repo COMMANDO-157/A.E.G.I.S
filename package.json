@@ -15,12 +15,13 @@
     "vercel-build": "npm --prefix frontend install && npm --prefix frontend run build",
     "test:auth": "node --test test_auth.js",
     "test:portals": "node --test test_dual_auth_portals.js",
-    "test": "node --test test_auth.js test_dual_auth_portals.js test_owner_portal.js",
+    "test": "node --test test_auth.js test_dual_auth_portals.js test_owner_portal.js test_stage5_5d_hybrid_verification.js test_google_identity.js",
     "test:owner": "node --test test_owner_portal.js",
     "test:owner:db": "node --test test_owner_postgres.js",
     "db:health": "node --env-file-if-exists=.env scripts/health.js",
     "security:cleanup": "node --env-file-if-exists=.env scripts/cleanup.js",
-    "test:integration": "node --env-file-if-exists=.env test_integration.js"
+    "test:integration": "node --env-file-if-exists=.env test_integration.js",
+    "test:security": "node --test test_google_identity.js test_stage5_5d_hybrid_verification.js"
   },
   "dependencies": {
     "google-auth-library": "^10.5.0",

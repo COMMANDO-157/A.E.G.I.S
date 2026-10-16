@@ -351,3 +351,14 @@ code, kbd, samp, pre {
   font-weight: var(--font-weight-medium);
   color: var(--color-text-secondary);
 }
+
+/* Portal semantics: accents do not override accessible text/action colors. */
+[data-theme] .badge-primary, [data-theme] .badge-navy { background: var(--color-bg-subtle); color: var(--color-text-link); }
+[data-theme] .alert-info { background: var(--color-bg-subtle); color: var(--color-text-primary); border-color: var(--color-border-default); }
+[data-theme] .btn-primary:hover:not(:disabled) { border-color: var(--color-action-border); }
+[data-theme] input:not([type="checkbox"]):not([type="radio"]), [data-theme] textarea, [data-theme] select { color:var(--color-text-primary); background:var(--color-bg-surface); border:1px solid var(--color-border-default); border-radius:var(--radius-md); padding:var(--spacing-2); max-width:100%; }
+[data-theme] input:focus-visible, [data-theme] textarea:focus-visible, [data-theme] select:focus-visible { outline:3px solid var(--color-focus-ring); outline-offset:2px; }
+
+[data-theme] .btn { white-space:normal; text-align:center; }
+[data-theme] .card { min-width:0; overflow-wrap:anywhere; }
+[data-theme], .theme-sanctuary, .theme-stewardship { color: var(--color-text-primary); }

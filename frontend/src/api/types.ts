@@ -274,6 +274,7 @@ export interface AuthorityStudentRequestItem {
 }
 
 export interface AuthorityStudentReviewPayload {
+  stepUpToken?: string;
   decision: 'APPROVED' | 'REJECTED';
   notes: string;
   identityEvidenceReference?: string | undefined;

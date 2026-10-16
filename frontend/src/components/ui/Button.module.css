@@ -58,7 +58,7 @@
 
 .primary:hover:not(:disabled) {
   background: var(--color-action-bg-hover);
-  border-color: var(--aegis-teal-800);
+  border-color: var(--color-action-border);
 }
 
 .secondary {

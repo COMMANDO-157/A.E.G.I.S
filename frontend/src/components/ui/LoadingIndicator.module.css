@@ -10,7 +10,7 @@
   display: inline-block;
   border-radius: 50%;
   border: 2.5px solid var(--color-border-subtle);
-  border-top-color: var(--aegis-teal-500);
+  border-top-color: var(--color-action-bg);
   animation: aegisSpin 0.8s linear infinite;
 }
 
@@ -43,7 +43,7 @@
 @media (prefers-reduced-motion: reduce) {
   .spinner {
     animation: none;
-    border-top-color: var(--aegis-teal-500);
+    border-top-color: var(--color-action-bg);
     opacity: 0.75;
   }
 }

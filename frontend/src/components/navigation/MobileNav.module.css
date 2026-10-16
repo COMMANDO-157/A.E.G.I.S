@@ -71,7 +71,7 @@
 .title {
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-bold);
-  color: var(--aegis-navy);
+  color: var(--color-text-primary);
 }
 
 .closeButton {
@@ -118,8 +118,8 @@
 }
 
 .navActive {
-  background: var(--aegis-teal-50);
-  color: var(--aegis-teal-700);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-link);
 }
 
 .drawerFooter {

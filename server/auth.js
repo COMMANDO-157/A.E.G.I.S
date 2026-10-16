@@ -1,8 +1,9 @@
+import {validateGoogleClaims,normalizeEmail} from './google-identity.js';
 import {randomBytes,createHash} from 'node:crypto';
 import {OAuth2Client} from 'google-auth-library';
 import {database,transaction} from './db.js';
 import {fail,active} from './policy.js';
-import {appOrigin,configured,production,institutionalDomains,getActiveInstitutionalDomains} from './config.js';
+import {appOrigin,configured,production} from './config.js';
 export {configured} from './config.js';
 export const digest=value=>createHash('sha256').update(value).digest('hex');
 export function cookies(req) {
@@ -23,7 +24,10 @@ export async function challenge(res) {
  res.setHeader('Set-Cookie',cookie('aegis_challenge',nonce,300));
  return {nonce,clientId:process.env.GOOGLE_CLIENT_ID};
 }
-export async function login(req,res,credential) {
+export async function login(req,res,credential,{
+ runTransaction=transaction,
+ verifyCredential=async credential => (await new OAuth2Client(process.env.GOOGLE_CLIENT_ID).verifyIdToken({idToken:credential,audience:process.env.GOOGLE_CLIENT_ID})).getPayload()
+}={}) {
  if(!configured()) fail(503,'Authentication is not configured.');
  const nonce=cookies(req).aegis_challenge;
  if(!nonce) {
@@ -36,8 +40,7 @@ export async function login(req,res,credential) {
  }
  let payload;
  try {
-  const ticket=await new OAuth2Client(process.env.GOOGLE_CLIENT_ID).verifyIdToken({idToken:credential,audience:process.env.GOOGLE_CLIENT_ID});
-  payload=ticket.getPayload();
+  payload=await verifyCredential(credential);
  } catch (err) {
   console.warn('[AUTH] Google ID token verification failed:', err?.message || 'verification error');
   fail(401,'Google identity token was rejected.');
@@ -54,17 +57,22 @@ export async function login(req,res,credential) {
   console.warn('[AUTH] Nonce mismatch: Google token nonce does not match aegis_challenge cookie.');
   fail(401,'Google identity or nonce was rejected.');
  }
+ validateGoogleClaims(payload,process.env.GOOGLE_CLIENT_ID);
  const token=randomBytes(32).toString('base64url');
- const user=await transaction(async db=>{
+ const user=await runTransaction(async db=>{
   const consumed=await db.query('DELETE FROM auth_challenges WHERE token_hash=$1 AND expires_at>now() RETURNING token_hash',[digest(nonce)]);
   if(!consumed.rowCount) {
    console.warn('[AUTH] Login challenge not found in DB or expired.');
    fail(401,'Login challenge expired or already used.');
   }
-  let result=await db.query('SELECT * FROM users WHERE google_subject_id=$1',[payload.sub]);
+  await db.query('SELECT pg_advisory_xact_lock(hashtext($1))',['google-sub:'+payload.sub]);
+  let result=await db.query('SELECT * FROM users WHERE google_subject_id=$1 FOR UPDATE',[payload.sub]);
+  if(result.rows.length>1) fail(409,'Ambiguous Google identity binding.');
   let user=result.rows[0];
   if(user) {
-   await db.query('UPDATE users SET email=$1,name=$2 WHERE id=$3',[payload.email,payload.name||user.name,user.id]);
+   const duplicates=(await db.query('SELECT id FROM users WHERE lower(email)=lower($1) AND id<>$2',[payload.email,user.id])).rows;
+   if(duplicates.length) fail(409,'Google email conflicts with an existing account; no accounts were merged.');
+   user=(await db.query('UPDATE users SET email=$1,name=$2 WHERE id=$3 RETURNING *',[payload.email,payload.name||user.name,user.id])).rows[0];
   } else {
    const existingByEmail=(await db.query('SELECT * FROM users WHERE lower(email)=lower($1)',[payload.email])).rows[0];
    if(existingByEmail) {
@@ -78,15 +86,18 @@ export async function login(req,res,credential) {
   }
   // Institutional Auto-Verification on Google Login:
   // If student account is unverified, check if email matches an active roster row on a trusted institutional domain
-  if(user.role === 'student' && !user.is_verified_student) {
-   const emailNorm = user.email.trim().toLowerCase();
-   const emailDomain = emailNorm.split('@')[1] || '';
-   const trusted = await getActiveInstitutionalDomains(db);
-   if(trusted.includes(emailDomain)) {
-    const matchingRoster = (await db.query(
-     'SELECT sr.*, d.name AS dept_name FROM student_rosters sr LEFT JOIN departments d ON d.code=sr.department_code WHERE lower(sr.institutional_email)=$1 AND sr.is_active=true AND (sr.bound_user_id IS NULL OR sr.bound_user_id=$2)',
+  if(user.role === 'student' && !user.is_verified_student && !user.roster_id) {
+   const emailNorm = normalizeEmail(payload.email);
+   // The 001–006 deployment has no institutions table. Preserve Google login,
+   // but never infer enrollment from fallback/example domains on that schema.
+   const schema=(await db.query("SELECT to_regclass('public.institutions') IS NOT NULL AND EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid='public.student_rosters'::regclass AND attname='institution_id' AND NOT attisdropped) AS available")).rows[0];
+   if(schema?.available===true) {
+    const matchingRosters = (await db.query(
+     `SELECT sr.*, d.name AS dept_name FROM student_rosters sr JOIN institutions i ON i.id=sr.institution_id AND i.active=true AND 'INSTITUTIONAL_EMAIL'=ANY(i.supported_methods) LEFT JOIN departments d ON d.code=sr.department_code WHERE lower(sr.institutional_email)=$1 AND split_part(lower(sr.institutional_email),'@',2)=ANY(i.domains) AND sr.is_active=true AND sr.is_test_record=false AND (sr.bound_user_id IS NULL OR sr.bound_user_id=$2) FOR UPDATE OF sr`,
      [emailNorm, user.id]
-    )).rows[0];
+    )).rows;
+    if(matchingRosters.length>1) fail(409,'Ambiguous authoritative roster match.');
+    const matchingRoster=matchingRosters[0];
     if(matchingRoster) {
      await db.query('UPDATE student_rosters SET bound_user_id=$1, updated_at=now() WHERE id=$2', [user.id, matchingRoster.id]);
      const updatedUser = await db.query(
@@ -95,10 +106,10 @@ export async function login(req,res,credential) {
      );
      user = updatedUser.rows[0];
      await db.query(
-      `INSERT INTO student_verification_requests(user_id, roster_id, status, claim_channel, notes, reviewed_at)
-       VALUES($1, $2, 'APPROVED', 'INSTITUTIONAL_OAUTH_EXACT', 'Auto-approved on Google OAuth institutional login.', now())
+      `INSERT INTO student_verification_requests(user_id, roster_id, institution_id, status, claim_channel, verification_method, notes, reviewed_at)
+       VALUES($1, $2, $3, 'APPROVED', 'INSTITUTIONAL_OAUTH_EXACT', 'INSTITUTIONAL_EMAIL_MATCH', 'Auto-approved on Google OAuth institutional login.', now())
        ON CONFLICT DO NOTHING`,
-      [user.id, matchingRoster.id]
+      [user.id, matchingRoster.id, matchingRoster.institution_id]
      );
      await db.query("INSERT INTO audit_logs(actor_id,action) VALUES($1,'STUDENT_VERIFIED_AUTO')",[user.id]);
     }
