@@ -92,7 +92,8 @@ export async function login(req,res,credential,{
    // The schema-006 deployment has no institutions table. Preserve Google login,
    // but never infer enrollment from fallback/example domains on that schema.
    const schema=(await db.query("SELECT to_regclass('public.institutions') IS NOT NULL AND EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid='public.student_rosters'::regclass AND attname='institution_id' AND NOT attisdropped) AS available")).rows[0];
-   if(schema?.available===true) {
+   // Consumer Gmail ownership cannot become institutional evidence through domain configuration.
+   if(schema?.available===true && !['gmail.com','googlemail.com'].includes(emailNorm.split('@')[1])) {
     const matchingRosters = (await db.query(
      `SELECT sr.*, d.name AS dept_name FROM student_rosters sr JOIN institutions i ON i.id=sr.institution_id AND i.active=true AND 'INSTITUTIONAL_EMAIL'=ANY(i.supported_methods) JOIN departments d ON d.code=sr.department_code AND d.active=true AND d.institution_id=sr.institution_id WHERE lower(sr.institutional_email)=$1 AND split_part(lower(sr.institutional_email),'@',2)=ANY(i.domains) AND sr.is_active=true AND sr.is_test_record=false AND (sr.bound_user_id IS NULL OR sr.bound_user_id=$2) FOR UPDATE OF sr`,
      [emailNorm, user.id]

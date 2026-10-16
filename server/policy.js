@@ -40,13 +40,13 @@ export function requireAdmin(user) {
 
 /**
  * Checks whether user has a specific delegated permission OR is Primary Owner.
- * Primary Owner has all permissions by default.
+ * Primary Owner administration excludes independent enrollment verification.
  * Delegated admins have only explicitly granted permissions in user.permissions.
  */
 export function hasAdminPermission(user, permission) {
  active(user);
  if(user.role!=='admin') return false;
- if(user.is_primary_owner) return true;
+ if(user.is_primary_owner) return permission!=='department.students.verify';
  const perms = Array.isArray(user.permissions) ? user.permissions : [];
  return perms.includes(permission);
 }

@@ -9,7 +9,7 @@ export default function AuthorityStudentsPage() {
   const {user}=useAuth();
   const {t}=useLocale();
   const [stepUpOpen,setStepUpOpen]=useState(false);
-  const canVerify=user?.role==='admin' && Boolean(user.is_primary_owner || user.permissions?.includes('department.students.verify'));
+  const canVerify=user?.role==='admin' && !user.is_primary_owner && Boolean(user.permissions?.includes('department.students.verify'));
   const [requests, setRequests] = useState<AuthorityStudentRequestItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +50,7 @@ export default function AuthorityStudentsPage() {
       return;
     }
 
-    if (decision === 'APPROVED' && selectedReq.claim_channel === 'STUDENT_MANUAL_CLAIM') {
+    if (selectedReq) {
       if (evidenceRef.trim().length < 5) {
         setError('Identity evidence reference or in-person verification record is required for manual claims.');
         return;
@@ -73,8 +73,8 @@ export default function AuthorityStudentsPage() {
         decision,
         stepUpToken,
         notes: reviewNotes.trim(),
-        identityEvidenceReference: decision === 'APPROVED' && evidenceRef.trim() ? evidenceRef.trim() : undefined,
-        verificationMethod: decision === 'APPROVED' && selectedReq.claim_channel === 'STUDENT_MANUAL_CLAIM' ? verificationMethod : undefined,
+        identityEvidenceReference: evidenceRef.trim() || undefined,
+        verificationMethod,
       });
 
       setSuccessMsg(`Student verification request for ${selectedReq.register_number} (${selectedReq.user_email}) was marked as ${decision}.`);
@@ -330,7 +330,7 @@ export default function AuthorityStudentsPage() {
                   </div>
                 </div>
 
-                {decision === 'APPROVED' && selectedReq.claim_channel === 'STUDENT_MANUAL_CLAIM' && (
+                {selectedReq && (
                   <>
                     <div>
                       <label

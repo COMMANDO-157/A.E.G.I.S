@@ -25,7 +25,7 @@ try{
  const out=fs.openSync(path.join(work,'postgres.log'),'a');server=spawn(exe('postgres'),['-D',dataDirectory,'-h','127.0.0.1','-p',String(port),'-c','ssl=off'],{windowsHide:true,env,stdio:['ignore',out,out]});fs.closeSync(out);started=true;
  let ready=false;for(let i=0;i<100;i++){const client=new pg.Client({host:'127.0.0.1',port,user:'phase12_operator',password,database:'postgres',ssl:false,connectionTimeoutMillis:200});try{await client.connect();await client.query('SELECT 1');ready=true;break;}catch{await new Promise(r=>setTimeout(r,100));}finally{await client.end().catch(()=>{});}}if(!ready)throw Error('Disposable cluster startup failed.');
  const config=path.join(work,'local-only.json');fs.writeFileSync(config,JSON.stringify({host:'127.0.0.1',port,user:'phase12_operator',password,dataDirectory}),{mode:0o600});
- const child=spawn(process.execPath,['--test','test_phase12_postgres.js'],{cwd:process.cwd(),windowsHide:true,env:{...env,NODE_ENV:'test',AEGIS_PHASE12_LOCAL_CONFIG:config},stdio:['ignore','pipe','pipe']});
+ const child=spawn(process.execPath,['--test','test_phase12_postgres.js'],{cwd:process.cwd(),windowsHide:true,env:{...env,NODE_ENV:'test',AEGIS_PHASE12_LOCAL_CONFIG:config,...(process.argv.includes('--verification-proposal')?{AEGIS_PHASE13_PROPOSAL_TESTS:'true'}:{})},stdio:['ignore','pipe','pipe']});
  const log=fs.createWriteStream(path.join(work,'integration.txt'));for(const [stream,destination] of [[child.stdout,process.stdout],[child.stderr,process.stderr]])stream.on('data',chunk=>{destination.write(chunk);log.write(chunk);});
  const deadline=setTimeout(()=>child.kill(),60000);
  try {status=await new Promise((resolve,reject)=>{child.once('error',reject);child.once('close',code=>resolve(code??1));});}

@@ -201,9 +201,10 @@ test('Cryptographic Invariant: Recovery codes generated and verified via SHA-256
   assert.notEqual(hashRecoveryCode('WRONG-CODE'), hashedCodes[0]);
 });
 
-test('Model A Permissions: Primary Owner has universal admin permissions', () => {
+test('Model A Permissions: Primary Owner administration excludes enrollment verification', () => {
   const primaryOwner = { id: 'owner-1', role: 'admin', is_primary_owner: true, account_status: 'active' };
   for (const perm of DELEGATED_PERMISSIONS) {
+    if(perm==='department.students.verify'){assert.equal(hasAdminPermission(primaryOwner,perm),false);assert.throws(()=>requireAdminPermission(primaryOwner,perm),{status:403});continue;}
     assert.equal(hasAdminPermission(primaryOwner, perm), true);
     assert.doesNotThrow(() => requireAdminPermission(primaryOwner, perm));
   }

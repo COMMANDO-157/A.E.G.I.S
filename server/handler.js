@@ -1,3 +1,4 @@
+import {requireVerificationDecision,verificationQueueIds} from './verification-governance.js';
 import {hasInstitutionSchema,resolveInstitution,requireEligibleClaim} from './enrollment.js';
 import {validateGoogleClaims,linkConfirmedGoogleAccount,requireCurrentClaim,requireVerificationEvidence} from './google-identity.js';
 import {randomUUID} from 'node:crypto';
@@ -254,6 +255,7 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
   await limit('user:'+user.id+':'+(method==='GET'?'read':'write'),method==='GET'?240:30);
   if(path==='/api/me'&&method==='GET') return send(200,{user:userView(user)});
 
+  if(path.startsWith('/api/owner/verification-claims')) fail(403,'Infrastructure ownership does not authorize enrollment verification.');
   if(path.startsWith('/api/owner')) {
    designatedOwner(user);
    const deps={transaction,db:database(),limit};
@@ -283,186 +285,7 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
     if(typeof token==='string') await database().query('DELETE FROM owner_portal_grants WHERE user_id=$1 AND session_hash=$2 AND token_hash=$3',[user.id,user.session_hash,digest(token)]);
     return send(200,{ok:true});
    }
-   // ─── Owner Verification Governance Console ────────────────────────────────
-   if(path==='/api/owner/verification-claims'&&method==='GET') {
-    requirePrimaryOwner(user);
-    await requireOwnerGrant(req, user, database());
-    if(!await hasInstitutionSchema(database())) fail(503,'Enrollment console requires institution schema 007.');
-
-    const instFilter = url.searchParams.get('institutionId');
-    const deptFilter = url.searchParams.get('departmentCode');
-    const statusFilter = url.searchParams.get('status') || 'PENDING';
-
-    const conditions = [];
-    const params = [];
-
-    if(statusFilter && statusFilter !== 'ALL') {
-     params.push(statusFilter);
-     conditions.push(`svr.status = $${params.length}`);
-    }
-    if(instFilter) {
-     params.push(instFilter);
-     conditions.push(`(svr.institution_id::text = $${params.length} OR inst.slug = $${params.length})`);
-    }
-    if(deptFilter) {
-     params.push(deptFilter.toUpperCase());
-     conditions.push(`sr.department_code = $${params.length}`);
-    }
-
-    const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
-
-    const claims = (await database().query(`
-     SELECT svr.id, svr.user_id, svr.roster_id, svr.institution_id, svr.status, svr.claim_channel,
-            svr.notes, svr.identity_evidence_reference, svr.verification_method,
-            svr.created_at, svr.expires_at, svr.reviewed_at, svr.rejection_reason,
-            u.email AS user_email, u.name AS user_name, u.google_subject_id,
-            sr.register_number, sr.institutional_email AS roster_institutional_email,
-            sr.full_name AS roster_name, sr.department_code, sr.batch_year,
-            sr.approved_personal_email, sr.is_test_record,
-            sr.bound_user_id,
-            d.name AS department_name,
-            inst.name AS institution_name, inst.slug AS institution_slug,
-            CASE 
-              WHEN sr.bound_user_id IS NOT NULL AND sr.bound_user_id != svr.user_id THEN true 
-              ELSE false 
-            END AS has_binding_conflict
-     FROM student_verification_requests svr
-     JOIN student_rosters sr ON sr.id = svr.roster_id
-     LEFT JOIN departments d ON d.code = sr.department_code
-     LEFT JOIN institutions inst ON inst.id = svr.institution_id
-     JOIN users u ON u.id = svr.user_id
-     ${whereClause}
-     ORDER BY CASE WHEN svr.status='PENDING' THEN 1 ELSE 2 END, svr.created_at DESC
-     LIMIT 100
-    `, params)).rows;
-
-    return send(200, { claims });
-   }
-
-   if(path.match(/^\/api\/owner\/verification-claims\/([a-f0-9-]{36})\/review$/i)&&method==='POST') {
-    requirePrimaryOwner(user);
-    await requireOwnerGrant(req, user, database());
-    const claimId = path.split('/')[4];
-    const input = await body(req);
-    fieldsOnly(input, ['decision', 'notes', 'verificationMethod', 'identityEvidenceReference', 'stepUpToken']);
-    if(!['APPROVED', 'REJECTED'].includes(input.decision)) fail(422, 'decision must be APPROVED or REJECTED.');
-    if(typeof input.notes!=='string'||input.notes.trim().length < 10) fail(422, 'Owner review notes must contain at least 10 characters.');
-
-    if(!input.stepUpToken) fail(403, 'Step-up authorization token is required for Owner verification decisions.');
-    const validStepUp = await verifyStepUpToken(user.id, 'admin_step_up', input.stepUpToken, database(), user.session_hash);
-    if(!validStepUp) fail(403, 'Invalid or expired step-up authorization token.');
-
-    await transaction(async db => {
-     const claim = (await db.query(`
-      SELECT svr.*, sr.department_code, sr.register_number, sr.bound_user_id, sr.is_active AS roster_active,
-             u.email AS user_email, u.name AS user_name, u.google_subject_id, u.roster_id AS current_roster_id
-      FROM student_verification_requests svr
-      JOIN student_rosters sr ON sr.id = svr.roster_id
-      JOIN users u ON u.id = svr.user_id
-      WHERE svr.id=$1 FOR UPDATE
-     `, [claimId])).rows[0];
-
-     if(!claim) fail(404, 'Verification claim not found.');
-     if(claim.status !== 'PENDING') fail(400, `Claim is already in status: ${claim.status}`);
-     requireCurrentClaim(claim);
-     if(claim.user_id===user.id) fail(403,'Self-verification is prohibited.');
-
-     if(input.decision === 'APPROVED') {
-      await requireEligibleClaim(db,claim);
-      if(!claim.roster_active) fail(400, 'Cannot approve claim for an inactive roster record.');
-      if(claim.current_roster_id && claim.current_roster_id!==claim.roster_id) fail(409,'Existing student roster binding requires independent reconciliation, not reassignment.');
-      if(claim.bound_user_id && claim.bound_user_id !== claim.user_id) {
-       fail(409, 'Conflict: Target roster record is already bound to another student identity.');
-      }
-
-      const {method,evidence} = requireVerificationEvidence(input);
-
-      await db.query('UPDATE student_rosters SET bound_user_id=$1, updated_at=now() WHERE id=$2', [claim.user_id, claim.roster_id]);
-      const deptRow = (await db.query('SELECT name FROM departments WHERE code=$1', [claim.department_code])).rows[0];
-      await db.query(
-       'UPDATE users SET is_verified_student=true, roster_id=$1, department_code=$2, department=$3 WHERE id=$4',
-       [claim.roster_id, claim.department_code, deptRow?.name || claim.department_code, claim.user_id]
-      );
-      await db.query(
-       `UPDATE student_verification_requests
-        SET status='APPROVED', notes=$1, verification_method=$2, identity_evidence_reference=$3,
-            reviewed_by=$4, reviewed_at=now(), updated_at=now()
-        WHERE id=$5`,
-       [input.notes.trim(), method, evidence, user.id, claimId]
-      );
-      await audit(db, user, null, 'STUDENT_VERIFICATION_OWNER_APPROVED', {
-       claimId,
-       targetUserId: claim.user_id,
-       registerNumber: claim.register_number,
-       verificationMethod: method,
-       evidence
-      });
-     } else {
-      await db.query(
-       `UPDATE student_verification_requests
-        SET status='REJECTED', rejection_reason=$1, reviewed_by=$2, reviewed_at=now(), updated_at=now()
-        WHERE id=$3`,
-       [input.notes.trim(), user.id, claimId]
-      );
-      await audit(db, user, null, 'STUDENT_VERIFICATION_OWNER_REJECTED', {
-       claimId,
-       targetUserId: claim.user_id,
-       registerNumber: claim.register_number,
-       reason: input.notes.trim()
-      });
-     }
-    });
-
-    return send(200, { ok: true, decision: input.decision });
-   }
-
-   if(path.match(/^\/api\/owner\/verification-claims\/([a-f0-9-]{36})\/revoke$/i)&&method==='POST') {
-    requirePrimaryOwner(user);
-    await requireOwnerGrant(req, user, database());
-    const claimId = path.split('/')[4];
-    const input = await body(req);
-    fieldsOnly(input, ['reason', 'stepUpToken']);
-    if(typeof input.reason!=='string'||input.reason.trim().length < 10) {
-     fail(422, 'Revocation reason must contain at least 10 characters.');
-    }
-
-    if(!input.stepUpToken) fail(403, 'Step-up authorization token is required for verification revocation.');
-    const validStepUp = await verifyStepUpToken(user.id, 'admin_step_up', input.stepUpToken, database(), user.session_hash);
-    if(!validStepUp) fail(403, 'Invalid or expired step-up authorization token.');
-
-    await transaction(async db => {
-     const claim = (await db.query(`
-      SELECT svr.*, sr.register_number 
-      FROM student_verification_requests svr
-      JOIN student_rosters sr ON sr.id = svr.roster_id
-      WHERE svr.id=$1 FOR UPDATE
-     `, [claimId])).rows[0];
-
-     if(!claim) fail(404, 'Verification record not found.');
-     if(claim.status !== 'APPROVED') fail(400, 'Only approved verification claims can be revoked.');
-
-     // Unbind roster and reset user verification
-     await db.query('UPDATE student_rosters SET bound_user_id=NULL, updated_at=now() WHERE id=$1', [claim.roster_id]);
-     await db.query('UPDATE users SET is_verified_student=false, roster_id=NULL WHERE id=$1', [claim.user_id]);
-     await db.query(
-      `UPDATE student_verification_requests
-       SET status='REJECTED', rejection_reason=$1, updated_at=now()
-       WHERE id=$2`,
-      [`REVOKED: ${input.reason.trim()}`, claimId]
-     );
-
-     // Invalidate student sessions immediately
-     await db.query('DELETE FROM sessions WHERE user_id=$1', [claim.user_id]);
-     await audit(db, user, null, 'STUDENT_VERIFICATION_REVOKED', {
-      claimId,
-      targetUserId: claim.user_id,
-      registerNumber: claim.register_number,
-      reason: input.reason.trim()
-     });
-    });
-
-    return send(200, { ok: true, message: 'Student verification revoked and sessions invalidated.' });
-   }
+   // Enrollment governance is independent of infrastructure ownership.
 
    // ─── Owner Institutional Configuration (requirePrimaryOwner + requireOwnerGrant) ──
    if(path==='/api/owner/institutions'&&method==='GET') {
@@ -1606,18 +1429,12 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
   if(path==='/api/authority/students/requests'&&method==='GET') {
    requireAdminPermission(user, 'department.students.verify');
 
-   let deptClause = 'TRUE';
-   let params = [];
+   const requests=await transaction(async db=>{
+   const requestIds=await verificationQueueIds(db,user.id);
+   const deptClause='svr.id = ANY($1::uuid[])';
+   const params=[requestIds];
 
-   if(user.role === 'HOD') {
-    const depts = Array.isArray(user.assigned_departments) && user.assigned_departments.length > 0
-     ? user.assigned_departments
-     : (user.department_code ? [user.department_code] : []);
-    deptClause = 'sr.department_code = ANY($1)';
-    params = [depts];
-   }
-
-   const requests = (await database().query(`
+   return (await db.query(`
     SELECT svr.id, svr.user_id, svr.status, svr.claim_channel, svr.notes, svr.identity_evidence_reference, svr.created_at, svr.expires_at,
            u.email AS user_email, u.name AS user_name,
            sr.register_number, sr.institutional_email, sr.full_name AS roster_name, sr.department_code, sr.batch_year,
@@ -1631,6 +1448,8 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
     LIMIT 100
    `, params)).rows;
 
+   });
+
    return send(200, { requests });
   }
 
@@ -1641,58 +1460,29 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
    fieldsOnly(input, ['decision', 'notes', 'identityEvidenceReference', 'verificationMethod', 'stepUpToken']);
    if(!input.stepUpToken || !await verifyStepUpToken(user.id,'admin_step_up',input.stepUpToken,database(),user.session_hash)) fail(403,'Fresh dual-factor step-up is required for verification decisions.');
    if(!['APPROVED', 'REJECTED'].includes(input.decision)) fail(422, 'decision must be APPROVED or REJECTED.');
-   if(typeof input.notes!=='string'||input.notes.trim().length < 15) fail(422, 'Reviewer notes must contain at least 15 characters.');
+   if(typeof input.notes!=='string'||input.notes.trim().length<15||input.notes.trim().length>(input.decision==='APPROVED'?2000:1000)) fail(422,'Reviewer notes must fit the decision record limits.');
 
    await transaction(async db => {
     const vReq = (await db.query(`
-     SELECT svr.*, sr.department_code, sr.register_number, sr.bound_user_id, sr.is_active AS roster_active, u.roster_id AS current_roster_id
+     SELECT svr.*, sr.department_code, sr.batch_year, sr.register_number, sr.bound_user_id, sr.is_active AS roster_active, u.roster_id AS current_roster_id
      FROM student_verification_requests svr
      JOIN student_rosters sr ON sr.id = svr.roster_id
      JOIN users u ON u.id = svr.user_id
      WHERE svr.id=$1 FOR UPDATE
     `, [requestId])).rows[0];
 
-    if(!vReq) fail(404, 'Verification request not found.');
+    if(!vReq) fail(403,'Independent verification authority is unavailable for this request.');
+    const authorization=await requireVerificationDecision(db,user.id,vReq);
     if(vReq.status !== 'PENDING') fail(400, `Request is already in state: ${vReq.status}`);
     requireCurrentClaim(vReq);
     if(vReq.user_id===user.id) fail(403,'Self-verification is prohibited.');
 
-    // Enforce department scoping for HOD
-    if(user.role === 'HOD') {
-     const depts = Array.isArray(user.assigned_departments) && user.assigned_departments.length > 0
-      ? user.assigned_departments
-      : (user.department_code ? [user.department_code] : []);
-     if(!depts.includes(vReq.department_code)) {
-      fail(403, `Reviewer authority scope does not cover department: ${vReq.department_code}`);
-     }
-    }
-
+    if(!['IN_PERSON_COLLEGE_ID','PHYSICAL_OFFICE_VERIFICATION','DEPT_ACADEMIC_RECORD','FACULTY_ADVISOR_CONFIRMATION'].includes(input.verificationMethod)) fail(422,'An explicit institutional verification method is required for every decision.');
+    const evidence=requireVerificationEvidence(input);
     if(input.decision === 'APPROVED') {
       await requireEligibleClaim(db,vReq);
-      // Invariant: Personal Google claims (PERSONAL_GOOGLE_ROSTER) are restricted exclusively to Primary Owner governance.
-      if(vReq.claim_channel === 'PERSONAL_GOOGLE_ROSTER') {
-        fail(403, 'Personal Google student verification claims require Primary Owner governance review and dual-factor step-up.');
-      }
-
       if(vReq.current_roster_id && vReq.current_roster_id!==vReq.roster_id) fail(409,'Existing student roster binding requires independent reconciliation, not reassignment.');
       if(!vReq.roster_active || (vReq.bound_user_id && vReq.bound_user_id!==vReq.user_id)) fail(409,'Roster record is inactive or has a conflicting identity binding.');
-      requireVerificationEvidence(input);
-      // In-person or manual claim requires genuine institutional identity-check method and documented evidence reference
-      const allowedMethods = ['IN_PERSON_COLLEGE_ID', 'PHYSICAL_OFFICE_VERIFICATION', 'DEPT_ACADEMIC_RECORD', 'FACULTY_ADVISOR_CONFIRMATION'];
-      if(vReq.claim_channel === 'STUDENT_MANUAL_CLAIM') {
-        const method = input.verificationMethod;
-        if(!method || !allowedMethods.includes(method)) {
-          fail(422, 'Genuine institutional identity-check method required (e.g. IN_PERSON_COLLEGE_ID, PHYSICAL_OFFICE_VERIFICATION, DEPT_ACADEMIC_RECORD, FACULTY_ADVISOR_CONFIRMATION).');
-        }
-        if(!input.identityEvidenceReference || input.identityEvidenceReference.trim().length < 5) {
-          fail(422, 'Identity evidence reference or physical verification record is mandatory for manual claims.');
-        }
-        // Never accept an arbitrary file path or URL as sufficient proof
-        if(/^(https?:\/\/|\/|\\|\.\.|\w+:\/)/i.test(input.identityEvidenceReference.trim())) {
-          fail(422, 'Arbitrary URL or file path rejected. Document an official institutional credential or register record.');
-        }
-      }
-
       await db.query('UPDATE student_rosters SET bound_user_id=$1, updated_at=now() WHERE id=$2', [vReq.user_id, vReq.roster_id]);
       const deptRow = (await db.query('SELECT name FROM departments WHERE code=$1', [vReq.department_code])).rows[0];
       await db.query(
@@ -1703,24 +1493,24 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
         `UPDATE student_verification_requests 
          SET status='APPROVED', notes=$1, identity_evidence_reference=$2, reviewed_by=$3, verification_method=$5, reviewed_at=now(), updated_at=now()
          WHERE id=$4`,
-        [input.notes.trim(), input.identityEvidenceReference?.trim()||null, user.id, requestId,input.verificationMethod||'OWNER_INDEPENDENT_ROSTER_VERIFICATION']
+        [input.notes.trim(), evidence.evidence, user.id, requestId,evidence.method]
       );
       await audit(db, user, null, 'STUDENT_VERIFICATION_MANUAL_APPROVED', {
         requestId,
         targetUserId: vReq.user_id,
-        registerNumber: vReq.register_number,
         reviewerId: user.id,
-        method: input.verificationMethod || 'INSTITUTIONAL_OAUTH_EXACT'
+        method: evidence.method
       });
     } else {
      await db.query(
       `UPDATE student_verification_requests 
-       SET status='REJECTED', rejection_reason=$1, reviewed_by=$2, reviewed_at=now(), updated_at=now() 
+       SET status='REJECTED', rejection_reason=$1, reviewed_by=$2, verification_method=$4, identity_evidence_reference=$5, reviewed_at=now(), updated_at=now()
        WHERE id=$3`,
-      [input.notes.trim(), user.id, requestId]
+      [input.notes.trim(), user.id, requestId,evidence.method,evidence.evidence]
      );
-     await audit(db, user, null, 'STUDENT_VERIFICATION_REJECTED', { requestId, targetUserId: vReq.user_id, reason: input.notes.trim() });
+     await audit(db, user, null, 'STUDENT_VERIFICATION_REJECTED', { requestId, targetUserId: vReq.user_id });
     }
+    await audit(db,user,null,'ENROLLMENT_DECISION', {requestId,decision:input.decision,...authorization,verificationMethod:evidence.method,evidenceRecorded:true});
    });
 
    return send(200, { ok: true, decision: input.decision });

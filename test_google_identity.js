@@ -99,3 +99,10 @@ test('Pre-007 schema preserves Google sign-in without auto-verification or missi
  assert.equal(result.user.is_verified_student,false);assert.equal(result.calls.some(c=>c.sql.startsWith('SELECT sr.*')),false);
  assert.equal(result.writes.some(q=>q.startsWith('INSERT INTO sessions')),true);
 });
+
+test('Personal Gmail cannot auto-verify even when a roster and configured domain match',async()=>{
+ const claims={...payload,email:'synthetic.personal@gmail.com'};
+ const result=await loginFixture({claims,rosters:[{id:'roster-gmail',institution_id:'institution-1',department_code:'CSE'}]});
+ assert.equal(result.user.is_verified_student,false);assert.equal(result.user.email,claims.email);
+ assert.equal(result.writes.some(q=>q.startsWith('UPDATE student_rosters')),false);
+});

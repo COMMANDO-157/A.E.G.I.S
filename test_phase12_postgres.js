@@ -28,7 +28,7 @@ const claim=(sub,email,nonce)=>({iss:'https://accounts.google.com',aud:clientId,
 test('Phase 1.2 real PostgreSQL: independent 006 and 007 databases',async t=>{
  const admin=new pg.Pool({...options,database:'postgres'});const suffix=randomBytes(6).toString('hex');
  const role='phase12_runtime_'+suffix;const password=randomBytes(24).toString('hex');
- const pools=[];const manifests=[];
+ const pools=[];const manifests=[];const proposalEnabled=process.env.AEGIS_PHASE13_PROPOSAL_TESTS==='true';
  try{
   const identity=(await admin.query('SELECT current_user,host(inet_server_addr()) host,version(),current_setting(\'data_directory\') directory')).rows[0];
   assert.equal(identity.current_user,config.user);assert.equal(identity.host,'127.0.0.1');
@@ -40,6 +40,7 @@ test('Phase 1.2 real PostgreSQL: independent 006 and 007 databases',async t=>{
    const operator=new pg.Pool({...options,database});pools.push(operator);
    const migrations=fs.readdirSync('migrations').filter(n=>/^00[1-7]_/.test(n)).sort().slice(0,boundary);
    await tx(operator)(async c=>{for(const name of migrations){const sql=fs.readFileSync('migrations/'+name,'utf8');await c.query(migrationBody(sql));}});
+   if(boundary===7 && proposalEnabled) await tx(operator)(c=>c.query(migrationBody(fs.readFileSync('proposals/008_verification_governance_PROPOSAL.sql','utf8'))));
    await operator.query(`GRANT CONNECT ON DATABASE ${database} TO ${role}`);
    await operator.query(`REVOKE CREATE ON SCHEMA public FROM PUBLIC; GRANT USAGE ON SCHEMA public TO ${role}; GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA public TO ${role}; REVOKE UPDATE,DELETE,TRUNCATE ON audit_logs FROM ${role}`);
    const runtime=new pg.Pool({...options,database,user:role,password,max:8,application_name:'aegis_phase12_synthetic'});pools.push(runtime);
@@ -55,12 +56,19 @@ test('Phase 1.2 real PostgreSQL: independent 006 and 007 databases',async t=>{
    };
    const staff=await makeUser({role:'admin'});staff.permissions=['departments.manage','roster.conflicts.manage','roster.import','department.students.verify'];
    const owner=await makeUser({role:'admin',owner:true});
+   const registrar=await makeUser({role:'admin'});let appointment;
+   for(const permission of staff.permissions)await operator.query('INSERT INTO admin_permissions(user_id,permission,granted_by) VALUES($1,$2,$3)',[staff.id,permission,registrar.id]);
+   if(schema && proposalEnabled){
+    await operator.query(`REVOKE INSERT,UPDATE,DELETE ON verification_officer_appointments,verification_conflict_clearances FROM ${role}`);
+    appointment=(await operator.query("INSERT INTO verification_officer_appointments(officer_user_id,institution_id,department_code,cohort,starts_at,expires_at,appointed_by,appointment_reference) VALUES($1,$2,'CSE','2026',now()-interval '1 minute',now()+interval '1 hour',$3,'SYNTHETIC-APPOINTMENT') RETURNING *",[staff.id,inst.id,registrar.id])).rows[0];
+   }
+   const governanceTest=(name,fn)=>t.test(name,{skip:!proposalEnabled?'Proposal not installed; use --verification-proposal for synthetic governance tests':false},fn);
    process.env.PRIMARY_OWNER_USER_ID=owner.id;process.env.PRIMARY_OWNER_EMAIL=owner.email;
    const ownerGrant=randomBytes(32).toString('base64url');await operator.query("INSERT INTO owner_portal_grants(token_hash,user_id,session_hash,pin_set_at,expires_at) SELECT $1,id,$2,action_pin_set_at,now()+interval '1 hour' FROM users WHERE id=$3",[digest(ownerGrant),owner.session_hash,owner.id]);
    const call=async(endpoint,input,user=staff,run=transaction)=>{
     let data;const res={statusCode:0,setHeader(){},end(raw){data=JSON.parse(raw);}};
     const handler=createHandler({sessionUser:async()=>user,logout:async()=>{}},{database:()=>runtime,transaction:run},{consumeRateLimit:async()=>({})});
-    await handler({method:'POST',url:'/api/'+endpoint,headers:{origin:process.env.APP_ORIGIN,'content-type':'application/json','x-aegis-owner-grant':ownerGrant},body:input},res);
+    await handler({method:input===null?'GET':'POST',url:'/api/'+endpoint,headers:{origin:process.env.APP_ORIGIN,'content-type':'application/json','x-aegis-owner-grant':ownerGrant},body:input},res);
     return {status:res.statusCode,data};
    };
    const privileged=async(endpoint,input,user=staff,run)=>call(endpoint,{...input,stepUpToken:await issueStepUpToken(user.id,'admin_step_up',runtime,user.session_hash)},user,run);
@@ -68,8 +76,12 @@ test('Phase 1.2 real PostgreSQL: independent 006 and 007 databases',async t=>{
     const values=[reg||randomBytes(6).toString('hex').toUpperCase(),email||randomUUID()+'@campus.example.test',name];
     return (await operator.query(schema?"INSERT INTO student_rosters(register_number,institutional_email,full_name,department_code,batch_year,institution_id,is_test_record) VALUES($1,$2,$3,'CSE','2026',$4,$5) RETURNING *":"INSERT INTO student_rosters(register_number,institutional_email,full_name,department_code,batch_year) VALUES($1,$2,$3,'CSE','2026') RETURNING *",schema?[...values,inst.id,testRecord]:values)).rows[0];
    };
-   const request=async(u,r)=> (await operator.query(schema?"INSERT INTO student_verification_requests(user_id,roster_id,institution_id,claim_channel) VALUES($1,$2,$3,'STUDENT_MANUAL_CLAIM') RETURNING *":"INSERT INTO student_verification_requests(user_id,roster_id,claim_channel) VALUES($1,$2,'STUDENT_MANUAL_CLAIM') RETURNING *",schema?[u.id,r.id,inst.id]:[u.id,r.id])).rows[0];
-   const approve=(r,user=owner,run)=>privileged('owner/verification-claims/'+r.id+'/review',{decision:'APPROVED',notes:'Synthetic independent enrollment review only',verificationMethod:'DEPT_ACADEMIC_RECORD',identityEvidenceReference:'SYNTHETIC-REGISTER-2026'},user,run);
+   const request=async(u,r)=>{
+    const req=(await operator.query(schema?"INSERT INTO student_verification_requests(user_id,roster_id,institution_id,claim_channel) VALUES($1,$2,$3,'STUDENT_MANUAL_CLAIM') RETURNING *":"INSERT INTO student_verification_requests(user_id,roster_id,claim_channel) VALUES($1,$2,'STUDENT_MANUAL_CLAIM') RETURNING *",schema?[u.id,r.id,inst.id]:[u.id,r.id])).rows[0];
+    if(appointment)await operator.query("INSERT INTO verification_conflict_clearances(appointment_id,request_id,status,starts_at,expires_at,recorded_by,clearance_reference) VALUES($1,$2,'CLEARED',now()-interval '1 minute',now()+interval '1 hour',$3,'SYNTHETIC-CLEARANCE')",[appointment.id,req.id,registrar.id]);
+    return req;
+   };
+   const approve=(r,user=staff,run)=>privileged('authority/students/requests/'+r.id+'/review',{decision:'APPROVED',notes:'Synthetic independent enrollment review only',verificationMethod:'DEPT_ACADEMIC_RECORD',identityEvidenceReference:'SYNTHETIC-REGISTER-2026'},user,run);
    const googleLogin=async(u,nonce=randomBytes(24).toString('hex'),run=transaction)=>{
     await operator.query("INSERT INTO auth_challenges(token_hash,expires_at) VALUES($1,now()+interval '5 minutes')",[digest(nonce)]);
     const claims={...claim(u.google_subject_id,u.email,nonce),name:'Changed Synthetic Profile'};
@@ -79,6 +91,9 @@ test('Phase 1.2 real PostgreSQL: independent 006 and 007 databases',async t=>{
    await t.test(boundary+': runtime separation and migration boundary',async()=>{
     const r=(await runtime.query("SELECT current_user,has_schema_privilege(current_user,'public','CREATE') ddl,has_table_privilege(current_user,'audit_logs','DELETE') audit_delete")).rows[0];
     assert.equal(r.current_user,role);assert.equal(r.ddl,false);assert.equal(r.audit_delete,false);assert.equal(Boolean((await runtime.query("SELECT to_regclass('public.institutions') x")).rows[0].x),schema);
+   });
+   await t.test(boundary+': no legacy title or infrastructure-owner approval override',async()=>{
+    const result=await privileged('owner/verification-claims/'+randomUUID()+'/review',{decision:'APPROVED',notes:'Synthetic forbidden override'},owner);assert.equal(result.status,403);
    });
    await t.test(boundary+': department creation uses the correct schema',async()=>{
     const r=await privileged('admin/departments',{code:'TEST'+boundary,name:'Synthetic Department '+boundary});assert.equal(r.status,201,JSON.stringify(r));
@@ -126,6 +141,112 @@ test('Phase 1.2 real PostgreSQL: independent 006 and 007 databases',async t=>{
      assert.equal((await call('student/verification-request',{registerNumber:r.register_number},u)).status,503);
     });
    }else{
+    await t.test('7: missing appointment schema fails closed without changing enrollment',{skip:proposalEnabled?'Covered by the separate no-proposal run':false},async()=>{
+     const u=await makeUser(),r=await makeRoster();const req=await request(u,r);
+     assert.equal((await approve(req)).status,403);assert.equal((await call('authority/students/requests',null)).status,403);
+     assert.equal((await runtime.query('SELECT bound_user_id FROM student_rosters WHERE id=$1',[r.id])).rows[0].bound_user_id,null);
+    });
+    if(proposalEnabled){
+     await t.test('13: an explicit administrative permission without an appointment is insufficient',async()=>{
+      const reviewer=await makeUser({role:'admin'});reviewer.permissions=['department.students.verify'];await operator.query("INSERT INTO admin_permissions(user_id,permission,granted_by) VALUES($1,'department.students.verify',$2)",[reviewer.id,registrar.id]);
+      const u=await makeUser(),r=await makeRoster(),req=await request(u,r);assert.equal((await approve(req,reviewer)).status,403);
+      const queue=await call('authority/students/requests',null,reviewer);assert.equal(queue.status,200);assert.equal(queue.data.requests.length,0);
+     });
+     await t.test('13: application cannot write appointments or conflict clearances',async()=>{
+      for(const table of ['verification_officer_appointments','verification_conflict_clearances']){
+       assert.equal((await runtime.query("SELECT has_table_privilege(current_user,$1,'INSERT') x",[table])).rows[0].x,false);
+       assert.equal((await runtime.query("SELECT has_table_privilege(current_user,$1,'UPDATE') x",[table])).rows[0].x,false);
+      }
+     });
+     await t.test('13: revoked and expired appointment authority fails in actual handlers',async()=>{
+      const u=await makeUser(),r=await makeRoster(),req=await request(u,r);
+      await operator.query('UPDATE verification_officer_appointments SET revoked_at=now() WHERE id=$1',[appointment.id]);assert.equal((await approve(req)).status,403);
+      await operator.query("UPDATE verification_officer_appointments SET revoked_at=NULL,expires_at=now()-interval '1 second' WHERE id=$1",[appointment.id]);assert.equal((await approve(req)).status,403);
+      await operator.query("UPDATE verification_officer_appointments SET expires_at=now()+interval '1 hour' WHERE id=$1",[appointment.id]);
+      assert.equal((await runtime.query('SELECT bound_user_id FROM student_rosters WHERE id=$1',[r.id])).rows[0].bound_user_id,null);
+     });
+     await t.test('13: material or unknown conflicts block queue and decision',async()=>{
+      const u=await makeUser(),r=await makeRoster(),req=await request(u,r);
+      for(const status of ['CONFLICT','UNKNOWN']){
+       await operator.query('UPDATE verification_conflict_clearances SET status=$1 WHERE request_id=$2',[status,req.id]);assert.equal((await approve(req)).status,403);
+       const queue=await call('authority/students/requests',null);assert.equal(queue.status,200);assert.ok(!queue.data.requests.some(x=>x.id===req.id));
+      }
+      await operator.query("UPDATE verification_conflict_clearances SET status='CLEARED',revoked_at=now() WHERE request_id=$1",[req.id]);assert.equal((await approve(req)).status,403);
+     });
+     await t.test('13: expired or self-attested conflict clearance fails closed',async()=>{
+      const u=await makeUser(),r=await makeRoster(),req=await request(u,r);
+      await operator.query("UPDATE verification_conflict_clearances SET expires_at=now()-interval '1 second' WHERE request_id=$1",[req.id]);assert.equal((await approve(req)).status,403);
+      await operator.query("UPDATE verification_conflict_clearances SET expires_at=now()+interval '1 hour',recorded_by=$1 WHERE request_id=$2",[staff.id,req.id]);assert.equal((await approve(req)).status,403);
+     });
+     await t.test('13: officer scope, overlapping appointments and self-review are denied',async()=>{
+      const u=await makeUser(),r=await makeRoster(),req=await request(u,r);
+      await operator.query("UPDATE verification_officer_appointments SET cohort='2025' WHERE id=$1",[appointment.id]);assert.equal((await approve(req)).status,403);
+      await operator.query("UPDATE verification_officer_appointments SET cohort='2026',department_code='ECE' WHERE id=$1",[appointment.id]);assert.equal((await approve(req)).status,403);
+      await operator.query("UPDATE verification_officer_appointments SET department_code='CSE' WHERE id=$1",[appointment.id]);
+      const foreignInstitution=(await operator.query("INSERT INTO institutions(slug,name) VALUES('foreign-appointment','Synthetic Foreign Appointment') RETURNING id")).rows[0];
+      await operator.query('UPDATE verification_officer_appointments SET institution_id=$1 WHERE id=$2',[foreignInstitution.id,appointment.id]);assert.equal((await approve(req)).status,403);
+      await operator.query('UPDATE verification_officer_appointments SET institution_id=$1 WHERE id=$2',[inst.id,appointment.id]);
+      const duplicate=(await operator.query("INSERT INTO verification_officer_appointments(officer_user_id,institution_id,department_code,cohort,starts_at,expires_at,appointed_by,appointment_reference) SELECT officer_user_id,institution_id,department_code,cohort,starts_at,expires_at,appointed_by,appointment_reference FROM verification_officer_appointments WHERE id=$1 RETURNING id",[appointment.id])).rows[0];
+      assert.equal((await approve(req)).status,403);await operator.query('DELETE FROM verification_officer_appointments WHERE id=$1',[duplicate.id]);
+      const selfRoster=await makeRoster();const self=await request(staff,selfRoster);assert.equal((await approve(self)).status,403);
+     });
+     await t.test('13: decisions require evidence and append attributable provenance atomically',async()=>{
+      const u=await makeUser(),r=await makeRoster(),req=await request(u,r);
+      let result=await privileged('authority/students/requests/'+req.id+'/review',{decision:'REJECTED',notes:'Synthetic independent rejection reason',verificationMethod:'DEPT_ACADEMIC_RECORD'});assert.equal(result.status,422);
+      result=await privileged('authority/students/requests/'+req.id+'/review',{decision:'REJECTED',notes:'Synthetic independent rejection reason',verificationMethod:'DEPT_ACADEMIC_RECORD',identityEvidenceReference:'SYNTHETIC-EVIDENCE'});assert.equal(result.status,200,JSON.stringify(result));
+      const audit=(await runtime.query("SELECT * FROM audit_logs WHERE action='ENROLLMENT_DECISION' AND details->>'requestId'=$1",[req.id])).rows[0];assert.equal(audit.actor_id,staff.id);assert.equal(audit.details.appointmentId,appointment.id);assert.ok(audit.details.clearanceId);assert.equal(audit.details.decision,'REJECTED');assert.equal(JSON.stringify(audit.details).includes('SYNTHETIC-EVIDENCE'),false);
+      const persisted=(await runtime.query('SELECT * FROM student_verification_requests WHERE id=$1',[req.id])).rows[0];assert.equal(persisted.identity_evidence_reference,'SYNTHETIC-EVIDENCE');
+     });
+     await t.test('13: an administrative account with an active academic assignment cannot decide',async()=>{
+      const u=await makeUser(),r=await makeRoster(),req=await request(u,r);
+      const assignment=(await operator.query("INSERT INTO authority_assignments(user_id,role,department_code,assigned_by) VALUES($1,'HOD','CSE',$2) RETURNING id",[staff.id,registrar.id])).rows[0];
+      assert.equal((await approve(req)).status,403);await operator.query('DELETE FROM authority_assignments WHERE id=$1',[assignment.id]);
+     });
+     await t.test('13: disabled authority mutation trigger fails closed',async()=>{
+      const u=await makeUser(),r=await makeRoster(),req=await request(u,r);
+      await operator.query('ALTER TABLE verification_officer_appointments DISABLE TRIGGER verification_appointment_change_lock');assert.equal((await approve(req)).status,403);
+      await operator.query('ALTER TABLE verification_officer_appointments ENABLE TRIGGER verification_appointment_change_lock');
+     });
+     await t.test('13: attribution audit failure rolls back enrollment and decision',async()=>{
+      const u=await makeUser(),r=await makeRoster(),req=await request(u,r);
+      const broken=fn=>transaction(db=>fn({query:async(sql,args=[])=>{if(sql.startsWith('INSERT INTO audit_logs')&&args[2]==='ENROLLMENT_DECISION')throw Error('Synthetic audit sink failure');return db.query(sql,args);}}));
+      assert.equal((await approve(req,staff,broken)).status,503);
+      assert.equal((await runtime.query('SELECT bound_user_id FROM student_rosters WHERE id=$1',[r.id])).rows[0].bound_user_id,null);
+      assert.equal((await runtime.query('SELECT status FROM student_verification_requests WHERE id=$1',[req.id])).rows[0].status,'PENDING');
+      assert.equal((await runtime.query("SELECT 1 FROM audit_logs WHERE action='ENROLLMENT_DECISION' AND details->>'requestId'=$1",[req.id])).rowCount,0);
+     });
+     await t.test('13: revocation waits for an authorized decision and prevents the next one',async()=>{
+      const u=await makeUser(),r=await makeRoster(),req=await request(u,r);const held=deferred(),release=deferred();
+      const gated=fn=>transaction(async db=>{const result=await fn(db);held.resolve();await release.promise;return result;});
+      const deciding=approve(req,staff,gated);await Promise.race([held.promise,new Promise((_,reject)=>{const timer=setTimeout(()=>{release.resolve();reject(Error('Decision barrier failed'));},5000);timer.unref();})]);
+      const revoking=operator.query('UPDATE verification_officer_appointments SET revoked_at=now() WHERE id=$1',[appointment.id]);
+      try{let waiting=false;for(let i=0;i<100;i++){waiting=Boolean((await operator.query("SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE 'UPDATE verification_officer_appointments SET revoked_at=%' ")).rowCount);if(waiting)break;await new Promise(r=>setTimeout(r,20));}assert.equal(waiting,true);}
+      finally{release.resolve();}
+      assert.equal((await deciding).status,200);await revoking;
+      const otherUser=await makeUser(),otherRoster=await makeRoster(),otherReq=await request(otherUser,otherRoster);assert.equal((await approve(otherReq)).status,403);
+      await operator.query('UPDATE verification_officer_appointments SET revoked_at=NULL WHERE id=$1',[appointment.id]);
+     });
+     await t.test('13: an in-flight revocation is observed before a waiting decision',async()=>{
+      const u=await makeUser(),r=await makeRoster(),req=await request(u,r);const held=deferred(),release=deferred();
+      const revoking=tx(operator)(async db=>{await db.query('UPDATE verification_officer_appointments SET revoked_at=now() WHERE id=$1',[appointment.id]);held.resolve();await release.promise;});await held.promise;
+      const deciding=approve(req);
+      try{let waiting=false;for(let i=0;i<100;i++){waiting=Boolean((await operator.query("SELECT 1 FROM pg_stat_activity WHERE application_name='aegis_phase12_synthetic' AND wait_event_type='Lock' AND query LIKE 'SELECT pg_advisory_xact_lock%' ")).rowCount);if(waiting)break;await new Promise(r=>setTimeout(r,20));}assert.equal(waiting,true);}
+      finally{release.resolve();}
+      await revoking;assert.equal((await deciding).status,403);await operator.query('UPDATE verification_officer_appointments SET revoked_at=NULL WHERE id=$1',[appointment.id]);
+     });
+     await t.test('13: queue reads wait behind revocation and return no revoked scope',async()=>{
+      const u=await makeUser(),r=await makeRoster(),req=await request(u,r);const held=deferred(),release=deferred();
+      const revoking=tx(operator)(async db=>{await db.query('UPDATE verification_officer_appointments SET revoked_at=now() WHERE id=$1',[appointment.id]);held.resolve();await release.promise;});await held.promise;
+      const reading=call('authority/students/requests',null);
+      try{let waiting=false;for(let i=0;i<100;i++){waiting=Boolean((await operator.query("SELECT 1 FROM pg_stat_activity WHERE application_name='aegis_phase12_synthetic' AND wait_event_type='Lock' AND query LIKE 'SELECT pg_advisory_xact_lock%' ")).rowCount);if(waiting)break;await new Promise(r=>setTimeout(r,20));}assert.equal(waiting,true);}
+      finally{release.resolve();}
+      await revoking;const result=await reading;assert.equal(result.status,200);assert.equal(result.data.requests.length,0);await operator.query('UPDATE verification_officer_appointments SET revoked_at=NULL WHERE id=$1',[appointment.id]);
+     });
+     await t.test('13: permission revocation takes effect despite stale session claims',async()=>{
+      const u=await makeUser(),r=await makeRoster(),req=await request(u,r);await operator.query("DELETE FROM admin_permissions WHERE user_id=$1 AND permission='department.students.verify'",[staff.id]);assert.equal((await approve(req)).status,403);
+      await operator.query("INSERT INTO admin_permissions(user_id,permission,granted_by) VALUES($1,'department.students.verify',$2)",[staff.id,registrar.id]);
+     });
+    }
     await t.test('7: automatic verification rejects test rosters and inactive institutions',async()=>{
      const u=await makeUser({sub:'excluded:'+randomUUID(),email:randomUUID()+'@campus.example.test'});const r=await makeRoster({email:u.email,testRecord:true});
      let f=await googleLogin(u);assert.equal((await f.invoke()).is_verified_student,false);
@@ -134,10 +255,17 @@ test('Phase 1.2 real PostgreSQL: independent 006 and 007 databases',async t=>{
      assert.equal((await runtime.query('SELECT bound_user_id FROM student_rosters WHERE id=$1',[r.id])).rows[0].bound_user_id,null);
      await operator.query('UPDATE institutions SET active=true WHERE id=$1',[inst.id]);
     });
+    await t.test('13: configured personal Gmail domain cannot authorize automatic enrollment',async()=>{
+     const u=await makeUser({sub:'gmail:'+randomUUID(),email:'synthetic.'+randomUUID()+'@gmail.com'});const r=await makeRoster({email:u.email});
+     await operator.query("UPDATE institutions SET domains=array_append(domains,'gmail.com') WHERE id=$1",[inst.id]);
+     const f=await googleLogin(u);assert.equal((await f.invoke()).is_verified_student,false);
+     assert.equal((await runtime.query('SELECT bound_user_id FROM student_rosters WHERE id=$1',[r.id])).rows[0].bound_user_id,null);
+     await operator.query("UPDATE institutions SET domains=array_remove(domains,'gmail.com') WHERE id=$1",[inst.id]);
+    });
     await t.test('7: exact authoritative Google enrollment succeeds',async()=>{
      const u=await makeUser({sub:'auto:'+randomUUID(),email:randomUUID()+'@campus.example.test'});const r=await makeRoster({email:u.email});const f=await googleLogin(u);const result=await f.invoke();assert.equal(result.is_verified_student,true);assert.equal(result.roster_id,r.id);
     });
-    await t.test('7: manual and continuing eligibility exclude test and inactive institutions',async()=>{
+    await governanceTest('7: manual and continuing eligibility exclude test and inactive institutions',async()=>{
      const u=await makeUser();const r=await makeRoster({testRecord:true});const req=await request(u,r);assert.equal((await approve(req)).status,409);
      await operator.query('UPDATE student_rosters SET is_test_record=false WHERE id=$1',[r.id]);await operator.query('UPDATE institutions SET active=false WHERE id=$1',[inst.id]);assert.equal((await approve(req)).status,409);assert.equal(await eligibleRoster(runtime,r.id),null);
      await operator.query('UPDATE institutions SET active=true WHERE id=$1',[inst.id]);assert.equal((await approve(req)).status,200);
@@ -148,26 +276,26 @@ test('Phase 1.2 real PostgreSQL: independent 006 and 007 databases',async t=>{
      await operator.query('UPDATE institutions SET active=true WHERE id=$1',[inst.id]);
      await operator.query('UPDATE student_rosters SET is_test_record=true WHERE id=$1',[r.id]);assert.equal((await sessionUser({headers:{cookie:'aegis_session='+token}},runtime)).is_verified_student,false);
     });
-    await t.test('7: delegated review persists the institutional evidence method',async()=>{
+    await governanceTest('7: delegated review persists the institutional evidence method',async()=>{
      const u=await makeUser();const r=await makeRoster();const req=await request(u,r);
      const result=await privileged('authority/students/requests/'+req.id+'/review',{decision:'APPROVED',notes:'Synthetic independently checked record',verificationMethod:'DEPT_ACADEMIC_RECORD',identityEvidenceReference:'SYNTHETIC-LEDGER-44'});
      assert.equal(result.status,200,JSON.stringify(result));assert.equal((await runtime.query('SELECT verification_method FROM student_verification_requests WHERE id=$1',[req.id])).rows[0].verification_method,'DEPT_ACADEMIC_RECORD');
     });
-    await t.test('7: inactive department and institution mismatch deny manual verification',async()=>{
+    await governanceTest('7: inactive department and institution mismatch deny manual verification',async()=>{
      const u=await makeUser();const r=await makeRoster();const req=await request(u,r);
      await operator.query("UPDATE departments SET active=false WHERE code='CSE'");assert.equal((await approve(req)).status,409);
      await operator.query("UPDATE departments SET active=true WHERE code='CSE'");
      const other=(await operator.query("INSERT INTO institutions(slug,name) VALUES('synthetic-other','Synthetic Other Institution') RETURNING id")).rows[0];
      await operator.query('UPDATE student_rosters SET institution_id=$1 WHERE id=$2',[other.id,r.id]);assert.equal((await approve(req)).status,409);
     });
-    await t.test('7: expiry is enforced in a real approval transaction',async()=>{
+    await governanceTest('7: expiry is enforced in a real approval transaction',async()=>{
      const u=await makeUser();const r=await makeRoster();const req=await request(u,r);await operator.query("UPDATE student_verification_requests SET expires_at=now()-interval '1 second' WHERE id=$1",[req.id]);assert.equal((await approve(req)).status,400);assert.equal((await runtime.query('SELECT bound_user_id FROM student_rosters WHERE id=$1',[r.id])).rows[0].bound_user_id,null);
     });
-    await t.test('7: conflicting reciprocal roster binding cannot be reassigned',async()=>{
+    await governanceTest('7: conflicting reciprocal roster binding cannot be reassigned',async()=>{
      const u=await makeUser(),other=await makeUser();const r=await makeRoster();const req=await request(u,r);await operator.query('UPDATE student_rosters SET bound_user_id=$1 WHERE id=$2',[other.id,r.id]);assert.equal((await approve(req)).status,409);
      assert.equal((await runtime.query('SELECT bound_user_id FROM student_rosters WHERE id=$1',[r.id])).rows[0].bound_user_id,other.id);
     });
-    await t.test('7: approval cannot reassign a user already bound to another roster',async()=>{
+    await governanceTest('7: approval cannot reassign a user already bound to another roster',async()=>{
      const u=await makeUser();const original=await makeRoster(),target=await makeRoster();const req=await request(u,target);
      await operator.query('UPDATE student_rosters SET bound_user_id=$1 WHERE id=$2',[u.id,original.id]);await operator.query('UPDATE users SET roster_id=$1 WHERE id=$2',[original.id,u.id]);
      assert.equal((await approve(req)).status,409);assert.equal((await runtime.query('SELECT roster_id FROM users WHERE id=$1',[u.id])).rows[0].roster_id,original.id);
@@ -181,21 +309,21 @@ test('Phase 1.2 real PostgreSQL: independent 006 and 007 databases',async t=>{
      const result=await privileged('admin/departments',{code:'BADINST',name:'Must Not Exist',institutionSlug:'missing-synthetic'});assert.equal(result.status,422);
      assert.equal((await runtime.query("SELECT 1 FROM departments WHERE code='BADINST'")).rowCount,0);
     });
-    await t.test('7: competing approval transactions bind and audit once',async()=>{
+    await governanceTest('7: competing approval transactions bind and audit once',async()=>{
      const u=await makeUser();const r=await makeRoster();const req=await request(u,r);const results=await Promise.all([approve(req),approve(req)]);assert.deepEqual(results.map(r=>r.status).sort(),[200,400]);
-     assert.equal((await runtime.query("SELECT count(*)::int n FROM audit_logs WHERE action='STUDENT_VERIFICATION_OWNER_APPROVED' AND details->>'claimId'=$1",[req.id])).rows[0].n,1);
+     assert.equal((await runtime.query("SELECT count(*)::int n FROM audit_logs WHERE action='ENROLLMENT_DECISION' AND details->>'requestId'=$1",[req.id])).rows[0].n,1);
     });
-    await t.test('7: import waits for approval and cannot overwrite the bound roster',async()=>{
+    await governanceTest('7: import waits for approval and cannot overwrite the bound roster',async()=>{
      const u=await makeUser();const r=await makeRoster({name:'Original Synthetic Name'});const req=await request(u,r);const held=deferred(),release=deferred();
      const gated=fn=>transaction(async db=>{const result=await fn(db);held.resolve();await release.promise;return result;});
-     const approval=approve(req,owner,gated);await held.promise;
+     const approval=approve(req,staff,gated);await Promise.race([held.promise,new Promise((_,reject)=>{const timer=setTimeout(()=>{release.resolve();reject(Error('Synthetic transaction did not reach barrier'));},5000);timer.unref();})]);
      const imported=privileged('admin/roster/import',{records:[{registerNumber:r.register_number,institutionalEmail:r.institutional_email,fullName:'Concurrent Changed Name',departmentCode:'CSE',batchYear:'2026'}]});
      try{let waiting=false;for(let i=0;i<100;i++){waiting=Boolean((await operator.query("SELECT 1 FROM pg_stat_activity WHERE application_name='aegis_phase12_synthetic' AND wait_event_type='Lock' AND query LIKE 'SELECT * FROM student_rosters WHERE register_number=%' ")).rowCount);if(waiting)break;await new Promise(r=>setTimeout(r,20));}assert.equal(waiting,true,'Import must block on the approval row lock');}
      finally{release.resolve();}
      assert.equal((await approval).status,200);const result=await imported;assert.equal(result.status,200,JSON.stringify(result));assert.equal(result.data.importedCount,0);
      const after=(await runtime.query('SELECT * FROM student_rosters WHERE id=$1',[r.id])).rows[0];assert.equal(after.full_name,r.full_name);assert.equal(after.bound_user_id,u.id);
     });
-    await t.test('7: approval waits for an earlier import and binds the committed record',async()=>{
+    await governanceTest('7: approval waits for an earlier import and binds the committed record',async()=>{
      const u=await makeUser();const r=await makeRoster();const req=await request(u,r);const held=deferred(),release=deferred();
      const gated=fn=>transaction(async db=>{const result=await fn(db);held.resolve();await release.promise;return result;});
      const importing=privileged('admin/roster/import',{records:[{registerNumber:r.register_number,institutionalEmail:r.institutional_email,fullName:'Updated Before Binding',departmentCode:'CSE',batchYear:'2026'}]},staff,gated);await held.promise;const approval=approve(req);
@@ -211,6 +339,6 @@ test('Phase 1.2 real PostgreSQL: independent 006 and 007 databases',async t=>{
    }
    manifests.push({boundary,database,host:'127.0.0.1',runtimeRole:role,migrations:migrations.map(name=>({name,sha256:createHash('sha256').update(fs.readFileSync('migrations/'+name,'utf8').replaceAll('\r\n','\n')).digest('hex')}))});
   }
-  console.log('ISOLATION_EVIDENCE '+JSON.stringify({version:identity.version,host:identity.host,disposable:true,databases:manifests,provider:'injected verified-claim fixtures; no OAuth',mail:'none',runtime:'synthetic DML role, no schema CREATE, no audit DELETE'}));
+  console.log('ISOLATION_EVIDENCE '+JSON.stringify({version:identity.version,host:identity.host,disposable:true,databases:manifests,provider:'injected verified-claim fixtures; no OAuth',mail:'none',runtime:'synthetic DML role, no schema CREATE, no audit DELETE',proposalOnly:proposalEnabled}));
  }finally{await Promise.all(pools.map(p=>p.end()));await admin.end();}
 });

@@ -618,125 +618,12 @@ test('G09.1 — Path B: Personal Google Account Enrollment & Grievance Blocker',
   assert.equal(grievanceReq.res.statusCode, 403);
 });
 
-test('G09.1 — Owner Claims Governance: Review, Approval & Revocation Cycle', async () => {
-  const env = createMockEnvironment();
-
-  const regNo = '22IT301';
-  const instEmail = 'anita.22it@college.edu.in';
-  const personalEmail = 'anita.test@gmail.com';
-
-  const rosterId = randomUUID();
-  env.store.studentRosters.set(regNo, {
-    institution_id:env.store.institutions.get('default').id,
-    id: rosterId,
-    register_number: regNo,
-    institutional_email: instEmail,
-    full_name: 'Anita R',
-    department_code: 'IT',
-    batch_year: '2022-2026',
-    approved_personal_email: personalEmail,
-    active: true,
-  });
-
-  const studentUser = {
-    id: randomUUID(),
-    email: personalEmail,
-    name: 'Anita R',
-    role: 'student',
-    account_status: 'active',
-    is_verified_student: false,
-    roster_id: null,
-    session_hash: digest('session_anita'),
-    permissions: [],
-  };
-  env.store.users.set(studentUser.id, studentUser);
-
-  // Create pending claim
-  const claimId = randomUUID();
-  env.store.verificationRequests.set(claimId, {
-    institution_id:env.store.institutions.get('default').id,
-    id: claimId,
-    user_id: studentUser.id,
-    roster_id: rosterId,
-    status: 'PENDING',
-    claim_channel: 'PERSONAL_GOOGLE_ROSTER',
-    notes: 'Awaiting primary owner review',
-    created_at: new Date(),
-    expires_at: new Date(Date.now() + 7 * 86400000),
-  });
-
-  const stepUpToken = await issueStepUpToken(OWNER_ID, 'admin_step_up', env.mockDb, env.ownerUser.session_hash);
-
-  // 1. Owner lists claims
-  const listReq = mockHttp(env, {
-    method: 'GET',
-    url: '/api/owner/verification-claims',
-    user: env.ownerUser,
-    headers: { 'x-aegis-owner-grant': env.grantToken }
-  });
-  await listReq.handler(listReq.req, listReq.res);
-  assert.equal(listReq.res.statusCode, 200);
-  const claimList = listReq.res.json().claims;
-  assert.equal(claimList.length, 1);
-  assert.equal(claimList[0].id, claimId);
-
-  // 2. Owner Approves Claim
-  const approveReq = mockHttp(env, {
-    method: 'POST',
-    url: `/api/owner/verification-claims/${claimId}/review`,
-    body: {
-      decision: 'APPROVED',
-      notes: 'College photo ID card verified against campus register.',
-      identityEvidenceReference: 'VERIFIED-ID-9921',
-      stepUpToken,
-    },
-    user: env.ownerUser,
-    headers: { 'x-aegis-owner-grant': env.grantToken }
-  });
-  await approveReq.handler(approveReq.req, approveReq.res);
-  assert.equal(approveReq.res.statusCode, 200);
-  assert.equal(approveReq.res.json().decision, 'APPROVED');
-
-  // Verify Student User is now verified and bound
-  const verifiedUser = env.store.users.get(studentUser.id);
-  assert.equal(verifiedUser.is_verified_student, true);
-  assert.equal(verifiedUser.roster_id, rosterId);
-
-  // 3. Student can now submit grievance
-  const grievanceReq = mockHttp(env, {
-    method: 'POST',
-    url: '/api/complaints',
-    body: {
-      category: 'General Campus Grievance',
-      description: 'Hostel mess hygiene concern',
-      identityMode: 'standard',
-      riskFlags: {}
-    },
-    user: verifiedUser,
-  });
-  await grievanceReq.handler(grievanceReq.req, grievanceReq.res);
-  assert.equal(grievanceReq.res.statusCode, 201);
-
-  // 4. Owner Revokes Claim
-  const stepUpRevoke = await issueStepUpToken(OWNER_ID, 'admin_step_up', env.mockDb, env.ownerUser.session_hash);
-  const revokeReq = mockHttp(env, {
-    method: 'POST',
-    url: `/api/owner/verification-claims/${claimId}/revoke`,
-    body: {
-      reason: 'Identity documentation found to be superseded.',
-      stepUpToken: stepUpRevoke,
-    },
-    user: env.ownerUser,
-    headers: { 'x-aegis-owner-grant': env.grantToken }
-  });
-  await revokeReq.handler(revokeReq.req, revokeReq.res);
-  assert.equal(revokeReq.res.statusCode, 200);
-  assert.equal(revokeReq.res.json().ok, true);
-
-  // Verify Student is unbound and reset
-  const unverifiedUser = env.store.users.get(studentUser.id);
-  assert.equal(unverifiedUser.is_verified_student, false);
-  assert.equal(unverifiedUser.roster_id, null);
+test('G09.3 — Owner role and entry grant do not confer enrollment decision powers',async()=>{
+ const env=createMockEnvironment();
+ for(const [method,url] of [['GET','/api/owner/verification-claims'],['POST','/api/owner/verification-claims/'+randomUUID()+'/review'],['POST','/api/owner/verification-claims/'+randomUUID()+'/revoke']]){
+  const c=mockHttp(env,{method,url,body:{decision:'APPROVED',notes:'No infrastructure override'},user:env.ownerUser,headers:{'x-aegis-owner-grant':env.grantToken}});
+  await c.handler(c.req,c.res);assert.equal(c.res.statusCode,403);assert.equal(env.store.studentRosters.size,0);
+ }
 });
 
 test('G09.1 — CSV Roster Preview and Import API', async () => {
@@ -981,7 +868,7 @@ test('Security Invariant: Authority (HOD) cannot approve PERSONAL_GOOGLE_ROSTER 
 
 
 
-test('G09.2 Owner approval rejects expired, missing-expiry and evidence-free claims without binding', async()=>{
+test('G09.3 Owner decisions remain denied regardless of claim expiry or evidence', async()=>{
  for(const scenario of ['expired','missing','evidence']) {
   const env=createMockEnvironment();const rosterId=randomUUID();const userId=randomUUID();const claimId=randomUUID();
   env.store.studentRosters.set('22CS777',{institution_id:env.store.institutions.get('default').id,id:rosterId,register_number:'22CS777',institutional_email:'target@college.edu.in',department_code:'CSE',active:true,bound_user_id:null});
@@ -989,7 +876,7 @@ test('G09.2 Owner approval rejects expired, missing-expiry and evidence-free cla
   env.store.verificationRequests.set(claimId,{institution_id:env.store.institutions.get('default').id,id:claimId,user_id:userId,roster_id:rosterId,status:'PENDING',claim_channel:'PERSONAL_GOOGLE_ROSTER',expires_at:scenario==='expired'?new Date(0):scenario==='missing'?null:new Date(Date.now()+3600000)});
   const token=await issueStepUpToken(OWNER_ID,'admin_step_up',env.mockDb,env.ownerUser.session_hash);
   const req=mockHttp(env,{method:'POST',url:'/api/owner/verification-claims/'+claimId+'/review',body:{decision:'APPROVED',notes:'Independent enrollment review attempted',stepUpToken:token,...(scenario==='evidence'?{}:{identityEvidenceReference:'REGISTRAR-2026-19'})},user:env.ownerUser,headers:{'x-aegis-owner-grant':env.grantToken}});
-  await req.handler(req.req,req.res);assert.equal(req.res.statusCode,scenario==='evidence'?422:400);
+  await req.handler(req.req,req.res);assert.equal(req.res.statusCode,403);
   assert.equal(env.store.users.get(userId).is_verified_student,false);assert.equal(env.store.studentRosters.get('22CS777').bound_user_id,null);
  }
 });
