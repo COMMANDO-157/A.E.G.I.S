@@ -60,7 +60,7 @@ async function loginFixture({stored=account({google_subject_id:payload.sub}),cla
   if(sql.startsWith('UPDATE users SET email=')){state={...state,email:args[0],name:args[1]};return {rows:[state]};}
   if(sql.startsWith('SELECT to_regclass'))return {rows:[{available:institutionSchema}]};
   if(sql.includes('unnest(domains)'))return {rows:[{domain:'college.edu.in'}]};
-  if(sql.startsWith('SELECT sr.*'))return {rows:rosters};
+  if(sql.startsWith('SELECT sr.*'))return {rows:rosters.map(r=>({...r,bound_user_id:state.roster_id===r.id?state.id:r.bound_user_id}))};
   if(sql.startsWith('UPDATE users SET is_verified_student')){state={...state,is_verified_student:true,roster_id:args[0]};writes.push(sql);return {rows:[state]};}
   if(sql.startsWith('UPDATE student_rosters') || sql.startsWith('INSERT INTO ')){writes.push(sql);return {rows:[],rowCount:1};}
   throw Error('Unexpected login query '+sql);

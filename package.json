@@ -21,7 +21,8 @@
     "db:health": "node --env-file-if-exists=.env scripts/health.js",
     "security:cleanup": "node --env-file-if-exists=.env scripts/cleanup.js",
     "test:integration": "node --env-file-if-exists=.env test_integration.js",
-    "test:security": "node --test test_google_identity.js test_stage5_5d_hybrid_verification.js"
+    "test:security": "node --test test_google_identity.js test_stage5_5d_hybrid_verification.js",
+    "test:phase12:db": "node --test test_phase12_postgres.js"
   },
   "dependencies": {
     "google-auth-library": "^10.5.0",

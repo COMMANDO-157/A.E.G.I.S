@@ -1,3 +1,4 @@
+import {hasInstitutionSchema,resolveInstitution,requireEligibleClaim} from './enrollment.js';
 import {validateGoogleClaims,linkConfirmedGoogleAccount,requireCurrentClaim,requireVerificationEvidence} from './google-identity.js';
 import {randomUUID} from 'node:crypto';
 import {OAuth2Client} from 'google-auth-library';
@@ -286,6 +287,7 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
    if(path==='/api/owner/verification-claims'&&method==='GET') {
     requirePrimaryOwner(user);
     await requireOwnerGrant(req, user, database());
+    if(!await hasInstitutionSchema(database())) fail(503,'Enrollment console requires institution schema 007.');
 
     const instFilter = url.searchParams.get('institutionId');
     const deptFilter = url.searchParams.get('departmentCode');
@@ -366,6 +368,7 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
      if(claim.user_id===user.id) fail(403,'Self-verification is prohibited.');
 
      if(input.decision === 'APPROVED') {
+      await requireEligibleClaim(db,claim);
       if(!claim.roster_active) fail(400, 'Cannot approve claim for an inactive roster record.');
       if(claim.current_roster_id && claim.current_roster_id!==claim.roster_id) fail(409,'Existing student roster binding requires independent reconciliation, not reassignment.');
       if(claim.bound_user_id && claim.bound_user_id !== claim.user_id) {
@@ -1186,7 +1189,7 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
    if(path==='/api/admin/departments'&&method==='POST') {
     requireAdminPermission(user, 'departments.manage');
     const input = await body(req);
-    fieldsOnly(input, ['code', 'name', 'stepUpToken']);
+    fieldsOnly(input, ['code', 'name', 'institutionSlug', 'stepUpToken']);
     if(typeof input.code!=='string'||!/^[A-Z0-9_-]{2,20}$/.test(input.code.trim())) fail(422, 'Invalid department code.');
     if(typeof input.name!=='string'||input.name.trim().length<2||input.name.trim().length>120) fail(422, 'Invalid department name.');
 
@@ -1195,10 +1198,11 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
     if(!validStepUp) fail(403, 'Invalid or expired step-up authorization token.');
 
     const created = await transaction(async db => {
-     const res = await db.query(
-      'INSERT INTO departments(code, name) VALUES($1, $2) RETURNING *',
-      [input.code.trim().toUpperCase(), input.name.trim()]
-     );
+     const institution=await resolveInstitution(db,input.institutionSlug??'default');
+     const res = institution ? await db.query(
+      'INSERT INTO departments(code, name, institution_id) VALUES($1, $2, $3) RETURNING *',
+      [input.code.trim().toUpperCase(), input.name.trim(),institution.id]
+     ) : await db.query('INSERT INTO departments(code, name) VALUES($1, $2) RETURNING *',[input.code.trim().toUpperCase(),input.name.trim()]);
      await audit(db, user, null, 'DEPARTMENT_CREATED', { code: res.rows[0].code, name: res.rows[0].name });
      return res.rows[0];
     });
@@ -1373,17 +1377,11 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
     let conflictsQuarantined = 0;
 
     await transaction(async db => {
-     let instId = null;
-     if(input.institutionCode) {
-      const instRow = (await db.query('SELECT id FROM institutions WHERE slug=$1', [input.institutionCode.trim()])).rows[0];
-      if(instRow) instId = instRow.id;
-     }
-     if(!instId) {
-      const defaultInst = (await db.query("SELECT id FROM institutions WHERE slug='default'")).rows[0];
-      instId = defaultInst?.id || null;
-     }
+     const institution=await resolveInstitution(db,input.institutionCode??'default');
+     if(!institution) fail(503,'Roster import requires institution schema 007.');
+     const instId=institution.id;
 
-     const validDepts = (await db.query('SELECT code FROM departments WHERE active=true')).rows.map(r=>r.code);
+     const validDepts = (await db.query('SELECT code FROM departments WHERE active=true AND institution_id=$1',[instId])).rows.map(r=>r.code);
 
      for(const row of input.records) {
       const reg = typeof row.registerNumber==='string'?row.registerNumber.trim().toUpperCase():'';
@@ -1404,15 +1402,16 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
        continue;
       }
 
+      await db.query('SELECT pg_advisory_xact_lock(hashtext($1))',['claim:reg:'+reg]);
       // Check conflicts against existing records
-      const existingReg = (await db.query('SELECT * FROM student_rosters WHERE register_number=$1', [reg])).rows[0];
+      const existingReg = (await db.query('SELECT * FROM student_rosters WHERE register_number=$1 FOR UPDATE', [reg])).rows[0];
       const existingEmail = (await db.query('SELECT * FROM student_rosters WHERE institutional_email=$1', [email])).rows[0];
 
       if(existingReg && (existingReg.institutional_email !== email || existingReg.department_code !== dept)) {
        conflictsQuarantined++;
        await db.query(
         'INSERT INTO roster_import_conflicts(batch_id, register_number, institutional_email, department_code, conflict_type, raw_payload) VALUES($1, $2, $3, $4, $5, $6)',
-        [batchId, reg, email, dept, 'REGISTER_EXISTS_MISMATCH', JSON.stringify({ incoming: row, existing: existingReg })]
+        [batchId, reg, email, dept, 'REGISTER_EXISTS_MISMATCH', JSON.stringify({ incoming: {...row,institutionCode:institution.slug}, existing: existingReg })]
        );
        continue;
       }
@@ -1421,7 +1420,7 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
        conflictsQuarantined++;
        await db.query(
         'INSERT INTO roster_import_conflicts(batch_id, register_number, institutional_email, department_code, conflict_type, raw_payload) VALUES($1, $2, $3, $4, $5, $6)',
-        [batchId, reg, email, dept, 'EMAIL_EXISTS_MISMATCH', JSON.stringify({ incoming: row, existing: existingEmail })]
+        [batchId, reg, email, dept, 'EMAIL_EXISTS_MISMATCH', JSON.stringify({ incoming: {...row,institutionCode:institution.slug}, existing: existingEmail })]
        );
        continue;
       }
@@ -1430,7 +1429,7 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
        continue;
       }
 
-      await db.query(
+      const imported = await db.query(
        `INSERT INTO student_rosters(institution_id, register_number, institutional_email, full_name, department_code, batch_year, degree_program, approved_personal_email, is_test_record)
         VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)
         ON CONFLICT (register_number) DO UPDATE SET
@@ -1440,10 +1439,14 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
           batch_year=EXCLUDED.batch_year,
           approved_personal_email=COALESCE(EXCLUDED.approved_personal_email, student_rosters.approved_personal_email),
           is_test_record=EXCLUDED.is_test_record,
-          updated_at=now()`,
+          updated_at=now()
+        WHERE student_rosters.bound_user_id IS NULL AND student_rosters.institution_id=EXCLUDED.institution_id
+          AND student_rosters.institutional_email=EXCLUDED.institutional_email AND student_rosters.department_code=EXCLUDED.department_code
+        RETURNING id`,
        [instId, reg, email, name, dept, batch, degree, approvedPersonal, isTestRecord]
       );
-      importedCount++;
+      if(imported.rowCount) importedCount++;
+      else conflictsQuarantined++;
      }
      await audit(db, user, null, 'ROSTER_BATCH_IMPORTED', { batchId, total: input.records.length, importedCount, conflictsQuarantined, version: input.version || 'v1' });
     });
@@ -1461,7 +1464,7 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
     requireAdminPermission(user, 'roster.conflicts.manage');
     const conflictId = path.split('/')[5];
     const input = await body(req);
-    fieldsOnly(input, ['action', 'notes', 'stepUpToken']);
+    fieldsOnly(input, ['action', 'notes', 'institutionSlug', 'stepUpToken']);
     if(!['ACCEPTED_UPDATE', 'DISCARDED'].includes(input.action)) fail(422, 'Invalid resolution action.');
 
     if(!input.stepUpToken) fail(403, 'Step-up authorization token is required for conflict resolution.');
@@ -1476,16 +1479,23 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
      if(input.action === 'ACCEPTED_UPDATE') {
       const raw = conflict.raw_payload?.incoming || conflict.raw_payload;
       if(raw && raw.registerNumber && raw.institutionalEmail) {
-       await db.query(
-        `INSERT INTO student_rosters(register_number, institutional_email, full_name, department_code, batch_year)
-         VALUES($1, $2, $3, $4, $5)
-         ON CONFLICT (register_number) DO UPDATE SET
-           institutional_email=EXCLUDED.institutional_email,
-           full_name=EXCLUDED.full_name,
-           department_code=EXCLUDED.department_code,
-           updated_at=now()`,
-        [raw.registerNumber.toUpperCase(), raw.institutionalEmail.toLowerCase(), raw.fullName, raw.departmentCode.toUpperCase(), raw.batchYear||'2022-2026']
-       );
+       const reg=raw.registerNumber.trim().toUpperCase();
+       await db.query('SELECT pg_advisory_xact_lock(hashtext($1))',['claim:reg:'+reg]);
+       const existing=(await db.query('SELECT * FROM student_rosters WHERE register_number=$1 FOR UPDATE',[reg])).rows[0];
+       if(existing?.bound_user_id) fail(409,'Bound roster identities require independent reconciliation.');
+       const institution=await resolveInstitution(db,input.institutionSlug??raw.institutionSlug??raw.institutionCode??'default');
+       const dept=raw.departmentCode.trim().toUpperCase();
+       const department=(await db.query('SELECT * FROM departments WHERE code=$1 AND active=true',[dept])).rows[0];
+       if(!department || (institution && department.institution_id!==institution.id) || (institution && existing && existing.institution_id!==institution.id)) fail(409,'Institution and department do not match.');
+       const values=[reg,raw.institutionalEmail.trim().toLowerCase(),raw.fullName,dept,raw.batchYear||'2022-2026'];
+       const columns=institution?', institution_id':'';
+       const placeholder=institution?', $6':'';
+       if(institution) values.push(institution.id);
+       const changed=await db.query(`INSERT INTO student_rosters(register_number, institutional_email, full_name, department_code, batch_year${columns})
+         VALUES($1,$2,$3,$4,$5${placeholder}) ON CONFLICT(register_number) DO UPDATE SET
+         institutional_email=EXCLUDED.institutional_email,full_name=EXCLUDED.full_name,department_code=EXCLUDED.department_code,updated_at=now()
+         WHERE student_rosters.bound_user_id IS NULL RETURNING id`,values);
+       if(!changed.rowCount) fail(409,'Roster was bound concurrently.');
       }
      }
 
@@ -1529,6 +1539,7 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
     fail(422, 'Valid register number is required (6-30 alphanumeric characters).');
    }
 
+   if(!await hasInstitutionSchema(database())) fail(503,'Enrollment review requires institution schema 007. Sign-in remains available.');
    const reg = input.registerNumber.trim().toUpperCase();
    await limit('verification:request:'+user.id, 5);
 
@@ -1564,6 +1575,7 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
      fail(404, 'Register number is not eligible for claim. Check your official registration number or contact your department.');
     }
 
+    await requireEligibleClaim(db,{roster_id:roster.id,institution_id:instId});
     const rosterPending = await db.query("SELECT id FROM student_verification_requests WHERE roster_id=$1 AND status='PENDING'", [roster.id]);
     if(rosterPending.rowCount) {
      fail(409, 'A verification claim for this register number is already under review.');
@@ -1656,6 +1668,7 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
     }
 
     if(input.decision === 'APPROVED') {
+      await requireEligibleClaim(db,vReq);
       // Invariant: Personal Google claims (PERSONAL_GOOGLE_ROSTER) are restricted exclusively to Primary Owner governance.
       if(vReq.claim_channel === 'PERSONAL_GOOGLE_ROSTER') {
         fail(403, 'Personal Google student verification claims require Primary Owner governance review and dual-factor step-up.');
@@ -1688,9 +1701,9 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
       );
       await db.query(
         `UPDATE student_verification_requests 
-         SET status='APPROVED', notes=$1, identity_evidence_reference=$2, reviewed_by=$3, reviewed_at=now(), updated_at=now() 
+         SET status='APPROVED', notes=$1, identity_evidence_reference=$2, reviewed_by=$3, verification_method=$5, reviewed_at=now(), updated_at=now()
          WHERE id=$4`,
-        [input.notes.trim(), input.identityEvidenceReference?.trim()||null, user.id, requestId]
+        [input.notes.trim(), input.identityEvidenceReference?.trim()||null, user.id, requestId,input.verificationMethod||'OWNER_INDEPENDENT_ROSTER_VERIFICATION']
       );
       await audit(db, user, null, 'STUDENT_VERIFICATION_MANUAL_APPROVED', {
         requestId,

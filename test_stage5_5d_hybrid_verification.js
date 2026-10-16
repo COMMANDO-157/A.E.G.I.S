@@ -106,6 +106,12 @@ function createMockEnvironment() {
     query: async (sql, params = []) => {
       const q = sql.trim();
 
+      if(q.startsWith('SELECT to_regclass')) return {rows:[{available:true}],rowCount:1};
+      if(q.startsWith('SELECT sr.* FROM student_rosters sr')) {
+       const r=Array.from(store.studentRosters.values()).find(x=>x.id===params[0]);
+       const institution=Array.from(store.institutions.values()).find(x=>x.id===r?.institution_id);
+       return {rows:r && (r.is_active??r.active)!==false && !r.is_test_record && institution?.active ? [{...r,institution_id:institution.id}]:[],rowCount:r?1:0};
+      }
       // institutions query
       if (q.includes('FROM institutions WHERE active=true')) {
         const rows = [];
@@ -293,10 +299,10 @@ function createMockEnvironment() {
           id: randomUUID(),
           user_id: params[0],
           roster_id: params[1],
-          status: params[2],
+          status: 'PENDING',
           claim_channel: params[3],
           notes: params[4],
-          institution_id: params[5] || null,
+          institution_id: params[2],
           created_at: new Date(),
           expires_at: new Date(Date.now() + 7 * 86400000),
           reviewed_by_user_id: null,
@@ -327,8 +333,8 @@ function createMockEnvironment() {
               department_name: d.name || r.department_code,
               approved_personal_email: r.approved_personal_email,
               is_test_record: r.is_test_record,
-              bound_user_id: u.roster_id === r.id ? u.id : null,
-              user_current_roster_id: u.roster_id || null,
+              bound_user_id: r.bound_user_id || null,
+              current_roster_id: u.roster_id || null,
               roster_active: r.is_active !== undefined ? r.is_active : (r.active !== undefined ? r.active : true),
             }],
             rowCount: 1
@@ -353,8 +359,8 @@ function createMockEnvironment() {
             department_name: d.name || r.department_code,
             approved_personal_email: r.approved_personal_email,
             is_test_record: r.is_test_record,
-            bound_user_id: u.roster_id === r.id ? u.id : null,
-            user_current_roster_id: u.roster_id || null,
+            bound_user_id: r.bound_user_id || null,
+            current_roster_id: u.roster_id || null,
           });
         }
         return { rows, rowCount: rows.length };
@@ -362,15 +368,16 @@ function createMockEnvironment() {
 
       if (q.includes('UPDATE student_verification_requests')) {
         if (q.includes("SET status='APPROVED'") || q.includes('status=$1') || q.includes("status='REJECTED'")) {
-          const id = params[params.length - 1];
+          const id = q.includes('verification_method=$5') ? params[3] : params[params.length - 1];
           const req = store.verificationRequests.get(id);
           if (req) {
             if (q.includes("SET status='APPROVED'")) {
               req.status = 'APPROVED';
               req.notes = params[0];
-              req.verification_method = params[1];
-              req.identity_evidence_reference = params[2];
-              req.reviewed_by_user_id = params[3];
+              const authority=q.includes('verification_method=$5');
+              req.verification_method = authority?params[4]:params[1];
+              req.identity_evidence_reference = authority?params[1]:params[2];
+              req.reviewed_by = authority?params[2]:params[3];
               req.reviewed_at = new Date();
             } else if (q.includes("SET status='REJECTED'")) {
               req.status = 'REJECTED';
@@ -425,7 +432,10 @@ function createMockEnvironment() {
     }
   };
 
-  const mockTransaction = async (fn) => fn(mockDb);
+  const mockTransaction = async fn => {
+    const snapshot=structuredClone(store);
+    try {return await fn(mockDb);} catch(error) {for(const key of Object.keys(store))store[key]=snapshot[key];throw error;}
+  };
 
   return { ownerUser, store, mockDb, mockTransaction, grantToken };
 }
@@ -492,6 +502,7 @@ test('G09.2 — Stored Google subject alone cannot auto-approve an institutional
   const regNo = '22CS101';
   const instEmail = 'priya.22cs@college.edu.in';
   env.store.studentRosters.set(regNo, {
+    institution_id:env.store.institutions.get('default').id,
     id: randomUUID(),
     register_number: regNo,
     institutional_email: instEmail,
@@ -529,6 +540,9 @@ test('G09.2 — Stored Google subject alone cannot auto-approve an institutional
   assert.equal(data.status, 'PENDING');
   assert.equal(data.autoApproved, false);
   assert.equal(data.registerNumber, regNo);
+  const persisted=Array.from(env.store.verificationRequests.values())[0];
+  assert.equal(persisted.status,'PENDING');
+  assert.equal(persisted.institution_id,env.store.institutions.get('default').id);
 
   // No elevation from a stored subject or self-declared email.
   const updatedUser = env.store.users.get(studentUser.id);
@@ -544,6 +558,7 @@ test('G09.1 — Path B: Personal Google Account Enrollment & Grievance Blocker',
   const personalEmail = 'karthik.personal@gmail.com';
 
   env.store.studentRosters.set(regNo, {
+    institution_id:env.store.institutions.get('default').id,
     id: randomUUID(),
     register_number: regNo,
     institutional_email: instEmail,
@@ -612,6 +627,7 @@ test('G09.1 — Owner Claims Governance: Review, Approval & Revocation Cycle', a
 
   const rosterId = randomUUID();
   env.store.studentRosters.set(regNo, {
+    institution_id:env.store.institutions.get('default').id,
     id: rosterId,
     register_number: regNo,
     institutional_email: instEmail,
@@ -638,6 +654,7 @@ test('G09.1 — Owner Claims Governance: Review, Approval & Revocation Cycle', a
   // Create pending claim
   const claimId = randomUUID();
   env.store.verificationRequests.set(claimId, {
+    institution_id:env.store.institutions.get('default').id,
     id: claimId,
     user_id: studentUser.id,
     roster_id: rosterId,
@@ -844,6 +861,7 @@ test('Security Invariant: Self-declared institutional email without OAuth verifi
   const regNo = '22CS202';
   const instEmail = 'rahul.22cs@college.edu.in';
   env.store.studentRosters.set(regNo, {
+    institution_id:env.store.institutions.get('default').id,
     id: randomUUID(),
     register_number: regNo,
     institutional_email: instEmail,
@@ -893,6 +911,7 @@ test('Security Invariant: Authority (HOD) cannot approve PERSONAL_GOOGLE_ROSTER 
   const regNo = '22EC303';
   const rosterId = randomUUID();
   env.store.studentRosters.set(regNo, {
+    institution_id:env.store.institutions.get('default').id,
     id: rosterId,
     register_number: regNo,
     institutional_email: 'priya.22ec@college.edu.in',
@@ -918,6 +937,7 @@ test('Security Invariant: Authority (HOD) cannot approve PERSONAL_GOOGLE_ROSTER 
 
   const claimId = randomUUID();
   env.store.verificationRequests.set(claimId, {
+    institution_id:env.store.institutions.get('default').id,
     id: claimId,
     user_id: studentUser.id,
     roster_id: rosterId,
@@ -964,9 +984,9 @@ test('Security Invariant: Authority (HOD) cannot approve PERSONAL_GOOGLE_ROSTER 
 test('G09.2 Owner approval rejects expired, missing-expiry and evidence-free claims without binding', async()=>{
  for(const scenario of ['expired','missing','evidence']) {
   const env=createMockEnvironment();const rosterId=randomUUID();const userId=randomUUID();const claimId=randomUUID();
-  env.store.studentRosters.set('22CS777',{id:rosterId,register_number:'22CS777',institutional_email:'target@college.edu.in',department_code:'CSE',active:true,bound_user_id:null});
+  env.store.studentRosters.set('22CS777',{institution_id:env.store.institutions.get('default').id,id:rosterId,register_number:'22CS777',institutional_email:'target@college.edu.in',department_code:'CSE',active:true,bound_user_id:null});
   env.store.users.set(userId,{id:userId,email:'target@gmail.com',name:'Target',role:'student',account_status:'active',is_verified_student:false,roster_id:null});
-  env.store.verificationRequests.set(claimId,{id:claimId,user_id:userId,roster_id:rosterId,status:'PENDING',claim_channel:'PERSONAL_GOOGLE_ROSTER',expires_at:scenario==='expired'?new Date(0):scenario==='missing'?null:new Date(Date.now()+3600000)});
+  env.store.verificationRequests.set(claimId,{institution_id:env.store.institutions.get('default').id,id:claimId,user_id:userId,roster_id:rosterId,status:'PENDING',claim_channel:'PERSONAL_GOOGLE_ROSTER',expires_at:scenario==='expired'?new Date(0):scenario==='missing'?null:new Date(Date.now()+3600000)});
   const token=await issueStepUpToken(OWNER_ID,'admin_step_up',env.mockDb,env.ownerUser.session_hash);
   const req=mockHttp(env,{method:'POST',url:'/api/owner/verification-claims/'+claimId+'/review',body:{decision:'APPROVED',notes:'Independent enrollment review attempted',stepUpToken:token,...(scenario==='evidence'?{}:{identityEvidenceReference:'REGISTRAR-2026-19'})},user:env.ownerUser,headers:{'x-aegis-owner-grant':env.grantToken}});
   await req.handler(req.req,req.res);assert.equal(req.res.statusCode,scenario==='evidence'?422:400);

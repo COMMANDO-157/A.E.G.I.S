@@ -7,8 +7,8 @@ export function database() {
   connectionTimeoutMillis:5000,statement_timeout:10000});
  return pool;
 }
-export async function transaction(fn) {
- const client=await database().connect();
+export async function transaction(fn,pool=database()) {
+ const client=await pool.connect();
  try { await client.query('BEGIN'); const result=await fn(client); await client.query('COMMIT'); return result; }
  catch(error) { await client.query('ROLLBACK'); throw error; }
  finally { client.release(); }

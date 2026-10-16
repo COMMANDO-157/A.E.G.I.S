@@ -1,3 +1,4 @@
+import {eligibleRoster} from './enrollment.js';
 import {validateGoogleClaims,normalizeEmail} from './google-identity.js';
 import {randomBytes,createHash} from 'node:crypto';
 import {OAuth2Client} from 'google-auth-library';
@@ -88,12 +89,12 @@ export async function login(req,res,credential,{
   // If student account is unverified, check if email matches an active roster row on a trusted institutional domain
   if(user.role === 'student' && !user.is_verified_student && !user.roster_id) {
    const emailNorm = normalizeEmail(payload.email);
-   // The 001–006 deployment has no institutions table. Preserve Google login,
+   // The schema-006 deployment has no institutions table. Preserve Google login,
    // but never infer enrollment from fallback/example domains on that schema.
    const schema=(await db.query("SELECT to_regclass('public.institutions') IS NOT NULL AND EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid='public.student_rosters'::regclass AND attname='institution_id' AND NOT attisdropped) AS available")).rows[0];
    if(schema?.available===true) {
     const matchingRosters = (await db.query(
-     `SELECT sr.*, d.name AS dept_name FROM student_rosters sr JOIN institutions i ON i.id=sr.institution_id AND i.active=true AND 'INSTITUTIONAL_EMAIL'=ANY(i.supported_methods) LEFT JOIN departments d ON d.code=sr.department_code WHERE lower(sr.institutional_email)=$1 AND split_part(lower(sr.institutional_email),'@',2)=ANY(i.domains) AND sr.is_active=true AND sr.is_test_record=false AND (sr.bound_user_id IS NULL OR sr.bound_user_id=$2) FOR UPDATE OF sr`,
+     `SELECT sr.*, d.name AS dept_name FROM student_rosters sr JOIN institutions i ON i.id=sr.institution_id AND i.active=true AND 'INSTITUTIONAL_EMAIL'=ANY(i.supported_methods) JOIN departments d ON d.code=sr.department_code AND d.active=true AND d.institution_id=sr.institution_id WHERE lower(sr.institutional_email)=$1 AND split_part(lower(sr.institutional_email),'@',2)=ANY(i.domains) AND sr.is_active=true AND sr.is_test_record=false AND (sr.bound_user_id IS NULL OR sr.bound_user_id=$2) FOR UPDATE OF sr`,
      [emailNorm, user.id]
     )).rows;
     if(matchingRosters.length>1) fail(409,'Ambiguous authoritative roster match.');
@@ -116,6 +117,10 @@ export async function login(req,res,credential,{
    }
   }
 
+  if(user.role==='student' && user.roster_id) {
+   const roster=await eligibleRoster(db,user.roster_id);
+   user.is_verified_student=Boolean(roster && roster.bound_user_id===user.id);
+  } else if(user.role==='student') user.is_verified_student=false;
   active(user);
   await db.query("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '8 hours')",[digest(token),user.id]);
   await db.query("INSERT INTO audit_logs(actor_id,action) VALUES($1,'GOOGLE_SIGN_IN')",[user.id]);
@@ -156,9 +161,8 @@ export async function sessionUser(req,db) {
  // Query authoritative active student roster binding for students
  if(user.role==='student' && user.roster_id) {
   try {
-   const rosterResult=await dbClient.query('SELECT * FROM student_rosters WHERE id=$1 AND bound_user_id=$2 AND is_active=true',[user.roster_id, user.id]);
-   const r=rosterResult.rows[0];
-   if(r) {
+   const r=await eligibleRoster(dbClient,user.roster_id);
+   if(r && r.bound_user_id===user.id) {
     user.active_roster=r;
     user.is_verified_student=true;
     user.register_number=r.register_number;
