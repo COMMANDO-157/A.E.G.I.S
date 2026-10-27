@@ -48,6 +48,7 @@ export interface ApiUser {
   readonly is_primary_owner?: boolean;
   readonly is_verified_student?: boolean;
   readonly roster_id?: string | null;
+  readonly institution_id?: string | null;
   readonly assigned_departments?: string[];
   readonly mfa_enrolled?: boolean;
   readonly action_pin_set?: boolean;
@@ -409,9 +410,71 @@ export interface RosterPreviewResponse {
   }>;
 }
 
-// ─── API Error ────────────────────────────────────────────────────────────────
+// ─── Student Services Domain Types ──────────────────────────────────────────
 
-export interface ApiError {
-  readonly error: string;
+export type StudentServiceCategory = 'academic' | 'accessibility' | 'financial' | 'administrative' | 'facilities';
+export type StudentServiceState = 'requested' | 'acknowledged' | 'in_progress' | 'completed' | 'cancelled';
+
+export interface StudentServiceCatalogItem {
+  readonly id: string;
+  readonly institution_id: string;
+  readonly department_code: string | null;
+  readonly service_code: string;
+  readonly category: StudentServiceCategory;
+  readonly title: string;
+  readonly description: string;
+  readonly active: boolean;
+  readonly sla_hours: number;
 }
 
+export interface StudentServiceRequestItem {
+  readonly id: string;
+  readonly reference_number: string;
+  readonly institution_id: string;
+  readonly department_code: string;
+  readonly service_id: string;
+  readonly student_user_id: string;
+  readonly assigned_staff_id?: string | null;
+  readonly state: StudentServiceState;
+  readonly subject: string;
+  readonly details: string;
+  readonly version: number;
+  readonly resolution_notes?: string | null;
+  readonly created_at: string;
+  readonly updated_at: string;
+  readonly acknowledged_at?: string | null;
+  readonly completed_at?: string | null;
+  readonly cancelled_at?: string | null;
+  readonly service_title?: string;
+  readonly service_category?: StudentServiceCategory;
+  readonly student_name?: string;
+  readonly student_email?: string;
+}
+
+export interface StudentServiceAuditLog {
+  readonly id: string;
+  readonly request_id: string;
+  readonly actor_id: string;
+  readonly action: string;
+  readonly from_state?: StudentServiceState | null;
+  readonly to_state: StudentServiceState;
+  readonly details: Record<string, unknown>;
+  readonly timestamp: string;
+  readonly actor_name?: string;
+  readonly actor_role?: string;
+}
+
+export interface CreateStudentServicePayload {
+  readonly institutionId: string;
+  readonly departmentCode: string;
+  readonly serviceId: string;
+  readonly subject: string;
+  readonly details: string;
+}
+
+export interface TransitionStudentServicePayload {
+  readonly expectedVersion: number;
+  readonly nextState: StudentServiceState;
+  readonly resolutionNotes?: string | undefined;
+  readonly assignedStaffId?: string | undefined;
+}

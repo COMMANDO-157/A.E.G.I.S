@@ -12,18 +12,10 @@
     <!-- Security: no-referrer for external navigations -->
     <meta name="referrer" content="strict-origin-when-cross-origin" />
 
-    <!-- Preconnect for Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
-      rel="stylesheet"
-    />
-
+    <!-- Use local/system font fallbacks; protected pages must not fetch font providers. -->
     <title>A.E.G.I.S — Campus Safety &amp; Grievance Shield</title>
 
-    <!-- Google Identity Services SDK -->
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <!-- LoginPage loads GIS only when its Google sign-in flow is selected. -->
   </head>
   <body>
     <div id="root"></div>

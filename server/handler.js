@@ -73,6 +73,8 @@ export function createHandler(auth={sessionUser,logout},store={database,transact
   const url=new URL(req.url,'http://localhost');
   const path='/api/'+(url.searchParams.get('route')||url.pathname.replace(/^\/api\/?/,'')).replace(/^\/|\/$/g,'');
   const method=req.method;
+  // G11 STRICT HOLD: no operational services/support collection, regardless of flags or role.
+  if (/^\/api\/(student-services|wellbeing)(\/|$)/.test(path)) return send(503,{error:'This service is not accepting requests.',code:'G11_STRICT_HOLD'});
   if(path==='/api/not-found')fail(404,'Endpoint not found.');
   const limit=(bucket,max,seconds=60)=>security.consumeRateLimit(database(),bucket,max,seconds);
   if((path==='/api/maintenance'||path==='/api/cron/escalate')&&['GET','POST'].includes(method)){

@@ -21,6 +21,7 @@ export default function HodLayout() {
 
   const navItems = [
     { to: '/hod', label: 'Department Dashboard', end: true, icon: '📊' },
+    { to: '/hod/services', label: 'Services Queue', icon: '🛎️' },
     { to: '/hod/cases', label: 'Department Grievances (48h SLA)', icon: '📋' },
     { to: '/hod/students', label: 'Student Verifications', icon: '🎓' },
     { to: '/hod/review', label: 'Findings & Decisions', icon: '🔍' },
@@ -35,7 +36,9 @@ export default function HodLayout() {
     const crumbs: { label: string; to?: string | undefined }[] = [
       { label: 'HOD Portal', to: '/hod' },
     ];
-    if (location.pathname === '/hod/cases') {
+    if (location.pathname === '/hod/services') {
+      crumbs.push({ label: 'Services Queue' });
+    } else if (location.pathname === '/hod/cases') {
       crumbs.push({ label: 'Department Grievances' });
     } else if (location.pathname === '/hod/students') {
       crumbs.push({ label: 'Student Verifications' });
