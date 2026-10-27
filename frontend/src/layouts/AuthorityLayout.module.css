@@ -48,8 +48,8 @@
 .brandPortal {
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
-  color: var(--aegis-teal-300);
-  background: rgba(45, 179, 171, 0.12);
+  color: var(--stewardship-bg);
+  background: rgba(184, 169, 162, 0.18);
   padding: 2px var(--spacing-2);
   border-radius: var(--radius-full);
   letter-spacing: var(--letter-spacing-wide);
@@ -59,7 +59,7 @@
 
 .motto {
   font-size: 11px;
-  color: var(--aegis-navy-200);
+  color: var(--stewardship-bg);
   letter-spacing: var(--letter-spacing-wide);
   font-weight: var(--font-weight-medium);
   margin-top: 4px;
@@ -95,8 +95,8 @@
 }
 
 .navActive {
-  background: rgba(20, 125, 120, 0.22);
-  color: var(--aegis-teal-300);
+  background: rgba(184, 169, 162, 0.18);
+  color: var(--stewardship-bg);
   font-weight: var(--font-weight-semibold);
 }
 
@@ -126,7 +126,7 @@
 
 .userRole {
   font-size: var(--font-size-xs);
-  color: var(--aegis-teal-300);
+  color: var(--stewardship-bg);
   font-weight: var(--font-weight-medium);
 }
 

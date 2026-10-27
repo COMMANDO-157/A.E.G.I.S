@@ -21,6 +21,7 @@ export default function HodLayout() {
 
   const navItems = [
     { to: '/hod', label: 'Department Dashboard', end: true, icon: '📊' },
+    { to: '/hod/services', label: 'Services Queue', icon: '🛎️' },
     { to: '/hod/cases', label: 'Department Grievances (48h SLA)', icon: '📋' },
     { to: '/hod/students', label: 'Student Verifications', icon: '🎓' },
     { to: '/hod/review', label: 'Findings & Decisions', icon: '🔍' },
@@ -35,7 +36,9 @@ export default function HodLayout() {
     const crumbs: { label: string; to?: string | undefined }[] = [
       { label: 'HOD Portal', to: '/hod' },
     ];
-    if (location.pathname === '/hod/cases') {
+    if (location.pathname === '/hod/services') {
+      crumbs.push({ label: 'Services Queue' });
+    } else if (location.pathname === '/hod/cases') {
       crumbs.push({ label: 'Department Grievances' });
     } else if (location.pathname === '/hod/students') {
       crumbs.push({ label: 'Student Verifications' });
@@ -46,7 +49,7 @@ export default function HodLayout() {
   };
 
   return (
-    <div className={styles.shell}>
+    <div className={styles.shell} data-theme="stewardship">
       <a href="#main-content" className="skip-link">
         Skip to main content
       </a>
@@ -79,7 +82,7 @@ export default function HodLayout() {
             <span className={styles.brandMark} aria-hidden="true">🛡️</span>
             <span className={styles.brandText}>{t.app.name}</span>
           </Link>
-          <span className={styles.brandPortal} style={{ background: 'var(--aegis-teal-700)', color: 'white' }}>
+          <span className={styles.brandPortal} style={{ background: 'var(--stewardship-accent)', color: 'white' }}>
             HEAD OF DEPARTMENT
           </span>
           <span className={styles.motto}>Tier 1 Departmental Jurisdiction</span>

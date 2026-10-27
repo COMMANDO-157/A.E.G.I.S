@@ -22,6 +22,7 @@ export default function StudentLayout() {
   const location = useLocation();
 
   const navItems = [
+    { to: '/student/services', label: 'Services demo', icon: '◇' },
     { to: '/student', label: t.common.dashboard, end: true, icon: '🏠' },
     { to: '/student/report', label: t.common.reportIncident, icon: '📝' },
     { to: '/student/track', label: t.common.trackCases, icon: '🔍' },
@@ -36,7 +37,9 @@ export default function StudentLayout() {
     const crumbs: { label: string; to?: string | undefined }[] = [
       { label: `${t.roles.student} Portal`, to: '/student' },
     ];
-    if (location.pathname === '/student/report') {
+    if (location.pathname === '/student/services') {
+      crumbs.push({ label: 'Services demo' });
+    } else if (location.pathname === '/student/report') {
       crumbs.push({ label: t.common.reportIncident });
     } else if (location.pathname === '/student/track') {
       crumbs.push({ label: t.common.trackCases });
@@ -45,7 +48,7 @@ export default function StudentLayout() {
   };
 
   return (
-    <div className={styles.shell}>
+    <div className={styles.shell} data-theme="sanctuary">
       {/* Skip link for keyboard accessibility */}
       <a href="#main-content" className="skip-link">
         Skip to main content

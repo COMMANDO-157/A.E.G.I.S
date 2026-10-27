@@ -1,0 +1,317 @@
+.container {
+  padding: 1.5rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.header {
+  margin-bottom: 1.5rem;
+}
+
+.subtitle {
+  color: var(--color-text-secondary, #64748b);
+  margin-top: 0.25rem;
+  font-size: 0.95rem;
+}
+
+.alertError {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #f87171;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}
+
+.alertSuccess {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #86efac;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}
+
+.filterBar {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-end;
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.filterGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.filterGroup label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-primary, #0f172a);
+}
+
+.select,
+.input {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border, #cbd5e1);
+  border-radius: 6px;
+  font-size: 0.875rem;
+  background: #ffffff;
+}
+
+.refreshBtn {
+  background: var(--color-bg-secondary, #f1f5f9);
+  color: var(--color-text-primary, #0f172a);
+  border: 1px solid var(--color-border, #cbd5e1);
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  align-self: flex-end;
+}
+
+.mainLayout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .mainLayout {
+    grid-template-columns: 2fr 1fr;
+  }
+}
+
+.tableCard {
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 10px;
+  overflow-x: auto;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.875rem;
+}
+
+.table th {
+  background: var(--color-bg-secondary, #f8fafc);
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+}
+
+.table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--color-border, #f1f5f9);
+  vertical-align: middle;
+}
+
+.selectedRow {
+  background: #f0f9ff;
+}
+
+.refCell {
+  font-family: monospace;
+  font-weight: 700;
+  color: var(--color-primary, #0284c7);
+}
+
+.emailText {
+  color: var(--color-text-tertiary, #64748b);
+  font-size: 0.75rem;
+}
+
+.serviceTag {
+  color: var(--color-text-secondary, #475569);
+  font-size: 0.75rem;
+}
+
+.deptBadge {
+  background: #e2e8f0;
+  color: #334155;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.stateBadge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 9999px;
+  text-transform: uppercase;
+}
+
+.requested { background: #e0f2fe; color: #0369a1; }
+.acknowledged { background: #fef3c7; color: #92400e; }
+.in_progress { background: #e0e7ff; color: #3730a3; }
+.completed { background: #dcfce7; color: #166534; }
+.cancelled { background: #f1f5f9; color: #475569; }
+
+.reviewBtn {
+  background: var(--color-primary, #0284c7);
+  color: #ffffff;
+  border: none;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.emptyQueue {
+  padding: 3rem 1rem;
+  text-align: center;
+  color: var(--color-text-secondary, #64748b);
+}
+
+/* Inspector */
+.inspectorCard {
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 10px;
+  padding: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.inspectorHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+}
+
+.inspectorHeader h2 {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.closeBtn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--color-text-secondary, #64748b);
+}
+
+.metaRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+
+.detailText {
+  color: var(--color-text-secondary, #334155);
+  font-size: 0.9rem;
+  line-height: 1.4;
+  margin: 0.5rem 0 1rem 0;
+}
+
+.resolutionCard {
+  background: #f0fdf4;
+  border-left: 3px solid #16a34a;
+  padding: 0.75rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.actionForm {
+  background: var(--color-bg-secondary, #f8fafc);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.actionForm h3 {
+  font-size: 0.95rem;
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+}
+
+.actionForm .formGroup {
+  margin-bottom: 0.75rem;
+}
+
+.actionForm .textarea {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--color-border, #cbd5e1);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  box-sizing: border-box;
+}
+
+.actionBtn {
+  background: #0f172a;
+  color: #ffffff;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+}
+
+.auditSection h3 {
+  font-size: 0.95rem;
+  margin-bottom: 0.75rem;
+}
+
+.auditList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.auditItem {
+  background: var(--color-bg-secondary, #f8fafc);
+  border: 1px solid var(--color-border, #f1f5f9);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8rem;
+}
+
+.auditTop {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+
+.auditTime {
+  color: var(--color-text-tertiary, #94a3b8);
+  font-size: 0.75rem;
+}
+
+.auditActor {
+  color: var(--color-text-secondary, #64748b);
+  margin-bottom: 0.25rem;
+}
+
+.auditDetails {
+  font-family: monospace;
+  font-size: 0.7rem;
+  color: var(--color-text-tertiary, #64748b);
+  word-break: break-all;
+}

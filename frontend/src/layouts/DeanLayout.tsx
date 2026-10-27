@@ -21,6 +21,7 @@ export default function DeanLayout() {
 
   const navItems = [
     { to: '/dean', label: 'Dean Dashboard', end: true, icon: '📊' },
+    { to: '/dean/services', label: 'Services Queue', icon: '🛎️' },
     { to: '/dean/cases', label: 'Escalated Cases (72h SLA)', icon: '📋' },
     { to: '/dean/students', label: 'Student Claims Review', icon: '🎓' },
     { to: '/dean/review', label: 'Findings & Resolution', icon: '🔍' },
@@ -35,7 +36,9 @@ export default function DeanLayout() {
     const crumbs: { label: string; to?: string | undefined }[] = [
       { label: 'Dean Portal', to: '/dean' },
     ];
-    if (location.pathname === '/dean/cases') {
+    if (location.pathname === '/dean/services') {
+      crumbs.push({ label: 'Services Queue' });
+    } else if (location.pathname === '/dean/cases') {
       crumbs.push({ label: 'Escalated Cases' });
     } else if (location.pathname === '/dean/students') {
       crumbs.push({ label: 'Student Claims' });
@@ -46,7 +49,7 @@ export default function DeanLayout() {
   };
 
   return (
-    <div className={styles.shell}>
+    <div className={styles.shell} data-theme="stewardship">
       <a href="#main-content" className="skip-link">
         Skip to main content
       </a>
@@ -79,7 +82,7 @@ export default function DeanLayout() {
             <span className={styles.brandMark} aria-hidden="true">🛡️</span>
             <span className={styles.brandText}>{t.app.name}</span>
           </Link>
-          <span className={styles.brandPortal} style={{ background: 'var(--aegis-navy-800)', color: 'white' }}>
+          <span className={styles.brandPortal} style={{ background: 'var(--stewardship-accent)', color: 'white' }}>
             DEAN OF STUDENTS
           </span>
           <span className={styles.motto}>Tier 2 Campus-Wide Oversight</span>

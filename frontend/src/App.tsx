@@ -43,12 +43,14 @@ import NotFoundPage from '@/pages/NotFoundPage';
 import StudentDashboardPage from '@/pages/student/StudentDashboardPage';
 import StudentReportPage from '@/pages/student/StudentReportPage';
 import StudentTrackPage from '@/pages/student/StudentTrackPage';
+import StudentServicesPage from '@/pages/student/StudentServicesPage';
 
 // Authority Portal Pages
 import AuthorityDashboardPage from '@/pages/authority/AuthorityDashboardPage';
 import AuthorityCasesPage from '@/pages/authority/AuthorityCasesPage';
 import AuthorityReviewPage from '@/pages/authority/AuthorityReviewPage';
 import AuthorityStudentsPage from '@/pages/authority/AuthorityStudentsPage';
+import AuthorityServicesPage from '@/pages/authority/AuthorityServicesPage';
 
 // Admin Portal Pages
 import AdminOverviewPage from '@/pages/admin/AdminOverviewPage';
@@ -118,18 +120,7 @@ export default function App() {
                 <Route path="dashboard" element={<Navigate to="/student" replace />} />
                 <Route path="report" element={<StudentReportPage />} />
                 <Route path="track" element={<StudentTrackPage />} />
-                <Route path="cases" element={<Navigate to="/student/track" replace />} />
-                <Route path="profile" element={<Navigate to="/student" replace />} />
-              </Route>
-            </Route>
-
-            {/* 1. Protected Student Portal (/student) */}
-            <Route element={<StudentRoute />}>
-              <Route path="/student" element={<StudentLayout />}>
-                <Route index element={<StudentDashboardPage />} />
-                <Route path="dashboard" element={<Navigate to="/student" replace />} />
-                <Route path="report" element={<StudentReportPage />} />
-                <Route path="track" element={<StudentTrackPage />} />
+                <Route path="services" element={<StudentServicesPage />} />
                 <Route path="cases" element={<Navigate to="/student/track" replace />} />
                 <Route path="profile" element={<Navigate to="/student" replace />} />
               </Route>
@@ -140,6 +131,7 @@ export default function App() {
               <Route path="/hod" element={<HodLayout />}>
                 <Route index element={<AuthorityDashboardPage />} />
                 <Route path="dashboard" element={<Navigate to="/hod" replace />} />
+                <Route path="services" element={<AuthorityServicesPage />} />
                 <Route path="cases" element={<AuthorityCasesPage />} />
                 <Route path="students" element={<AuthorityStudentsPage />} />
                 <Route path="review" element={<AuthorityReviewPage />} />
@@ -151,6 +143,7 @@ export default function App() {
               <Route path="/dean" element={<DeanLayout />}>
                 <Route index element={<AuthorityDashboardPage />} />
                 <Route path="dashboard" element={<Navigate to="/dean" replace />} />
+                <Route path="services" element={<AuthorityServicesPage />} />
                 <Route path="cases" element={<AuthorityCasesPage />} />
                 <Route path="students" element={<AuthorityStudentsPage />} />
                 <Route path="review" element={<AuthorityReviewPage />} />
@@ -162,6 +155,7 @@ export default function App() {
               <Route path="/authority" element={<AuthorityLayout />}>
                 <Route index element={<AuthorityDashboardPage />} />
                 <Route path="dashboard" element={<Navigate to="/authority" replace />} />
+                <Route path="services" element={<AuthorityServicesPage />} />
                 <Route path="cases" element={<AuthorityCasesPage />} />
                 <Route path="students" element={<AuthorityStudentsPage />} />
                 <Route path="review" element={<AuthorityReviewPage />} />

@@ -643,3 +643,76 @@ export async function resolveRosterConflict(
   if (signal !== undefined) opts.signal = signal;
   return request<{ ok: boolean; conflictId: string; status: string }>(`admin/roster/conflicts/${conflictId}/resolve`, opts);
 }
+
+// ─── Local Student Services API Methods ─────────────────────────────────────
+
+export async function fetchLocalServicesCatalog(
+  institutionId?: string,
+  signal?: AbortSignal,
+): Promise<import('./types').StudentServiceCatalogItem[]> {
+  const qs = institutionId ? `?institutionId=${encodeURIComponent(institutionId)}` : '';
+  const opts: RequestOptions = {};
+  if (signal !== undefined) opts.signal = signal;
+  const res = await request<{ catalog: import('./types').StudentServiceCatalogItem[] }>(`local-services/catalog${qs}`, opts);
+  return res.catalog;
+}
+
+export async function fetchLocalStudentRequests(
+  signal?: AbortSignal,
+): Promise<import('./types').StudentServiceRequestItem[]> {
+  const opts: RequestOptions = {};
+  if (signal !== undefined) opts.signal = signal;
+  const res = await request<{ requests: import('./types').StudentServiceRequestItem[] }>('local-services/requests', opts);
+  return res.requests;
+}
+
+export async function createLocalStudentRequest(
+  payload: import('./types').CreateStudentServicePayload,
+  signal?: AbortSignal,
+): Promise<import('./types').StudentServiceRequestItem> {
+  const opts: RequestOptions = { method: 'POST', body: payload };
+  if (signal !== undefined) opts.signal = signal;
+  const res = await request<{ request: import('./types').StudentServiceRequestItem }>('local-services/requests', opts);
+  return res.request;
+}
+
+export async function fetchLocalServiceRequestDetails(
+  id: string,
+  signal?: AbortSignal,
+): Promise<{ request: import('./types').StudentServiceRequestItem; auditLogs: import('./types').StudentServiceAuditLog[] }> {
+  const opts: RequestOptions = {};
+  if (signal !== undefined) opts.signal = signal;
+  return request<{ request: import('./types').StudentServiceRequestItem; auditLogs: import('./types').StudentServiceAuditLog[] }>(
+    `local-services/requests/${id}`,
+    opts,
+  );
+}
+
+export async function transitionLocalServiceRequest(
+  id: string,
+  payload: import('./types').TransitionStudentServicePayload,
+  signal?: AbortSignal,
+): Promise<import('./types').StudentServiceRequestItem> {
+  const opts: RequestOptions = { method: 'PATCH', body: payload };
+  if (signal !== undefined) opts.signal = signal;
+  const res = await request<{ request: import('./types').StudentServiceRequestItem }>(
+    `local-services/requests/${id}`,
+    opts,
+  );
+  return res.request;
+}
+
+export async function fetchLocalStaffQueue(
+  filters?: { state?: string | undefined; departmentCode?: string | undefined },
+  signal?: AbortSignal,
+): Promise<import('./types').StudentServiceRequestItem[]> {
+  const query = new URLSearchParams();
+  if (filters?.state) query.set('state', filters.state);
+  if (filters?.departmentCode) query.set('departmentCode', filters.departmentCode);
+  const qs = query.toString();
+  const url = qs ? `local-services/staff/queue?${qs}` : 'local-services/staff/queue';
+  const opts: RequestOptions = {};
+  if (signal !== undefined) opts.signal = signal;
+  const res = await request<{ queue: import('./types').StudentServiceRequestItem[] }>(url, opts);
+  return res.queue;
+}

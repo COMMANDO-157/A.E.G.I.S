@@ -29,6 +29,7 @@ export default function AuthorityLayout() {
 
   const navItems = [
     { to: '/authority', label: t.common.dashboard, end: true, icon: '📊' },
+    { to: '/authority/services', label: 'Services Queue', icon: '🛎️' },
     { to: '/authority/cases', label: t.authority.assignedCasesTitle, icon: '📋' },
     { to: '/authority/students', label: 'Student Verification', icon: '🎓' },
     { to: '/authority/review', label: t.authority.verificationReviewsTitle, icon: '🔍' },
@@ -45,7 +46,9 @@ export default function AuthorityLayout() {
     const crumbs: { label: string; to?: string | undefined }[] = [
       { label: `${t.authority.portalBadge}`, to: '/authority' },
     ];
-    if (location.pathname === '/authority/cases') {
+    if (location.pathname === '/authority/services') {
+      crumbs.push({ label: 'Services Queue' });
+    } else if (location.pathname === '/authority/cases') {
       crumbs.push({ label: t.authority.assignedCasesTitle });
     } else if (location.pathname === '/authority/review') {
       crumbs.push({ label: t.authority.verificationReviewsTitle });
@@ -54,7 +57,7 @@ export default function AuthorityLayout() {
   };
 
   return (
-    <div className={styles.shell}>
+    <div className={styles.shell} data-theme="stewardship">
       <a href="#main-content" className="skip-link">
         Skip to main content
       </a>
